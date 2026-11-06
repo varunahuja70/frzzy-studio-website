@@ -1,39 +1,66 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion, useInView } from 'motion/react';
 import {
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  Maximize2,
   ArrowUpRight,
-  Plus,
+  Eye,
   Minus,
+  Plus,
 } from 'lucide-react';
 import {
   FAQ_ITEMS,
   LanguageCode,
   ThemeMode,
-  formatVideoTimecode,
   splitCharacters,
   toggleFaqItem,
 } from '@/lib/hero-config';
 
 interface FaqSectionProps {
-  theme: ThemeMode;
+  theme?: ThemeMode;
   language: LanguageCode;
   onBookProject?: () => void;
 }
+
+interface ShowcaseCard {
+  id: string;
+  label: string;
+  subtitle: string;
+  videoSrc: string;
+  posterSrc: string;
+  isCenter?: boolean;
+}
+
+const SHOWCASE_CARDS: ShowcaseCard[] = [
+  {
+    id: 'story',
+    label: 'STORY',
+    subtitle: 'NOT HAVING ANY CREATIVE',
+    videoSrc: '/assets/videos/works/work-1.mp4',
+    posterSrc: '/assets/works/work-1.png',
+  },
+  {
+    id: 'pace',
+    label: 'PACE',
+    subtitle: 'BALI MASTERMIND',
+    videoSrc: '/assets/videos/works/work-2.mp4',
+    posterSrc: '/assets/works/work-2.png',
+    isCenter: true,
+  },
+  {
+    id: 'motion',
+    label: 'MOTION',
+    subtitle: 'WE GET ASKED OVER AGAIN',
+    videoSrc: '/assets/videos/works/work-3.mp4',
+    posterSrc: '/assets/works/work-3.png',
+  },
+];
 
 export function FaqSection({ language, onBookProject }: FaqSectionProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const rightColRef = useRef<HTMLDivElement | null>(null);
-  const videoContainerRef = useRef<HTMLDivElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const isHeaderInView = useInView(headerRef, {
     once: false,
@@ -53,64 +80,13 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
 
   const [openId, setOpenId] = useState<string | null>(FAQ_ITEMS[0].id);
   const [isHeadingHovered, setIsHeadingHovered] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(24);
 
   const isNl = language === 'NL';
-
-  useEffect(() => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    if (isSectionInView && isPlaying) {
-      const p = vid.play();
-      if (p !== undefined) {
-        p.catch(() => {});
-      }
-    } else if (!isSectionInView) {
-      vid.pause();
-    }
-  }, [isSectionInView, isPlaying]);
-
-  const handleTogglePlay = useCallback(() => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    if (vid.paused) {
-      vid.play().catch(() => {});
-      setIsPlaying(true);
-    } else {
-      vid.pause();
-      setIsPlaying(false);
-    }
-  }, []);
-
-  const handleToggleMute = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const vid = videoRef.current;
-    if (!vid) return;
-    vid.muted = !vid.muted;
-    setIsMuted(vid.muted);
-  }, []);
-
-  const handleFullscreen = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const el = videoContainerRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else if (el.requestFullscreen) {
-      el.requestFullscreen().catch(() => {});
-    }
-  }, []);
 
   const line1Text = isNl ? 'Antwoorden op' : 'Answers to';
   const line2Text = isNl ? 'veelgestelde vragen.' : 'common questions.';
   const line1Chars = splitCharacters(line1Text);
   const line2Chars = splitCharacters(line2Text);
-
-  const progressPct =
-    duration > 0 ? Math.min(100, Math.max(4, (currentTime / duration) * 100)) : 8;
 
   return (
     <section
@@ -122,7 +98,7 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
     >
       <div className="mx-auto w-full max-w-[1392px]">
         <div className="grid grid-cols-1 lg:grid-cols-12 items-start gap-12 lg:gap-14">
-          {/* Left Column: Eyebrow + Display Heading + Subtitle + 6 FAQ Accordion Cards */}
+          {/* ================= LEFT COLUMN: Eyebrow + Display Heading + Subtitle + 6 FAQ Accordion Cards ================= */}
           <div className="lg:col-span-6 flex flex-col">
             <div ref={headerRef}>
               {/* Eyebrow Row: Line + FAQ */}
@@ -355,148 +331,106 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
             </div>
           </div>
 
-          {/* Right Column: Showreel Video Card + "Book a Project" Full-Width Pill Button */}
+          {/* ================= RIGHT COLUMN: 3 Vertical Video Cards + Aligned Bottom Button ================= */}
           <div
             ref={rightColRef}
-            className="lg:col-span-6 lg:mt-[46px] flex flex-col gap-4"
+            className="lg:col-span-6 lg:pt-[110px] xl:pt-[124px] flex flex-col justify-between h-full gap-8"
           >
-            {/* Rounded Video Showcase Card */}
+            {/* 3 Vertical Reel Cards (Staggered Dynamic Height with Center Elevation) */}
             <motion.div
-              ref={videoContainerRef}
-              initial={{ y: 32, scale: 0.95, opacity: 0 }}
+              initial={{ y: 32, opacity: 0 }}
               animate={
                 isRightInView
-                  ? { y: 0, scale: 1, opacity: 1 }
-                  : { y: 32, scale: 0.95, opacity: 0 }
+                  ? { y: 0, opacity: 1 }
+                  : { y: 32, opacity: 0 }
               }
               transition={{
                 duration: 0.68,
                 delay: 0.06,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              onClick={handleTogglePlay}
-              data-testid="faq-video-card"
-              className="group relative w-full aspect-[4/3] sm:aspect-[16/12.5] overflow-hidden rounded-[24px] sm:rounded-[28px] bg-[#141416] shadow-[0_28px_64px_-24px_rgba(18,17,11,0.22)] cursor-pointer select-none will-change-transform"
+              className="grid grid-cols-3 gap-2.5 sm:gap-3.5 items-center w-full"
             >
-              {/* Poster Image Fallback */}
-              <Image
-                src="/assets/cards/card-3.png"
-                alt="FRXCX Studio Showreel"
-                fill
-                sizes="(max-width: 1024px) 100vw, 680px"
-                referrerPolicy="no-referrer"
-                draggable={false}
-                className="object-cover opacity-90"
-              />
-
-              {/* Auto-Playing Showreel Video */}
-              <video
-                ref={videoRef}
-                src="/assets/videos/card-3.mp4"
-                poster="/assets/cards/card-3.png"
-                autoPlay
-                loop
-                muted={isMuted}
-                playsInline
-                preload="auto"
-                onLoadedMetadata={(e) => {
-                  const dur = e.currentTarget.duration;
-                  if (Number.isFinite(dur) && dur > 0) {
-                    setDuration(Math.max(24, Math.round(dur)));
-                  }
-                }}
-                onTimeUpdate={(e) => {
-                  setCurrentTime(e.currentTarget.currentTime);
-                }}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.02]"
-              />
-
-              {/* Subtle Top & Bottom Cinematic Vignette */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/15"
-              />
-
-              {/* Center Frosted Glass Circular Play/Pause Button */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleTogglePlay();
-                  }}
-                  aria-label={isPlaying ? 'Pause studio reel' : 'Play studio reel'}
-                  className="flex h-16 w-16 sm:h-[72px] sm:w-[72px] items-center justify-center rounded-full bg-white/25 backdrop-blur-md border border-white/45 text-white shadow-lg transition-all duration-300 group-hover:scale-105 hover:bg-white/35 cursor-pointer"
-                >
-                  {isPlaying ? (
-                    <Pause className="h-6 w-6 fill-white text-white" />
-                  ) : (
-                    <Play className="h-6 w-6 translate-x-0.5 fill-white text-white" />
-                  )}
-                </button>
-              </div>
-
-              {/* Bottom Player Controls Overlay (Timecode + Volume + Fullscreen + Progress Bar) */}
-              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6 flex flex-col gap-3">
-                <div className="flex items-center justify-between text-white">
-                  <span className="text-[13px] sm:text-[14px] font-medium tracking-[0.02em] tabular-nums drop-shadow-xs">
-                    {formatVideoTimecode(currentTime)} /{' '}
-                    {formatVideoTimecode(duration)}
-                  </span>
-
-                  <div className="flex items-center gap-3.5">
-                    <button
-                      type="button"
-                      onClick={handleToggleMute}
-                      aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-                      className="text-white/90 hover:text-white transition-colors cursor-pointer"
-                    >
-                      {isMuted ? (
-                        <VolumeX className="h-[18px] w-[18px]" />
-                      ) : (
-                        <Volume2 className="h-[18px] w-[18px]" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleFullscreen}
-                      aria-label="Toggle fullscreen video"
-                      className="text-white/90 hover:text-white transition-colors cursor-pointer"
-                    >
-                      <Maximize2 className="h-[17px] w-[17px]" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Progress Scrubber Track */}
-                <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/30">
+              {SHOWCASE_CARDS.map((card) => {
+                const isCenter = card.isCenter;
+                return (
                   <div
-                    style={{ width: `${progressPct}%` }}
-                    className="h-full rounded-full bg-white transition-all duration-200"
-                  />
-                </div>
-              </div>
+                    key={card.id}
+                    className={`relative overflow-hidden rounded-[18px] sm:rounded-[22px] bg-[#0c0c0e] select-none transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                      isCenter
+                        ? 'aspect-[9/16] sm:scale-[1.05] z-10 shadow-[0_24px_50px_-16px_rgba(0,0,0,0.4)] border border-white/10'
+                        : 'aspect-[9/15.2] shadow-[0_16px_36px_-12px_rgba(0,0,0,0.25)] border border-black/5 dark:border-white/5 opacity-90 hover:opacity-100'
+                    }`}
+                  >
+                    {/* Poster Fallback */}
+                    <Image
+                      src={card.posterSrc}
+                      alt={card.label}
+                      fill
+                      sizes="(max-width: 768px) 33vw, 220px"
+                      draggable={false}
+                      className="object-cover"
+                    />
+
+                    {/* Continuous Auto-Playing Video */}
+                    <video
+                      src={card.videoSrc}
+                      poster={card.posterSrc}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      disablePictureInPicture
+                      controls={false}
+                      className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+                    />
+
+                    {/* Subtle Gradient Shade for Text & Badge Visibility */}
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/10"
+                    />
+
+                    {/* Middle Bold Subtitle Overlay (Matching reference screenshot) */}
+                    <div className="absolute inset-x-0 bottom-12 sm:bottom-14 px-2 sm:px-3 text-center pointer-events-none">
+                      <p className="text-[10px] sm:text-[12px] font-bold text-white tracking-wider uppercase leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                        {card.subtitle}
+                      </p>
+                    </div>
+
+                    {/* Bottom Frosted Pill Badge: Eye Icon + Label */}
+                    <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 flex items-center justify-center pointer-events-none">
+                      <div className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white shadow-sm">
+                        <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 stroke-[2.2]" />
+                        <span className="text-[9px] sm:text-[10.5px] font-bold tracking-[0.14em] uppercase">
+                          {card.label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </motion.div>
 
-            {/* Full-Width "Book a Project" Pill CTA Button */}
+            {/* Bottom "Book a Project" Pill Button — Aligned Directly Opposite the Last FAQ Item */}
             <motion.button
               type="button"
               data-testid="faq-book-project-btn"
               onClick={onBookProject}
-              initial={{ y: 22, scale: 0.96, opacity: 0 }}
+              initial={{ y: 22, opacity: 0 }}
               animate={
                 isRightInView
-                  ? { y: 0, scale: 1, opacity: 1 }
-                  : { y: 22, scale: 0.96, opacity: 0 }
+                  ? { y: 0, opacity: 1 }
+                  : { y: 22, opacity: 0 }
               }
               transition={{
                 duration: 0.62,
                 delay: 0.14,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="group relative flex h-[62px] sm:h-[68px] w-full items-center justify-between rounded-full bg-[#141416] dark:bg-[#f4efea] text-[#f4efea] dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white px-7 sm:px-8 shadow-[0_20px_44px_-16px_rgba(18,17,11,0.25)] transition-colors duration-400 cursor-pointer will-change-transform"
+              className="group relative flex h-[58px] sm:h-[64px] w-full items-center justify-between rounded-full bg-[#141416] dark:bg-[#f4efea] text-[#f4efea] dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white px-7 sm:px-8 shadow-[0_20px_44px_-16px_rgba(18,17,11,0.25)] transition-colors duration-400 cursor-pointer will-change-transform mt-auto"
             >
-              <span className="relative block h-[24px] overflow-hidden text-[16.5px] sm:text-[18px] font-medium tracking-[-0.015em] leading-[24px]">
+              <span className="relative block h-[24px] overflow-hidden text-[16px] sm:text-[17.5px] font-medium tracking-[-0.015em] leading-[24px]">
                 <span className="block transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-full">
                   {isNl ? 'Boek een Project' : 'Book a Project'}
                 </span>
