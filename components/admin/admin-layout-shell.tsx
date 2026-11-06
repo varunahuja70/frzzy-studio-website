@@ -439,10 +439,10 @@ export function AdminLayoutShell({
           )}
         </AnimatePresence>
 
-        {/* ================= RIGHT WORKSPACE: Sticky Top Bar + Scrollable Content ================= */}
+        {/* ================= DESKTOP SIDEBAR SPACER ================= */}
         <div
-          style={{ paddingLeft: isRailCollapsed ? '72px' : '260px' }}
-          className="hidden lg:block w-full transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          style={{ width: isRailCollapsed ? '72px' : '260px' }}
+          className="hidden lg:block shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
         />
 
         <div className="flex-1 flex flex-col min-w-0">

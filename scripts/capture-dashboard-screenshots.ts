@@ -29,7 +29,6 @@ async function main() {
     id: sessionId,
     adminId,
     tokenHash,
-    csrfToken,
     ipAddress: '127.0.0.1',
     userAgent: 'Playwright-Screenshot-Bot',
     expiresAt: now + 8 * 60 * 60 * 1000,

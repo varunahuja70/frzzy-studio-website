@@ -52,6 +52,8 @@ export default function AdminLoginPage(props: {
         setError(data.error || 'Invalid credentials');
       } else if (data.requires2Fa) {
         setStep('2fa');
+      } else {
+        window.location.href = `/${adminPath}`;
       }
     } catch {
       setError('Connection failure. Please retry.');
@@ -86,7 +88,7 @@ export default function AdminLoginPage(props: {
         setError(data.error || 'Verification code failed');
       } else {
         // Successfully verified! Redirect to Dashboard
-        router.push(`/${adminPath}`);
+        window.location.href = `/${adminPath}`;
       }
     } catch {
       setError('Connection failure. Please retry.');

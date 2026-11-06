@@ -114,20 +114,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Create session (twoFactorVerified = false until Step 2 is completed)
+    const requires2Fa = Boolean(admin.twoFactorEnabled);
+
+    // Create session (twoFactorVerified = true if 2FA not required)
     const { token, csrfToken } = await createAdminSession({
       adminId: admin.id,
       ipAddress: ip,
       userAgent,
-      twoFactorVerified: false,
+      twoFactorVerified: !requires2Fa,
     });
 
     await ensureMinResponseTime();
 
     const response = NextResponse.json({
-      requires2Fa: true,
+      requires2Fa,
       email: admin.email,
-      message: 'Password verified. Enter your two-factor authenticator code.',
+      message: requires2Fa
+        ? 'Password verified. Enter your two-factor authenticator code.'
+        : 'Logged in successfully.',
     });
 
     // Set temporary step-1 session cookie
