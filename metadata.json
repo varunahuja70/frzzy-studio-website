@@ -1,0 +1,6 @@
+{
+  "name": "Weichie — Think. Shoot. Design.",
+  "description": "Pixel-perfect interactive editorial hero experience with Weichie navigation, staggered bottom-up reveal animations, and hover-triggered inline video cards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
