@@ -1,12 +1,42 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Safe Area Insets for notch and edge-to-edge mobile devices */
+/* Design Tokens & Theme Variables */
 :root {
+  /* Safe Area Insets for notch and edge-to-edge mobile devices */
   --sat: env(safe-area-inset-top, 0px);
   --sar: env(safe-area-inset-right, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
+
+  /* Colors */
+  --color-bg-light: #ecf5f4;
+  --color-surface-light: #ffffff;
+  --color-card-light: #f7f6f2;
+  --color-text-light: #12110b;
+  --color-muted-light: #5a6265;
+  --color-border-light: rgba(18, 17, 11, 0.08);
+
+  --color-bg-dark: #12110b;
+  --color-surface-dark: #181712;
+  --color-card-dark: #201f18;
+  --color-text-dark: #f4efea;
+  --color-muted-dark: #9e9b91;
+  --color-border-dark: rgba(255, 255, 255, 0.08);
+
+  --color-brand: #ff4f31;
+  --color-accent-green: #26d67c;
+  --color-warning: #f59e0b;
+
+  /* Typography */
+  --font-family-display: var(--font-hero), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-sans: var(--font-nav), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Transitions & Animation Physics */
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 180ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
 }
 
 /* Touch Action & Native Media Copy Deterrence */
