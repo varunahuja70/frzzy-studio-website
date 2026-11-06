@@ -1,20 +1,19 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { AnimatePresence, motion, useInView } from 'motion/react';
 import {
+  ArrowLeft,
   ArrowRight,
   Calendar as CalendarIcon,
   Check,
   CheckCheck,
-  Clock,
   Copy,
   ExternalLink,
-  Globe,
   Link as LinkIcon,
   MessageSquare,
   Settings,
-  Sparkles,
 } from 'lucide-react';
 import { LanguageCode, ThemeMode } from '@/lib/hero-config';
 
@@ -39,8 +38,8 @@ interface FormState {
   firstName: string;
   lastName: string;
   email: string;
-  category: string;
   message: string;
+  agreeToTerms: boolean;
 }
 
 interface FormErrors {
@@ -48,20 +47,49 @@ interface FormErrors {
   lastName?: string;
   email?: string;
   message?: string;
+  agreeToTerms?: string;
 }
 
-const CATEGORIES_EN = [
-  'Web & Digital Experience',
-  'Brand & Visual Identity',
-  '3D & Motion Direction',
-  'Full Studio Production',
+const TESTIMONIALS_EN = [
+  {
+    quote:
+      'An absolute pleasure from start to finish. Their team’s dedication to bringing our vision to life with precision and creativity crafted an immersive online experience that truly elevated our brand.',
+    author: 'Elena Vance',
+    role: 'Chief Design Officer, Aether',
+  },
+  {
+    quote:
+      'The motion design, spatial lighting, and editorial confidence FRXCX brought to our brand relaunch doubled our inbound conversion rate in the first 30 days.',
+    author: 'Marcus Chen',
+    role: 'Founder, Kinetix AI',
+  },
+  {
+    quote:
+      'They do not just build websites; they build complete sensory digital worlds. Reliable, incredibly fast, and world-class in execution quality.',
+    author: 'Sophie Laurent',
+    role: 'VP Creative Direction, Nova',
+  },
 ];
 
-const CATEGORIES_NL = [
-  'Web & Digitale Ervaring',
-  'Merk & Visuele Identiteit',
-  '3D & Motion Regie',
-  'Volledige Studio Productie',
+const TESTIMONIALS_NL = [
+  {
+    quote:
+      'Een absoluut plezier van begin tot eind. De toewijding van het team om onze visie met precisie en creativiteit tot leven te brengen resulteerde in een meeslepende online ervaring.',
+    author: 'Elena Vance',
+    role: 'Chief Design Officer, Aether',
+  },
+  {
+    quote:
+      'Het motion design en het redactionele vertrouwen dat FRXCX in onze herlancering bracht, verdubbelde onze conversieratio in de eerste maand.',
+    author: 'Marcus Chen',
+    role: 'Oprichter, Kinetix AI',
+  },
+  {
+    quote:
+      'Ze bouwen niet zomaar websites; ze creëren complete digitale belevingswerelden. Betrouwbaar, snel en van absoluut wereldklasse niveau.',
+    author: 'Sophie Laurent',
+    role: 'VP Creative Direction, Nova',
+  },
 ];
 
 export function ContactBookingSection({
@@ -76,23 +104,23 @@ export function ContactBookingSection({
   const isNl = language === 'NL';
 
   const sectionRef = useRef<HTMLElement | null>(null);
-  const leftColRef = useRef<HTMLDivElement | null>(null);
-  const rightColRef = useRef<HTMLDivElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
-  const isLeftInView = useInView(leftColRef, { once: false, amount: 0.1 });
-  const isRightInView = useInView(rightColRef, { once: false, amount: 0.1 });
+  const isCardInView = useInView(cardRef, { once: false, amount: 0.1 });
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('message');
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // Active Calendly link with easy customization support
+  // Testimonial slider state
+  const [testimonialIdx, setTestimonialIdx] = useState(0);
+  const testimonials = isNl ? TESTIMONIALS_NL : TESTIMONIALS_EN;
+
+  // Calendly URL state
   const [customCalendlyUrl, setCustomCalendlyUrl] = useState(calendlyUrl);
   const [showUrlEditor, setShowUrlEditor] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
-
-  const categories = isNl ? CATEGORIES_NL : CATEGORIES_EN;
 
   useEffect(() => {
     setCustomCalendlyUrl(calendlyUrl);
@@ -102,11 +130,23 @@ export function ContactBookingSection({
     firstName: '',
     lastName: '',
     email: '',
-    category: categories[0],
     message: '',
+    agreeToTerms: true,
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+
+  const handlePrevTestimonial = () => {
+    setTestimonialIdx((prev) =>
+      prev === 0 ? testimonials.length - 1 : prev - 1
+    );
+  };
+
+  const handleNextTestimonial = () => {
+    setTestimonialIdx((prev) =>
+      prev === testimonials.length - 1 ? 0 : prev + 1
+    );
+  };
 
   const handleCopyEmail = async () => {
     try {
@@ -134,6 +174,11 @@ export function ContactBookingSection({
     if (!formData.message.trim()) {
       errs.message = isNl ? 'Bericht is verplicht' : 'Message is required';
     }
+    if (!formData.agreeToTerms) {
+      errs.agreeToTerms = isNl
+        ? 'Ga akkoord met de voorwaarden'
+        : 'Please accept terms to continue';
+    }
 
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -155,18 +200,17 @@ export function ContactBookingSection({
       firstName: '',
       lastName: '',
       email: '',
-      category: categories[0],
       message: '',
+      agreeToTerms: true,
     });
     setErrors({});
     setIsSubmitted(false);
   };
 
-  // Build themed Calendly URL with custom styling parameters
   const getThemedCalendlyUrl = (rawUrl: string) => {
     try {
       const url = new URL(rawUrl);
-      const bg = isDark ? '191812' : 'ffffff';
+      const bg = isDark ? '181712' : 'ffffff';
       const text = isDark ? 'f4efea' : '12110b';
       const primary = 'ff4f31';
       url.searchParams.set('hide_landing_page_details', '1');
@@ -180,586 +224,539 @@ export function ContactBookingSection({
     }
   };
 
+  const currentTestimonial = testimonials[testimonialIdx];
+
   return (
     <section
       id="contact"
       ref={sectionRef}
       data-testid="contact-booking-section"
       aria-labelledby="contact-heading"
-      className="relative w-full bg-[#ecf5f4] dark:bg-[#12110b] text-[#12110b] dark:text-[#f4efea] px-4 sm:px-6 lg:px-10 xl:px-16 pt-10 sm:pt-14 pb-16 sm:pb-20 lg:pb-24 min-h-[calc(100vh-80px)] flex items-center justify-center transition-colors duration-500"
+      className="relative w-full bg-[#ecf5f4] dark:bg-[#12110b] text-[#12110b] dark:text-[#f4efea] px-4 sm:px-6 lg:px-10 xl:px-14 py-12 sm:py-16 lg:py-20 transition-colors duration-500"
     >
-      <div className="mx-auto w-full max-w-[1380px]">
-        <div className="w-full grid grid-cols-1 lg:grid-cols-12 items-stretch gap-8 lg:gap-10 xl:gap-14">
-          {/* ================= LEFT COLUMN: Refined Editorial Balance ================= */}
-          <motion.div
-            ref={leftColRef}
-            initial={{ opacity: 0, y: 18 }}
-            animate={isLeftInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="lg:col-span-5 flex flex-col justify-between py-2 sm:py-4"
-          >
-            <div>
-              {/* Reference-Styled Heading */}
-              <h2
-                id="contact-heading"
-                className="text-[42px] sm:text-[54px] lg:text-[58px] xl:text-[68px] font-semibold tracking-[-0.035em] leading-[1.03] text-[#12110b] dark:text-[#f4efea]"
+      <div className="mx-auto w-full max-w-[1360px]">
+        {/* ================= UNIFIED DUAL-COLUMN CARD (Pixel-Perfect Match with User Reference) ================= */}
+        <motion.div
+          ref={cardRef}
+          initial={{ opacity: 0, y: 24 }}
+          animate={isCardInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full rounded-[30px] sm:rounded-[38px] bg-white dark:bg-[#181712] p-3 sm:p-4 lg:p-5 shadow-[0_24px_65px_-18px_rgba(18,17,11,0.08)] dark:shadow-[0_24px_65px_-18px_rgba(0,0,0,0.7)] border border-black/[0.05] dark:border-white/[0.07] grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 lg:gap-8 items-stretch transition-colors duration-500"
+        >
+          {/* ================= LEFT COLUMN: Cinematic 3D Visual + Frosted Testimonial Card ================= */}
+          <div className="lg:col-span-5 relative rounded-[24px] sm:rounded-[32px] overflow-hidden min-h-[460px] sm:min-h-[520px] lg:min-h-[640px] bg-[#0c0c0e] flex flex-col justify-between p-4 sm:p-6 lg:p-7">
+            {/* Background Cinematic Visual / Looping Video */}
+            <div className="absolute inset-0 z-0 overflow-hidden">
+              <video
+                src="/assets/videos/card-1.mp4"
+                poster="/assets/cards/card-1.png"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="h-full w-full object-cover brightness-[0.92] contrast-[1.08] transition-transform duration-700 hover:scale-105"
+              />
+              {/* Cinematic Vignette Overlay */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/20"
+              />
+            </div>
+
+            {/* Top Left Floating Studio Badge */}
+            <div className="relative z-10 flex items-center justify-between w-full">
+              <div className="inline-flex items-center gap-2 rounded-full bg-black/40 backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold text-white/90 border border-white/15">
+                <span className="h-2 w-2 rounded-full bg-[#ff4f31] animate-pulse" />
+                <span>FRXCX Flagship Studio</span>
+              </div>
+
+              {/* Email Copy Tooltip */}
+              <button
+                type="button"
+                onClick={handleCopyEmail}
+                className="flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-md px-3 py-1.5 text-xs text-white/80 hover:text-white border border-white/15 hover:border-white/30 transition-all cursor-pointer"
+                title="Copy direct email"
               >
-                {isNl ? (
+                {copiedEmail ? (
                   <>
-                    Neem —
-                    <br />
-                    contact op
+                    <CheckCheck className="h-3 w-3 text-emerald-400" />
+                    <span className="text-[11px] font-semibold text-emerald-400">
+                      Copied!
+                    </span>
                   </>
                 ) : (
                   <>
-                    Get in —
-                    <br />
-                    touch with us
+                    <Copy className="h-3 w-3" />
+                    <span className="text-[11px]">Copy Email</span>
                   </>
                 )}
-              </h2>
-
-              {/* Agency Description */}
-              <p className="mt-4 sm:mt-5 text-[15px] sm:text-[16px] leading-[1.62] text-[#12110b]/75 dark:text-[#f4efea]/75 max-w-[430px]">
-                {isNl
-                  ? "We denken graag met je mee! Of je nu een vraag hebt over onze diensten, een grensverleggend project wilt bespreken of feedback wilt delen, ons team staat klaar om je te helpen."
-                  : "We're here to help! Whether you have a question about our services, need assistance with your project, or want to explore collaboration, our team is ready to assist you."}
-              </p>
-
-              {/* Essential Contact Information */}
-              <div className="mt-7 sm:mt-10 space-y-5 sm:space-y-6">
-                {/* Email Item */}
-                <div>
-                  <span className="block text-[13px] font-medium text-[#12110b]/60 dark:text-[#f4efea]/60">
-                    Email:
-                  </span>
-                  <div className="mt-1 flex items-center gap-2.5">
-                    <a
-                      href={`mailto:${studioEmail}`}
-                      className="text-[20px] sm:text-[23px] font-semibold tracking-[-0.02em] text-[#12110b] dark:text-[#f4efea] hover:text-[#ff4f31] dark:hover:text-[#ff4f31] transition-colors"
-                    >
-                      {studioEmail}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={handleCopyEmail}
-                      aria-label="Copy studio email address"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-black/5 dark:bg-white/10 hover:bg-[#ff4f31] hover:text-white dark:hover:bg-[#ff4f31] text-[#12110b] dark:text-[#f4efea] transition-all cursor-pointer"
-                      title="Copy email"
-                    >
-                      {copiedEmail ? (
-                        <CheckCheck className="h-3.5 w-3.5 text-emerald-500 hover:text-white" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                    {copiedEmail && (
-                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        {isNl ? 'Gekopieerd!' : 'Copied!'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Phone Item */}
-                <div>
-                  <span className="block text-[13px] font-medium text-[#12110b]/60 dark:text-[#f4efea]/60">
-                    Phone:
-                  </span>
-                  <a
-                    href={`tel:${studioPhone.replace(/\D/g, '')}`}
-                    className="mt-1 block text-[20px] sm:text-[23px] font-semibold tracking-[-0.02em] text-[#12110b] dark:text-[#f4efea] hover:text-[#ff4f31] dark:hover:text-[#ff4f31] transition-colors"
-                  >
-                    {studioPhone}
-                  </a>
-                  <p className="mt-1 text-[13px] text-[#12110b]/55 dark:text-[#f4efea]/55">
-                    {isNl
-                      ? 'Beschikbaar van maandag t/m vrijdag, 9:00 – 18:00 GMT'
-                      : 'Available Monday to Friday, 9 AM – 6 PM GMT'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom-left Pill Button (Matching Reference Image) */}
-            <div className="mt-8 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab((prev) => (prev === 'call' ? 'message' : 'call'));
-                }}
-                className="group relative inline-flex items-center gap-3.5 h-[50px] rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white pl-6 pr-2.5 transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-sm hover:shadow-xl hover:shadow-black/10 active:scale-[0.97] cursor-pointer"
-              >
-                {/* Premium Rolling Text Animation */}
-                <span className="relative block h-[18px] overflow-hidden text-[14px] font-semibold tracking-[-0.01em] leading-[18px]">
-                  <span className="block transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-full">
-                    {activeTab === 'call'
-                      ? isNl
-                        ? 'Stuur een Bericht'
-                        : 'Send a Message'
-                      : isNl
-                      ? 'Plan een Gesprek'
-                      : 'Book a Call'}
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className="block transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-full"
-                  >
-                    {activeTab === 'call'
-                      ? isNl
-                        ? 'Stuur een Bericht'
-                        : 'Send a Message'
-                      : isNl
-                      ? 'Plan een Gesprek'
-                      : 'Book a Call'}
-                  </span>
-                </span>
-
-                {/* Circular Arrow Badge */}
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-[#12110b] text-[#12110b] dark:text-[#f4efea] group-hover:bg-white group-hover:text-[#ff4f31] transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:rotate-45">
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
-                </span>
               </button>
             </div>
-          </motion.div>
 
-          {/* ================= RIGHT COLUMN: Luxury Wide & Fully Visible Card ================= */}
-          <div className="lg:col-span-7 flex justify-center lg:justify-end">
-            <motion.div
-              ref={rightColRef}
-              initial={{ opacity: 0, y: 22 }}
-              animate={isRightInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
-              transition={{ duration: 0.65, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-[700px] rounded-[32px] sm:rounded-[40px] bg-[#fbf9f6] dark:bg-[#191812] p-6 sm:p-8 lg:p-10 shadow-[0_26px_60px_-20px_rgba(18,17,11,0.07)] dark:shadow-[0_26px_60px_-20px_rgba(0,0,0,0.65)] border border-black/[0.04] dark:border-white/[0.06] flex flex-col justify-between transition-colors duration-500"
-            >
-              <div>
-                {/* Top: Pill Tab Switcher */}
-                <div className="flex items-center justify-between pb-3.5 mb-5 border-b border-black/[0.05] dark:border-white/[0.06]">
-                  <div className="inline-flex items-center p-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] relative">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('message')}
-                      className={`relative z-10 flex items-center gap-2 px-4 sm:px-5 py-2 text-xs sm:text-[13px] font-semibold transition-colors duration-300 cursor-pointer ${
-                        activeTab === 'message'
-                          ? 'text-[#12110b] dark:text-[#f4efea]'
-                          : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
-                      }`}
-                    >
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>{isNl ? 'Stuur een Bericht' : 'Send a Message'}</span>
-                      {activeTab === 'message' && (
-                        <motion.div
-                          layoutId="luxuryWideTabPill"
-                          className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
-                          transition={{
-                            type: 'spring',
-                            stiffness: 450,
-                            damping: 32,
-                          }}
-                        />
-                      )}
-                    </button>
+            {/* Bottom Frosted Glass Testimonial Card (Exact Match with Reference Image) */}
+            <div className="relative z-10 rounded-[20px] sm:rounded-[24px] bg-black/45 backdrop-blur-xl border border-white/20 p-5 sm:p-6 text-white shadow-2xl">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={testimonialIdx}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <p className="text-[13.5px] sm:text-[14.5px] leading-[1.65] text-white/95 font-normal tracking-[-0.01em]">
+                    &ldquo;{currentTestimonial.quote}&rdquo;
+                  </p>
+                  <div className="mt-4 pt-3 border-t border-white/15 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[13.5px] font-semibold text-white tracking-tight">
+                        {currentTestimonial.author}
+                      </p>
+                      <p className="text-xs text-white/65 mt-0.5">
+                        {currentTestimonial.role}
+                      </p>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('call')}
-                      className={`relative z-10 flex items-center gap-2 px-4 sm:px-5 py-2 text-xs sm:text-[13px] font-semibold transition-colors duration-300 cursor-pointer ${
-                        activeTab === 'call'
-                          ? 'text-[#12110b] dark:text-[#f4efea]'
-                          : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
-                      }`}
-                    >
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                      <span>{isNl ? 'Plan een Gesprek' : 'Book a Call'}</span>
-                      {activeTab === 'call' && (
-                        <motion.div
-                          layoutId="luxuryWideTabPill"
-                          className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
-                          transition={{
-                            type: 'spring',
-                            stiffness: 450,
-                            damping: 32,
-                          }}
-                        />
-                      )}
-                    </button>
-                  </div>
-
-                  {activeTab === 'call' && (
-                    <div className="flex items-center gap-2">
+                    {/* Circular Navigation Buttons: (←) (→) */}
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => setShowUrlEditor((prev) => !prev)}
-                        className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-[#12110b]/55 dark:text-[#f4efea]/55 transition-colors cursor-pointer"
-                        title="Configure Calendly Link"
+                        onClick={handlePrevTestimonial}
+                        aria-label="Previous testimonial"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 hover:bg-white text-white hover:text-black border border-white/20 transition-all duration-300 cursor-pointer"
                       >
-                        <Settings className="h-3.5 w-3.5" />
+                        <ArrowLeft className="h-3.5 w-3.5" />
                       </button>
-                      <a
-                        href={customCalendlyUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#ff4f31] dark:hover:text-[#ff4f31] transition-colors"
+                      <button
+                        type="button"
+                        onClick={handleNextTestimonial}
+                        aria-label="Next testimonial"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/25 hover:bg-white text-white hover:text-black border border-white/25 transition-all duration-300 cursor-pointer"
                       >
-                        <span>Calendly</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                  )}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* ================= RIGHT COLUMN: Editorial Brand Form & Calendly ================= */}
+          <div className="lg:col-span-7 flex flex-col justify-between px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+            <div>
+              {/* Brand Header & Mode Switcher */}
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-black/[0.05] dark:border-white/[0.07]">
+                {/* Brand Logo & Name */}
+                <div className="flex items-center gap-2.5">
+                  <div className="relative h-6 w-6 shrink-0">
+                    <Image
+                      src={
+                        isDark
+                          ? '/assets/aistudio/icon_dark_theam_png_crop_dccd2441.png'
+                          : '/assets/aistudio/icon_light_theam_png_crop_7be5d239.png'
+                      }
+                      alt="FRXCX Studio Logo"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <span className="text-[15px] font-semibold tracking-tight text-[#12110b] dark:text-[#f4efea]">
+                    FRXCX Studio
+                  </span>
                 </div>
 
-                {/* Animated Panels with Smooth Cross-fade */}
-                <AnimatePresence mode="wait">
-                  {activeTab === 'message' ? (
-                    /* ================= TAB 1: SEND A MESSAGE (With Category Picker) ================= */
-                    <motion.div
-                      key="tab-message"
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -12 }}
-                      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-                      className="space-y-4"
-                    >
-                      {isSubmitted ? (
-                        <div className="flex flex-col items-center justify-center text-center py-20">
-                          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ff4f31]/10 text-[#ff4f31] mb-5">
-                            <Check className="h-8 w-8 stroke-[2.5]" />
-                          </div>
-                          <h3 className="text-2xl font-semibold tracking-tight text-[#12110b] dark:text-[#f4efea]">
-                            {isNl ? 'Bericht Ontvangen' : 'Message Sent'}
-                          </h3>
-                          <p className="mt-3 max-w-sm text-sm text-[#12110b]/70 dark:text-[#f4efea]/70 leading-relaxed">
-                            {isNl
-                              ? `Bedankt ${formData.firstName}. We hebben je aanvraag voor ${formData.category} ontvangen en nemen binnen 24 uur contact op via ${formData.email}.`
-                              : `Thank you, ${formData.firstName}. We received your request for ${formData.category}. Our team will reply to ${formData.email} within 24 hours.`}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={resetForm}
-                            className="mt-8 inline-flex items-center gap-2 rounded-full bg-black/6 dark:bg-white/10 hover:bg-[#ff4f31] hover:text-white dark:hover:bg-[#ff4f31] dark:hover:text-white px-6 py-3 text-xs font-semibold transition-colors cursor-pointer"
-                          >
-                            {isNl ? 'Nieuw bericht versturen' : 'Send another message'}
-                          </button>
+                {/* Tab Pill: Send a Message | Book a Call */}
+                <div className="inline-flex items-center p-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] relative">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('message')}
+                    className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                      activeTab === 'message'
+                        ? 'text-[#12110b] dark:text-[#f4efea]'
+                        : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
+                    }`}
+                  >
+                    <MessageSquare className="h-3 w-3" />
+                    <span>{isNl ? 'Stuur Bericht' : 'Send a Message'}</span>
+                    {activeTab === 'message' && (
+                      <motion.div
+                        layoutId="editorialTabPill"
+                        className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
+                        transition={{
+                          type: 'spring',
+                          stiffness: 450,
+                          damping: 32,
+                        }}
+                      />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('call')}
+                    className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                      activeTab === 'call'
+                        ? 'text-[#12110b] dark:text-[#f4efea]'
+                        : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
+                    }`}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    <span>{isNl ? 'Plan Gesprek' : 'Book a Call'}</span>
+                    {activeTab === 'call' && (
+                      <motion.div
+                        layoutId="editorialTabPill"
+                        className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
+                        transition={{
+                          type: 'spring',
+                          stiffness: 450,
+                          damping: 32,
+                        }}
+                      />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Headline & Subtitle (Exact Reference Copywriting) */}
+              <div className="mb-6">
+                <h2
+                  id="contact-heading"
+                  className="text-[30px] sm:text-[36px] lg:text-[40px] font-semibold tracking-[-0.035em] leading-[1.08] text-[#12110b] dark:text-[#f4efea]"
+                >
+                  {isNl ? (
+                    <>
+                      Heb je een projectidee?
+                      <br />
+                      Laten we het samen bespreken.
+                    </>
+                  ) : (
+                    <>
+                      Have a project idea?
+                      <br />
+                      Let’s discuss it together.
+                    </>
+                  )}
+                </h2>
+                <p className="mt-2.5 text-xs sm:text-[13.5px] text-[#12110b]/65 dark:text-[#f4efea]/65 leading-relaxed max-w-xl">
+                  {isNl
+                    ? 'We staan altijd open voor nieuwe kansen. Deel gerust je vraag of briefing met ons team.'
+                    : 'We’re always open to new opportunities. Feel free to drop us a line if having any questions or projects.'}
+                </p>
+              </div>
+
+              {/* Body Panels */}
+              <AnimatePresence mode="wait">
+                {activeTab === 'message' ? (
+                  /* ================= TAB 1: WORKING FORM (Pixel-Perfect Reference Match) ================= */
+                  <motion.div
+                    key="tab-message"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    {isSubmitted ? (
+                      <div className="flex flex-col items-center justify-center text-center py-16">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#ff4f31]/10 text-[#ff4f31] mb-4">
+                          <Check className="h-7 w-7 stroke-[2.5]" />
                         </div>
-                      ) : (
-                        <form
-                          onSubmit={handleSubmit}
-                          noValidate
-                          className="space-y-4"
+                        <h3 className="text-xl font-semibold tracking-tight text-[#12110b] dark:text-[#f4efea]">
+                          {isNl ? 'Bericht Ontvangen!' : 'Message Received!'}
+                        </h3>
+                        <p className="mt-2 max-w-sm text-xs sm:text-sm text-[#12110b]/70 dark:text-[#f4efea]/70 leading-relaxed">
+                          {isNl
+                            ? `Bedankt ${formData.firstName}. We hebben je bericht ontvangen en nemen binnen 24 uur contact op via ${formData.email}.`
+                            : `Thank you, ${formData.firstName}. We received your inquiry and our studio directors will reply to ${formData.email} within 24 hours.`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={resetForm}
+                          className="mt-6 inline-flex items-center gap-2 rounded-full bg-black/6 dark:bg-white/10 hover:bg-[#ff4f31] hover:text-white dark:hover:bg-[#ff4f31] dark:hover:text-white px-5 py-2.5 text-xs font-semibold transition-colors cursor-pointer"
                         >
-                          {/* Row 1: First Name & Last Name */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            <div>
-                              <label
-                                htmlFor="fn-input"
-                                className="block text-[13px] font-semibold text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
-                              >
-                                {isNl ? 'Voornaam' : 'First Name'}
-                              </label>
-                              <input
-                                id="fn-input"
-                                type="text"
-                                value={formData.firstName}
-                                onChange={(e) => {
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    firstName: e.target.value,
-                                  }));
-                                  if (errors.firstName) {
-                                    setErrors((prev) => ({
-                                      ...prev,
-                                      firstName: undefined,
-                                    }));
-                                  }
-                                }}
-                                placeholder={
-                                  isNl
-                                    ? 'Vul je voornaam in...'
-                                    : 'Enter your first name...'
-                                }
-                                className={`w-full h-[48px] sm:h-[50px] rounded-[16px] bg-white dark:bg-black/30 px-4 text-[14.5px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
-                                  errors.firstName
-                                    ? 'border-[#ff4f31]'
-                                    : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
-                                } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all shadow-[0_2px_8px_-2px_rgba(0,0,0,0.02)]`}
-                              />
-                              {errors.firstName && (
-                                <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
-                                  {errors.firstName}
-                                </p>
-                              )}
-                            </div>
-
-                            <div>
-                              <label
-                                htmlFor="ln-input"
-                                className="block text-[13px] font-semibold text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
-                              >
-                                {isNl ? 'Achternaam' : 'Last Name'}
-                              </label>
-                              <input
-                                id="ln-input"
-                                type="text"
-                                value={formData.lastName}
-                                onChange={(e) => {
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    lastName: e.target.value,
-                                  }));
-                                  if (errors.lastName) {
-                                    setErrors((prev) => ({
-                                      ...prev,
-                                      lastName: undefined,
-                                    }));
-                                  }
-                                }}
-                                placeholder={
-                                  isNl
-                                    ? 'Vul je achternaam in...'
-                                    : 'Enter your last name...'
-                                }
-                                className={`w-full h-[48px] sm:h-[50px] rounded-[16px] bg-white dark:bg-black/30 px-4 text-[14.5px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
-                                  errors.lastName
-                                    ? 'border-[#ff4f31]'
-                                    : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
-                                } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all shadow-[0_2px_8px_-2px_rgba(0,0,0,0.02)]`}
-                              />
-                              {errors.lastName && (
-                                <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
-                                  {errors.lastName}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Row 2: Email */}
+                          {isNl
+                            ? 'Nieuw bericht versturen'
+                            : 'Send another message'}
+                        </button>
+                      </div>
+                    ) : (
+                      <form
+                        onSubmit={handleSubmit}
+                        noValidate
+                        className="space-y-4"
+                      >
+                        {/* Row 1: First name & Last name */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                           <div>
                             <label
-                              htmlFor="email-input"
-                              className="block text-[13px] font-semibold text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
+                              htmlFor="fn-input"
+                              className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
                             >
-                              {isNl ? 'E-mailadres' : 'Email'}
+                              {isNl ? 'Voornaam' : 'First name'}
                             </label>
                             <input
-                              id="email-input"
-                              type="email"
-                              value={formData.email}
+                              id="fn-input"
+                              type="text"
+                              value={formData.firstName}
                               onChange={(e) => {
                                 setFormData((prev) => ({
                                   ...prev,
-                                  email: e.target.value,
+                                  firstName: e.target.value,
                                 }));
-                                if (errors.email) {
+                                if (errors.firstName) {
                                   setErrors((prev) => ({
                                     ...prev,
-                                    email: undefined,
+                                    firstName: undefined,
                                   }));
                                 }
                               }}
                               placeholder={
-                                isNl
-                                  ? 'Vul je e-mailadres in...'
-                                  : 'Enter your email address...'
+                                isNl ? 'Voornaam' : 'First Name'
                               }
-                              className={`w-full h-[48px] sm:h-[50px] rounded-[16px] bg-white dark:bg-black/30 px-4 text-[14.5px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
-                                errors.email
+                              className={`w-full h-[46px] rounded-[14px] bg-[#f8f7f5] dark:bg-black/25 px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                                errors.firstName
                                   ? 'border-[#ff4f31]'
                                   : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
-                              } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all shadow-[0_2px_8px_-2px_rgba(0,0,0,0.02)]`}
+                              } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all`}
                             />
-                            {errors.email && (
+                            {errors.firstName && (
                               <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
-                                {errors.email}
+                                {errors.firstName}
                               </p>
                             )}
                           </div>
 
-                          {/* Row 3: Category Selector — Premium Minimal Grid */}
-                          <div>
-                            <label className="block text-[13px] font-semibold text-[#12110b]/80 dark:text-[#f4efea]/80 mb-2">
-                              {isNl
-                                ? 'Wat wil je laten maken?'
-                                : 'What are you looking to create?'}
-                            </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              {categories.map((cat) => {
-                                const isSelected = formData.category === cat;
-                                return (
-                                  <button
-                                    key={cat}
-                                    type="button"
-                                    onClick={() =>
-                                      setFormData((prev) => ({
-                                        ...prev,
-                                        category: cat,
-                                      }))
-                                    }
-                                    className={`group relative flex items-center justify-between h-[46px] rounded-[14px] px-4 text-[13.5px] font-medium transition-all duration-300 cursor-pointer ${
-                                      isSelected
-                                        ? 'bg-white dark:bg-[#25231c] text-[#12110b] dark:text-[#f4efea] border-2 border-[#12110b] dark:border-[#f4efea] shadow-sm'
-                                        : 'bg-white/80 dark:bg-black/25 text-[#12110b]/65 dark:text-[#f4efea]/65 border border-black/[0.08] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/20 hover:text-[#12110b] dark:hover:text-[#f4efea]'
-                                    }`}
-                                  >
-                                    <span className="truncate">{cat}</span>
-                                    <span
-                                      className={`h-2 w-2 rounded-full transition-all duration-300 shrink-0 ${
-                                        isSelected
-                                          ? 'bg-[#ff4f31] scale-110 shadow-[0_0_8px_rgba(255,79,49,0.5)]'
-                                          : 'bg-black/10 dark:bg-white/15 group-hover:bg-black/25 dark:group-hover:bg-white/30'
-                                      }`}
-                                    />
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Row 4: How can we help you? */}
                           <div>
                             <label
-                              htmlFor="msg-input"
-                              className="block text-[13px] font-semibold text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
+                              htmlFor="ln-input"
+                              className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
                             >
-                              {isNl
-                                ? 'Hoe kunnen we je helpen?'
-                                : 'How can we help you?'}
+                              {isNl ? 'Achternaam' : 'Last name'}
                             </label>
-                            <textarea
-                              id="msg-input"
-                              rows={4}
-                              value={formData.message}
+                            <input
+                              id="ln-input"
+                              type="text"
+                              value={formData.lastName}
                               onChange={(e) => {
                                 setFormData((prev) => ({
                                   ...prev,
-                                  message: e.target.value,
+                                  lastName: e.target.value,
                                 }));
-                                if (errors.message) {
+                                if (errors.lastName) {
                                   setErrors((prev) => ({
                                     ...prev,
-                                    message: undefined,
+                                    lastName: undefined,
                                   }));
                                 }
                               }}
                               placeholder={
-                                isNl
-                                  ? 'Vul je projectdetails of vraag in...'
-                                  : 'Enter your message or project details...'
+                                isNl ? 'Achternaam' : 'Last name'
                               }
-                              className={`w-full h-[120px] sm:h-[135px] rounded-[18px] bg-white dark:bg-black/30 p-4 text-[14.5px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
-                                errors.message
+                              className={`w-full h-[46px] rounded-[14px] bg-[#f8f7f5] dark:bg-black/25 px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                                errors.lastName
                                   ? 'border-[#ff4f31]'
                                   : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
-                              } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 resize-none transition-all shadow-[0_2px_8px_-2px_rgba(0,0,0,0.02)]`}
+                              } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all`}
                             />
-                            {errors.message && (
+                            {errors.lastName && (
                               <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
-                                {errors.message}
+                                {errors.lastName}
                               </p>
                             )}
                           </div>
+                        </div>
 
-                          {/* Row 5: Action Button (Fully Visible with Plenty of Clearance) */}
-                          <div className="pt-3 flex items-center justify-end">
-                            <button
-                              type="submit"
-                              disabled={isSubmitting}
-                              data-testid="contact-submit-btn"
-                              className="group relative inline-flex items-center gap-3.5 h-[50px] rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white pl-7 pr-3 transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-sm hover:shadow-xl hover:shadow-black/10 active:scale-[0.97] cursor-pointer disabled:opacity-60"
-                            >
-                              {/* Premium Rolling Text Animation */}
-                              <span className="relative block h-[18px] overflow-hidden text-[14px] font-semibold tracking-[-0.01em] leading-[18px]">
-                                <span className="block transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-full">
-                                  {isSubmitting
-                                    ? isNl
-                                      ? 'Verzenden...'
-                                      : 'Sending...'
-                                    : isNl
-                                    ? 'Verstuur Bericht'
-                                    : 'Send Message'}
-                                </span>
-                                <span
-                                  aria-hidden="true"
-                                  className="block transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-full"
-                                >
-                                  {isSubmitting
-                                    ? isNl
-                                      ? 'Verzenden...'
-                                      : 'Sending...'
-                                    : isNl
-                                    ? 'Verstuur Bericht'
-                                    : 'Send Message'}
-                                </span>
-                              </span>
-
-                              {/* Arrow Circle */}
-                              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-[#12110b] text-[#12110b] dark:text-[#f4efea] group-hover:bg-white group-hover:text-[#ff4f31] transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105">
-                                {isSubmitting ? (
-                                  <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-0.5" />
-                                )}
-                              </span>
-                            </button>
-                          </div>
-                        </form>
-                      )}
-                    </motion.div>
-                  ) : (
-                    /* ================= TAB 2: CALENDLY EMBED WITH CUSTOM ROUNDED BORDER FRAME ================= */
-                    <motion.div
-                      key="tab-booking"
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -12 }}
-                      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-                      className="space-y-3"
-                    >
-                      {/* URL Quick-Config Bar if user wants to change their Calendly Link */}
-                      {showUrlEditor && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="p-3 rounded-2xl bg-black/[0.04] dark:bg-white/[0.05] flex items-center gap-2 text-xs"
-                        >
-                          <LinkIcon className="h-3.5 w-3.5 text-[#ff4f31] shrink-0" />
-                          <input
-                            type="text"
-                            value={customCalendlyUrl}
-                            onChange={(e) => setCustomCalendlyUrl(e.target.value)}
-                            placeholder="Paste Calendly URL (e.g. https://calendly.com/your-name/30min)..."
-                            className="flex-1 bg-white dark:bg-black/30 rounded-lg px-3 py-1.5 outline-none text-xs border border-black/10 dark:border-white/10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIframeKey((k) => k + 1);
-                              setShowUrlEditor(false);
-                            }}
-                            className="rounded-lg bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] px-3 py-1.5 font-semibold text-xs cursor-pointer"
+                        {/* Row 2: Email address */}
+                        <div>
+                          <label
+                            htmlFor="email-input"
+                            className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
                           >
-                            Save
-                          </button>
-                        </motion.div>
-                      )}
+                            {isNl ? 'E-mailadres' : 'Email address'}
+                          </label>
+                          <input
+                            id="email-input"
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                email: e.target.value,
+                              }));
+                              if (errors.email) {
+                                setErrors((prev) => ({
+                                  ...prev,
+                                  email: undefined,
+                                }));
+                              }
+                            }}
+                            placeholder={
+                              isNl ? 'E-mailadres' : 'Email address'
+                            }
+                            className={`w-full h-[46px] rounded-[14px] bg-[#f8f7f5] dark:bg-black/25 px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              errors.email
+                                ? 'border-[#ff4f31]'
+                                : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
+                            } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all`}
+                          />
+                          {errors.email && (
+                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                              {errors.email}
+                            </p>
+                          )}
+                        </div>
 
-                      {/* Custom Framed Border Container for the Calendar */}
-                      <div className="relative w-full rounded-[24px] overflow-hidden bg-white dark:bg-black/20 border border-black/[0.08] dark:border-white/[0.1] shadow-inner h-[520px] sm:h-[560px]">
-                        <iframe
-                          key={iframeKey}
-                          src={getThemedCalendlyUrl(customCalendlyUrl)}
-                          title="Discovery Call Scheduling Calendar"
-                          className="w-full h-full border-none rounded-[22px]"
-                          allow="microphone; camera"
+                        {/* Row 3: Message */}
+                        <div>
+                          <label
+                            htmlFor="msg-input"
+                            className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
+                          >
+                            {isNl ? 'Bericht' : 'Message'}
+                          </label>
+                          <textarea
+                            id="msg-input"
+                            rows={4}
+                            value={formData.message}
+                            onChange={(e) => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                message: e.target.value,
+                              }));
+                              if (errors.message) {
+                                setErrors((prev) => ({
+                                  ...prev,
+                                  message: undefined,
+                                }));
+                              }
+                            }}
+                            placeholder={
+                              isNl
+                                ? 'Aanvullende informatie of projectdetails...'
+                                : 'Any additional information....'
+                            }
+                            className={`w-full h-[105px] sm:h-[115px] rounded-[16px] bg-[#f8f7f5] dark:bg-black/25 p-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              errors.message
+                                ? 'border-[#ff4f31]'
+                                : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
+                            } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 resize-none transition-all`}
+                          />
+                          {errors.message && (
+                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                              {errors.message}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Row 4: Agreement Checkbox */}
+                        <div className="pt-1">
+                          <label className="flex items-center gap-2.5 text-xs text-[#12110b]/70 dark:text-[#f4efea]/70 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={formData.agreeToTerms}
+                              onChange={(e) => {
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  agreeToTerms: e.target.checked,
+                                }));
+                                if (errors.agreeToTerms) {
+                                  setErrors((prev) => ({
+                                    ...prev,
+                                    agreeToTerms: undefined,
+                                  }));
+                                }
+                              }}
+                              className="h-4 w-4 rounded-[4px] accent-[#ff4f31] cursor-pointer"
+                            />
+                            <span>
+                              {isNl
+                                ? 'Door op de knop te klikken ga je akkoord met onze algemene voorwaarden.'
+                                : 'By clicking the button you agree to our terms and conditions.'}
+                            </span>
+                          </label>
+                          {errors.agreeToTerms && (
+                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                              {errors.agreeToTerms}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Row 5: Full-Width Primary Button (Exact Reference Match) */}
+                        <div className="pt-2">
+                          <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            data-testid="contact-submit-btn"
+                            className="group relative w-full h-[50px] rounded-[14px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[14.5px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-xl active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                          >
+                            <span>
+                              {isSubmitting
+                                ? isNl
+                                  ? 'Verzenden...'
+                                  : 'Sending...'
+                                : isNl
+                                ? 'Verstuur Bericht'
+                                : 'Send Message'}
+                            </span>
+                            {isSubmitting ? (
+                              <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </motion.div>
+                ) : (
+                  /* ================= TAB 2: FRAMED CALENDLY BOOKING ================= */
+                  <motion.div
+                    key="tab-booking"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                    className="space-y-3"
+                  >
+                    {/* URL Quick-Config Bar */}
+                    {showUrlEditor && (
+                      <div className="p-3 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] flex items-center gap-2 text-xs">
+                        <LinkIcon className="h-3.5 w-3.5 text-[#ff4f31] shrink-0" />
+                        <input
+                          type="text"
+                          value={customCalendlyUrl}
+                          onChange={(e) => setCustomCalendlyUrl(e.target.value)}
+                          placeholder="Paste Calendly URL..."
+                          className="flex-1 bg-white dark:bg-black/30 rounded-lg px-3 py-1.5 outline-none text-xs border border-black/10 dark:border-white/10"
                         />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIframeKey((k) => k + 1);
+                            setShowUrlEditor(false);
+                          }}
+                          className="rounded-lg bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] px-3 py-1.5 font-semibold text-xs cursor-pointer"
+                        >
+                          Save
+                        </button>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
+                    )}
+
+                    {/* Framed Calendar Container */}
+                    <div className="relative w-full rounded-[20px] overflow-hidden bg-white dark:bg-black/20 border border-black/[0.08] dark:border-white/[0.1] shadow-inner h-[460px] sm:h-[490px]">
+                      <iframe
+                        key={iframeKey}
+                        src={getThemedCalendlyUrl(customCalendlyUrl)}
+                        title="Discovery Call Scheduling Calendar"
+                        className="w-full h-full border-none rounded-[18px]"
+                        allow="microphone; camera"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
