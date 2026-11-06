@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter_Tight, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
+import { AnalyticsTracker } from '@/components/analytics-tracker';
 
 const interTight = Inter_Tight({
   subsets: ['latin'],
@@ -49,6 +50,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className="bg-[#ecf5f4] text-[#12110b] dark:bg-[#12110b] dark:text-[#f4efea] antialiased selection:bg-[#ff4f31] selection:text-white transition-colors duration-500 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 overflow-x-hidden"
       >
+        <AnalyticsTracker />
         {children}
       </body>
     </html>

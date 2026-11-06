@@ -423,6 +423,7 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
             <motion.button
               type="button"
               data-testid="faq-book-project-btn"
+              data-track="faq_book_project"
               onClick={onBookProject}
               initial={{ y: 20, opacity: 0 }}
               animate={

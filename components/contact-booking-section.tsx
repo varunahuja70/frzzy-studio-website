@@ -620,6 +620,7 @@ export function ContactBookingSection({
                             type="submit"
                             disabled={isSubmitting}
                             data-testid="contact-submit-btn"
+                            data-track="cta_send_message"
                             className="group relative w-full h-[48px] sm:h-[50px] rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                           >
                             <span>
@@ -641,6 +642,7 @@ export function ContactBookingSection({
                           {/* Button 2: Book a Call (Direct switch to calendar tab) */}
                           <button
                             type="button"
+                            data-track="cta_switch_to_calendar"
                             onClick={() => setActiveTab('call')}
                             className="w-full h-[48px] sm:h-[50px] rounded-full bg-black/[0.03] dark:bg-white/[0.04] text-[#12110b] dark:text-[#f4efea] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] hover:text-[#12110b] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                           >

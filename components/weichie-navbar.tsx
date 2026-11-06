@@ -137,6 +137,7 @@ export function WeichieNavbar({
                     <li key={item.id} className="inline-flex items-center">
                       <a
                         href={item.href}
+                        data-track={`nav_${item.id}`}
                         onMouseEnter={() => setHoveredNav(item.id)}
                         onMouseLeave={() => setHoveredNav(null)}
                         onClick={(e) => {
@@ -190,6 +191,7 @@ export function WeichieNavbar({
             {/* Exact Weichie "Get in touch" Pill Button with Orange Waving Hand Circle */}
             <button
               type="button"
+              data-track="nav_get_in_touch"
               onClick={onOpenContact}
               onMouseEnter={() => setIsContactHovered(true)}
               onMouseLeave={() => setIsContactHovered(false)}
