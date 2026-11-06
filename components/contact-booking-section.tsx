@@ -4,16 +4,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion, useInView } from 'motion/react';
 import {
-  ArrowLeft,
   ArrowRight,
   Calendar as CalendarIcon,
   Check,
-  CheckCheck,
-  Copy,
   ExternalLink,
   Link as LinkIcon,
   MessageSquare,
-  Settings,
+  Sparkles,
 } from 'lucide-react';
 import { LanguageCode, ThemeMode } from '@/lib/hero-config';
 
@@ -28,13 +25,19 @@ export interface ContactBookingSectionProps {
 
 const DEFAULT_CALENDLY_URL =
   'https://calendly.com/d/cp35-m2m-w7x/30-minute-meeting';
-const DEFAULT_EMAIL = 'hello@frxcx.studio';
-const DEFAULT_PHONE = '+1 (929) 822-5127';
-const DEFAULT_LOCATIONS = 'New York & Brussels • Global Remote';
 
 type ActiveTab = 'message' | 'call';
 
+const SERVICE_CATEGORIES = [
+  { id: 'web', en: 'Web Design & Dev', nl: 'Webdesign & Ontwikkeling' },
+  { id: 'branding', en: 'Brand Identity', nl: 'Merkidentiteit' },
+  { id: '3d-motion', en: '3D & Motion', nl: '3D & Motion Graphics' },
+  { id: 'direction', en: 'Creative Direction', nl: 'Creatieve Directie' },
+  { id: 'production', en: 'Full Production', nl: 'Volledige Productie' },
+];
+
 interface FormState {
+  category: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -50,55 +53,10 @@ interface FormErrors {
   agreeToTerms?: string;
 }
 
-const TESTIMONIALS_EN = [
-  {
-    quote:
-      'An absolute pleasure from start to finish. Their team’s dedication to bringing our vision to life with precision and creativity crafted an immersive online experience that truly elevated our brand.',
-    author: 'Elena Vance',
-    role: 'Chief Design Officer, Aether',
-  },
-  {
-    quote:
-      'The motion design, spatial lighting, and editorial confidence FRXCX brought to our brand relaunch doubled our inbound conversion rate in the first 30 days.',
-    author: 'Marcus Chen',
-    role: 'Founder, Kinetix AI',
-  },
-  {
-    quote:
-      'They do not just build websites; they build complete sensory digital worlds. Reliable, incredibly fast, and world-class in execution quality.',
-    author: 'Sophie Laurent',
-    role: 'VP Creative Direction, Nova',
-  },
-];
-
-const TESTIMONIALS_NL = [
-  {
-    quote:
-      'Een absoluut plezier van begin tot eind. De toewijding van het team om onze visie met precisie en creativiteit tot leven te brengen resulteerde in een meeslepende online ervaring.',
-    author: 'Elena Vance',
-    role: 'Chief Design Officer, Aether',
-  },
-  {
-    quote:
-      'Het motion design en het redactionele vertrouwen dat FRXCX in onze herlancering bracht, verdubbelde onze conversieratio in de eerste maand.',
-    author: 'Marcus Chen',
-    role: 'Oprichter, Kinetix AI',
-  },
-  {
-    quote:
-      'Ze bouwen niet zomaar websites; ze creëren complete digitale belevingswerelden. Betrouwbaar, snel en van absoluut wereldklasse niveau.',
-    author: 'Sophie Laurent',
-    role: 'VP Creative Direction, Nova',
-  },
-];
-
 export function ContactBookingSection({
   theme,
   language,
   calendlyUrl = DEFAULT_CALENDLY_URL,
-  studioEmail = DEFAULT_EMAIL,
-  studioPhone = DEFAULT_PHONE,
-  studioLocations = DEFAULT_LOCATIONS,
 }: ContactBookingSectionProps) {
   const isDark = theme === 'dark';
   const isNl = language === 'NL';
@@ -109,24 +67,51 @@ export function ContactBookingSection({
   const isCardInView = useInView(cardRef, { once: false, amount: 0.1 });
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('message');
-  const [copiedEmail, setCopiedEmail] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // Testimonial slider state
-  const [testimonialIdx, setTestimonialIdx] = useState(0);
-  const testimonials = isNl ? TESTIMONIALS_NL : TESTIMONIALS_EN;
-
-  // Calendly URL state
+  // Calendly URL state with localStorage persistence
   const [customCalendlyUrl, setCustomCalendlyUrl] = useState(calendlyUrl);
-  const [showUrlEditor, setShowUrlEditor] = useState(false);
+  const [urlInputValue, setUrlInputValue] = useState(calendlyUrl);
   const [iframeKey, setIframeKey] = useState(0);
+  const [urlSavedNotification, setUrlSavedNotification] = useState(false);
 
   useEffect(() => {
-    setCustomCalendlyUrl(calendlyUrl);
+    try {
+      const saved = localStorage.getItem('frxcx_calendly_url');
+      if (saved && saved.trim()) {
+        setCustomCalendlyUrl(saved.trim());
+        setUrlInputValue(saved.trim());
+      } else {
+        setCustomCalendlyUrl(calendlyUrl);
+        setUrlInputValue(calendlyUrl);
+      }
+    } catch {
+      setCustomCalendlyUrl(calendlyUrl);
+      setUrlInputValue(calendlyUrl);
+    }
   }, [calendlyUrl]);
 
+  const handleSaveCalendlyUrl = () => {
+    let cleanUrl = urlInputValue.trim();
+    if (!cleanUrl) return;
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      cleanUrl = `https://${cleanUrl}`;
+    }
+    setCustomCalendlyUrl(cleanUrl);
+    setUrlInputValue(cleanUrl);
+    try {
+      localStorage.setItem('frxcx_calendly_url', cleanUrl);
+    } catch {
+      // noop
+    }
+    setIframeKey((k) => k + 1);
+    setUrlSavedNotification(true);
+    setTimeout(() => setUrlSavedNotification(false), 2400);
+  };
+
   const [formData, setFormData] = useState<FormState>({
+    category: 'Full Production',
     firstName: '',
     lastName: '',
     email: '',
@@ -135,28 +120,6 @@ export function ContactBookingSection({
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-
-  const handlePrevTestimonial = () => {
-    setTestimonialIdx((prev) =>
-      prev === 0 ? testimonials.length - 1 : prev - 1
-    );
-  };
-
-  const handleNextTestimonial = () => {
-    setTestimonialIdx((prev) =>
-      prev === testimonials.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const handleCopyEmail = async () => {
-    try {
-      await navigator.clipboard.writeText(studioEmail);
-      setCopiedEmail(true);
-      setTimeout(() => setCopiedEmail(false), 2200);
-    } catch {
-      // noop
-    }
-  };
 
   const validate = (): boolean => {
     const errs: FormErrors = {};
@@ -177,7 +140,7 @@ export function ContactBookingSection({
     if (!formData.agreeToTerms) {
       errs.agreeToTerms = isNl
         ? 'Ga akkoord met de voorwaarden'
-        : 'Please accept terms to continue';
+        : 'Please agree to terms';
     }
 
     setErrors(errs);
@@ -192,11 +155,12 @@ export function ContactBookingSection({
     setTimeout(() => {
       setIsSubmitting(false);
       setIsSubmitted(true);
-    }, 650);
+    }, 600);
   };
 
   const resetForm = () => {
     setFormData({
+      category: 'Full Production',
       firstName: '',
       lastName: '',
       email: '',
@@ -210,7 +174,7 @@ export function ContactBookingSection({
   const getThemedCalendlyUrl = (rawUrl: string) => {
     try {
       const url = new URL(rawUrl);
-      const bg = isDark ? '181712' : 'ffffff';
+      const bg = isDark ? '191812' : 'ffffff';
       const text = isDark ? 'f4efea' : '12110b';
       const primary = 'ff4f31';
       url.searchParams.set('hide_landing_page_details', '1');
@@ -224,131 +188,45 @@ export function ContactBookingSection({
     }
   };
 
-  const currentTestimonial = testimonials[testimonialIdx];
-
   return (
     <section
       id="contact"
       ref={sectionRef}
       data-testid="contact-booking-section"
       aria-labelledby="contact-heading"
-      className="relative w-full bg-[#ecf5f4] dark:bg-[#12110b] text-[#12110b] dark:text-[#f4efea] px-4 sm:px-6 lg:px-10 xl:px-14 py-12 sm:py-16 lg:py-20 transition-colors duration-500"
+      className="relative w-full bg-[#ecf5f4] dark:bg-[#12110b] text-[#12110b] dark:text-[#f4efea] px-3 sm:px-6 lg:px-8 xl:px-12 py-10 sm:py-14 lg:py-16 transition-colors duration-500"
     >
       <div className="mx-auto w-full max-w-[1360px]">
-        {/* ================= UNIFIED DUAL-COLUMN CARD (Pixel-Perfect Match with User Reference) ================= */}
+        {/* ================= ULTRA-PREMIUM DUAL-PANEL CARD (Minimal Architectural Edges: rounded-[20px]) ================= */}
         <motion.div
           ref={cardRef}
-          initial={{ opacity: 0, y: 24 }}
-          animate={isCardInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full rounded-[30px] sm:rounded-[38px] bg-white dark:bg-[#181712] p-3 sm:p-4 lg:p-5 shadow-[0_24px_65px_-18px_rgba(18,17,11,0.08)] dark:shadow-[0_24px_65px_-18px_rgba(0,0,0,0.7)] border border-black/[0.05] dark:border-white/[0.07] grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 lg:gap-8 items-stretch transition-colors duration-500"
+          initial={{ opacity: 0, y: 18 }}
+          animate={isCardInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full rounded-[20px] bg-white dark:bg-[#181712] p-2.5 sm:p-4 lg:p-5 shadow-[0_20px_50px_-20px_rgba(18,17,11,0.08)] dark:shadow-[0_25px_60px_-20px_rgba(0,0,0,0.7)] border border-black/[0.06] dark:border-white/[0.08] grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-7 items-stretch transition-colors duration-500"
         >
-          {/* ================= LEFT COLUMN: Cinematic 3D Visual + Frosted Testimonial Card ================= */}
-          <div className="lg:col-span-5 relative rounded-[24px] sm:rounded-[32px] overflow-hidden min-h-[460px] sm:min-h-[520px] lg:min-h-[640px] bg-[#0c0c0e] flex flex-col justify-between p-4 sm:p-6 lg:p-7">
-            {/* Background Cinematic Visual / Looping Video */}
-            <div className="absolute inset-0 z-0 overflow-hidden">
-              <video
-                src="/assets/videos/card-1.mp4"
-                poster="/assets/cards/card-1.png"
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-full w-full object-cover brightness-[0.92] contrast-[1.08] transition-transform duration-700 hover:scale-105"
-              />
-              {/* Cinematic Vignette Overlay */}
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/20"
-              />
-            </div>
-
-            {/* Top Left Floating Studio Badge */}
-            <div className="relative z-10 flex items-center justify-between w-full">
-              <div className="inline-flex items-center gap-2 rounded-full bg-black/40 backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold text-white/90 border border-white/15">
-                <span className="h-2 w-2 rounded-full bg-[#ff4f31] animate-pulse" />
-                <span>FRXCX Flagship Studio</span>
-              </div>
-
-              {/* Email Copy Tooltip */}
-              <button
-                type="button"
-                onClick={handleCopyEmail}
-                className="flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-md px-3 py-1.5 text-xs text-white/80 hover:text-white border border-white/15 hover:border-white/30 transition-all cursor-pointer"
-                title="Copy direct email"
-              >
-                {copiedEmail ? (
-                  <>
-                    <CheckCheck className="h-3 w-3 text-emerald-400" />
-                    <span className="text-[11px] font-semibold text-emerald-400">
-                      Copied!
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" />
-                    <span className="text-[11px]">Copy Email</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Bottom Frosted Glass Testimonial Card (Exact Match with Reference Image) */}
-            <div className="relative z-10 rounded-[20px] sm:rounded-[24px] bg-black/45 backdrop-blur-xl border border-white/20 p-5 sm:p-6 text-white shadow-2xl">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={testimonialIdx}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <p className="text-[13.5px] sm:text-[14.5px] leading-[1.65] text-white/95 font-normal tracking-[-0.01em]">
-                    &ldquo;{currentTestimonial.quote}&rdquo;
-                  </p>
-                  <div className="mt-4 pt-3 border-t border-white/15 flex items-end justify-between gap-3">
-                    <div>
-                      <p className="text-[13.5px] font-semibold text-white tracking-tight">
-                        {currentTestimonial.author}
-                      </p>
-                      <p className="text-xs text-white/65 mt-0.5">
-                        {currentTestimonial.role}
-                      </p>
-                    </div>
-
-                    {/* Circular Navigation Buttons: (←) (→) */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={handlePrevTestimonial}
-                        aria-label="Previous testimonial"
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 hover:bg-white text-white hover:text-black border border-white/20 transition-all duration-300 cursor-pointer"
-                      >
-                        <ArrowLeft className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleNextTestimonial}
-                        aria-label="Next testimonial"
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/25 hover:bg-white text-white hover:text-black border border-white/25 transition-all duration-300 cursor-pointer"
-                      >
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-            </div>
+          {/* ================= LEFT COLUMN: 100% PURE CONTINUOUS VIDEO (Zero text, Zero buttons, Non-pausable) ================= */}
+          <div className="lg:col-span-5 relative rounded-[16px] overflow-hidden min-h-[380px] sm:min-h-[460px] lg:min-h-[640px] bg-[#0c0c0e] pointer-events-none select-none">
+            <video
+              src="/assets/videos/card-1.mp4"
+              poster="/assets/cards/card-1.png"
+              autoPlay
+              loop
+              muted
+              playsInline
+              disablePictureInPicture
+              controls={false}
+              className="absolute inset-0 h-full w-full object-cover brightness-[0.95] contrast-[1.04] pointer-events-none select-none"
+            />
           </div>
 
-          {/* ================= RIGHT COLUMN: Editorial Brand Form & Calendly ================= */}
-          <div className="lg:col-span-7 flex flex-col justify-between px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+          {/* ================= RIGHT COLUMN: Compact Elevated Layout (Never Clips) ================= */}
+          <div className="lg:col-span-7 flex flex-col justify-between px-2.5 py-2 sm:px-5 sm:py-4 lg:px-6 lg:py-4">
             <div>
-              {/* Brand Header & Mode Switcher */}
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-black/[0.05] dark:border-white/[0.07]">
-                {/* Brand Logo & Name */}
-                <div className="flex items-center gap-2.5">
-                  <div className="relative h-6 w-6 shrink-0">
+              {/* Header Bar: Studio Brand Badge + Apple-style Minimal Tab Switcher */}
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <div className="relative h-5 w-5 shrink-0">
                     <Image
                       src={
                         isDark
@@ -360,28 +238,28 @@ export function ContactBookingSection({
                       className="object-contain"
                     />
                   </div>
-                  <span className="text-[15px] font-semibold tracking-tight text-[#12110b] dark:text-[#f4efea]">
+                  <span className="text-[13px] sm:text-[14px] font-semibold tracking-tight text-[#12110b] dark:text-[#f4efea]">
                     FRXCX Studio
                   </span>
                 </div>
 
-                {/* Tab Pill: Send a Message | Book a Call */}
-                <div className="inline-flex items-center p-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] relative">
+                {/* Minimal Segmented Pill Toggle */}
+                <div className="inline-flex items-center p-1 rounded-[10px] bg-black/[0.04] dark:bg-white/[0.06] relative">
                   <button
                     type="button"
                     onClick={() => setActiveTab('message')}
-                    className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                    className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-[8px] transition-colors duration-200 cursor-pointer ${
                       activeTab === 'message'
                         ? 'text-[#12110b] dark:text-[#f4efea]'
                         : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
                     }`}
                   >
-                    <MessageSquare className="h-3 w-3" />
+                    <MessageSquare className="h-3.5 w-3.5" />
                     <span>{isNl ? 'Stuur Bericht' : 'Send a Message'}</span>
                     {activeTab === 'message' && (
                       <motion.div
-                        layoutId="editorialTabPill"
-                        className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
+                        layoutId="minimalTabIndicator"
+                        className="absolute inset-0 rounded-[8px] bg-white dark:bg-[#28261e] shadow-xs -z-10"
                         transition={{
                           type: 'spring',
                           stiffness: 450,
@@ -394,18 +272,18 @@ export function ContactBookingSection({
                   <button
                     type="button"
                     onClick={() => setActiveTab('call')}
-                    className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                    className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-[8px] transition-colors duration-200 cursor-pointer ${
                       activeTab === 'call'
                         ? 'text-[#12110b] dark:text-[#f4efea]'
                         : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
                     }`}
                   >
-                    <CalendarIcon className="h-3 w-3" />
-                    <span>{isNl ? 'Plan Gesprek' : 'Book a Call'}</span>
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    <span>{isNl ? 'Boek Gesprek' : 'Book a Call'}</span>
                     {activeTab === 'call' && (
                       <motion.div
-                        layoutId="editorialTabPill"
-                        className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
+                        layoutId="minimalTabIndicator"
+                        className="absolute inset-0 rounded-[8px] bg-white dark:bg-[#28261e] shadow-xs -z-10"
                         transition={{
                           type: 'spring',
                           stiffness: 450,
@@ -417,61 +295,51 @@ export function ContactBookingSection({
                 </div>
               </div>
 
-              {/* Main Headline & Subtitle (Exact Reference Copywriting) */}
-              <div className="mb-6">
+              {/* Elevated Title (Short & Compact to push calendar and form up) */}
+              <div className="mb-3.5">
                 <h2
                   id="contact-heading"
-                  className="text-[30px] sm:text-[36px] lg:text-[40px] font-semibold tracking-[-0.035em] leading-[1.08] text-[#12110b] dark:text-[#f4efea]"
+                  className="text-[20px] sm:text-[24px] font-semibold tracking-[-0.025em] leading-[1.2] text-[#12110b] dark:text-[#f4efea]"
                 >
-                  {isNl ? (
-                    <>
-                      Heb je een projectidee?
-                      <br />
-                      Laten we het samen bespreken.
-                    </>
-                  ) : (
-                    <>
-                      Have a project idea?
-                      <br />
-                      Let’s discuss it together.
-                    </>
-                  )}
-                </h2>
-                <p className="mt-2.5 text-xs sm:text-[13.5px] text-[#12110b]/65 dark:text-[#f4efea]/65 leading-relaxed max-w-xl">
                   {isNl
-                    ? 'We staan altijd open voor nieuwe kansen. Deel gerust je vraag of briefing met ons team.'
-                    : 'We’re always open to new opportunities. Feel free to drop us a line if having any questions or projects.'}
+                    ? 'Start een project of plan een afspraak'
+                    : 'Have a project idea? Let’s discuss it together.'}
+                </h2>
+                <p className="mt-0.5 text-xs sm:text-[13px] text-[#12110b]/60 dark:text-[#f4efea]/60">
+                  {isNl
+                    ? 'We reageren binnen 24 uur of plan direct een videocall in onze agenda.'
+                    : 'Drop us a direct inquiry or select an instant time on our studio calendar.'}
                 </p>
               </div>
 
-              {/* Body Panels */}
+              {/* Dynamic Content Views */}
               <AnimatePresence mode="wait">
                 {activeTab === 'message' ? (
-                  /* ================= TAB 1: WORKING FORM (Pixel-Perfect Reference Match) ================= */
+                  /* ================= TAB 1: FORM WITH CATEGORY PILLS & DUAL ACTION BUTTONS ================= */
                   <motion.div
                     key="tab-message"
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                   >
                     {isSubmitted ? (
-                      <div className="flex flex-col items-center justify-center text-center py-16">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#ff4f31]/10 text-[#ff4f31] mb-4">
-                          <Check className="h-7 w-7 stroke-[2.5]" />
+                      <div className="flex flex-col items-center justify-center text-center py-12 sm:py-16">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ff4f31]/10 text-[#ff4f31] mb-3">
+                          <Check className="h-6 w-6 stroke-[2.5]" />
                         </div>
-                        <h3 className="text-xl font-semibold tracking-tight text-[#12110b] dark:text-[#f4efea]">
+                        <h3 className="text-lg font-semibold tracking-tight text-[#12110b] dark:text-[#f4efea]">
                           {isNl ? 'Bericht Ontvangen!' : 'Message Received!'}
                         </h3>
-                        <p className="mt-2 max-w-sm text-xs sm:text-sm text-[#12110b]/70 dark:text-[#f4efea]/70 leading-relaxed">
+                        <p className="mt-1.5 max-w-sm text-xs sm:text-sm text-[#12110b]/70 dark:text-[#f4efea]/70 leading-relaxed">
                           {isNl
-                            ? `Bedankt ${formData.firstName}. We hebben je bericht ontvangen en nemen binnen 24 uur contact op via ${formData.email}.`
-                            : `Thank you, ${formData.firstName}. We received your inquiry and our studio directors will reply to ${formData.email} within 24 hours.`}
+                            ? `Bedankt ${formData.firstName}. We nemen spoedig contact op via ${formData.email}.`
+                            : `Thank you, ${formData.firstName}. We received your project brief and will reply to ${formData.email} within 24 hours.`}
                         </p>
                         <button
                           type="button"
                           onClick={resetForm}
-                          className="mt-6 inline-flex items-center gap-2 rounded-full bg-black/6 dark:bg-white/10 hover:bg-[#ff4f31] hover:text-white dark:hover:bg-[#ff4f31] dark:hover:text-white px-5 py-2.5 text-xs font-semibold transition-colors cursor-pointer"
+                          className="mt-5 inline-flex items-center gap-1.5 rounded-[10px] bg-black/5 dark:bg-white/10 hover:bg-[#ff4f31] hover:text-white dark:hover:bg-[#ff4f31] dark:hover:text-white px-4 py-2 text-xs font-semibold transition-colors cursor-pointer"
                         >
                           {isNl
                             ? 'Nieuw bericht versturen'
@@ -482,16 +350,52 @@ export function ContactBookingSection({
                       <form
                         onSubmit={handleSubmit}
                         noValidate
-                        className="space-y-4"
+                        className="space-y-3"
                       >
-                        {/* Row 1: First name & Last name */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {/* Option Buttons: What are you looking to create? (Ultra-minimal premium styling) */}
+                        <div>
+                          <label className="block text-xs font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5">
+                            {isNl
+                              ? 'Wat wil je laten maken?'
+                              : 'What are you looking to create?'}
+                          </label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {SERVICE_CATEGORIES.map((cat) => {
+                              const isSelected = formData.category === cat.en;
+                              return (
+                                <button
+                                  key={cat.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      category: cat.en,
+                                    }))
+                                  }
+                                  className={`relative px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                                    isSelected
+                                      ? 'bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] shadow-xs'
+                                      : 'bg-black/[0.03] dark:bg-white/[0.05] text-[#12110b]/70 dark:text-[#f4efea]/70 hover:bg-black/[0.06] dark:hover:bg-white/[0.08] border border-black/[0.06] dark:border-white/[0.08]'
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <Check className="h-3 w-3 stroke-[2.5]" />
+                                  )}
+                                  <span>{isNl ? cat.nl : cat.en}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Row: First Name & Last Name */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div>
                             <label
                               htmlFor="fn-input"
-                              className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
+                              className="block text-xs font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1"
                             >
-                              {isNl ? 'Voornaam' : 'First name'}
+                              {isNl ? 'Voornaam' : 'First Name'}
                             </label>
                             <input
                               id="fn-input"
@@ -510,16 +414,16 @@ export function ContactBookingSection({
                                 }
                               }}
                               placeholder={
-                                isNl ? 'Voornaam' : 'First Name'
+                                isNl ? 'Voornaam...' : 'Enter your first name...'
                               }
-                              className={`w-full h-[46px] rounded-[14px] bg-[#f8f7f5] dark:bg-black/25 px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              className={`w-full h-[40px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/25 px-3 text-[13px] sm:text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                                 errors.firstName
                                   ? 'border-[#ff4f31]'
                                   : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
                               } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all`}
                             />
                             {errors.firstName && (
-                              <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                              <p className="mt-0.5 text-[11px] text-[#ff4f31] font-medium">
                                 {errors.firstName}
                               </p>
                             )}
@@ -528,9 +432,9 @@ export function ContactBookingSection({
                           <div>
                             <label
                               htmlFor="ln-input"
-                              className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
+                              className="block text-xs font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1"
                             >
-                              {isNl ? 'Achternaam' : 'Last name'}
+                              {isNl ? 'Achternaam' : 'Last Name'}
                             </label>
                             <input
                               id="ln-input"
@@ -549,29 +453,29 @@ export function ContactBookingSection({
                                 }
                               }}
                               placeholder={
-                                isNl ? 'Achternaam' : 'Last name'
+                                isNl ? 'Achternaam...' : 'Enter your last name...'
                               }
-                              className={`w-full h-[46px] rounded-[14px] bg-[#f8f7f5] dark:bg-black/25 px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              className={`w-full h-[40px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/25 px-3 text-[13px] sm:text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                                 errors.lastName
                                   ? 'border-[#ff4f31]'
                                   : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
                               } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all`}
                             />
                             {errors.lastName && (
-                              <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                              <p className="mt-0.5 text-[11px] text-[#ff4f31] font-medium">
                                 {errors.lastName}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        {/* Row 2: Email address */}
+                        {/* Row: Email */}
                         <div>
                           <label
                             htmlFor="email-input"
-                            className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
+                            className="block text-xs font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1"
                           >
-                            {isNl ? 'E-mailadres' : 'Email address'}
+                            {isNl ? 'E-mailadres' : 'Email'}
                           </label>
                           <input
                             id="email-input"
@@ -590,32 +494,34 @@ export function ContactBookingSection({
                               }
                             }}
                             placeholder={
-                              isNl ? 'E-mailadres' : 'Email address'
+                              isNl
+                                ? 'Voer je e-mailadres in...'
+                                : 'Enter your email address...'
                             }
-                            className={`w-full h-[46px] rounded-[14px] bg-[#f8f7f5] dark:bg-black/25 px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                            className={`w-full h-[40px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/25 px-3 text-[13px] sm:text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                               errors.email
                                 ? 'border-[#ff4f31]'
                                 : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
                             } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 transition-all`}
                           />
                           {errors.email && (
-                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                            <p className="mt-0.5 text-[11px] text-[#ff4f31] font-medium">
                               {errors.email}
                             </p>
                           )}
                         </div>
 
-                        {/* Row 3: Message */}
+                        {/* Row: Message */}
                         <div>
                           <label
                             htmlFor="msg-input"
-                            className="block text-[13px] font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1.5"
+                            className="block text-xs font-medium text-[#12110b]/75 dark:text-[#f4efea]/75 mb-1"
                           >
-                            {isNl ? 'Bericht' : 'Message'}
+                            {isNl ? 'Hoe kunnen we je helpen?' : 'How can we help you?'}
                           </label>
                           <textarea
                             id="msg-input"
-                            rows={4}
+                            rows={3}
                             value={formData.message}
                             onChange={(e) => {
                               setFormData((prev) => ({
@@ -631,25 +537,25 @@ export function ContactBookingSection({
                             }}
                             placeholder={
                               isNl
-                                ? 'Aanvullende informatie of projectdetails...'
-                                : 'Any additional information....'
+                                ? 'Voer je bericht of projectomschrijving in...'
+                                : 'Enter your message or project requirements...'
                             }
-                            className={`w-full h-[105px] sm:h-[115px] rounded-[16px] bg-[#f8f7f5] dark:bg-black/25 p-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                            className={`w-full h-[88px] sm:h-[96px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/25 p-3 text-[13px] sm:text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                               errors.message
                                 ? 'border-[#ff4f31]'
                                 : 'border-black/[0.06] dark:border-white/[0.08] focus:border-[#ff4f31] dark:focus:border-[#ff4f31]'
                             } outline-none focus:ring-2 focus:ring-[#ff4f31]/15 resize-none transition-all`}
                           />
                           {errors.message && (
-                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                            <p className="mt-0.5 text-[11px] text-[#ff4f31] font-medium">
                               {errors.message}
                             </p>
                           )}
                         </div>
 
-                        {/* Row 4: Agreement Checkbox */}
-                        <div className="pt-1">
-                          <label className="flex items-center gap-2.5 text-xs text-[#12110b]/70 dark:text-[#f4efea]/70 cursor-pointer select-none">
+                        {/* Agreement Checkbox */}
+                        <div className="pt-0.5">
+                          <label className="flex items-center gap-2 text-xs text-[#12110b]/70 dark:text-[#f4efea]/70 cursor-pointer select-none">
                             <input
                               type="checkbox"
                               checked={formData.agreeToTerms}
@@ -665,7 +571,7 @@ export function ContactBookingSection({
                                   }));
                                 }
                               }}
-                              className="h-4 w-4 rounded-[4px] accent-[#ff4f31] cursor-pointer"
+                              className="h-3.5 w-3.5 rounded-[3px] accent-[#ff4f31] cursor-pointer"
                             />
                             <span>
                               {isNl
@@ -674,19 +580,20 @@ export function ContactBookingSection({
                             </span>
                           </label>
                           {errors.agreeToTerms && (
-                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                            <p className="mt-0.5 text-[11px] text-[#ff4f31] font-medium">
                               {errors.agreeToTerms}
                             </p>
                           )}
                         </div>
 
-                        {/* Row 5: Full-Width Primary Button (Exact Reference Match) */}
-                        <div className="pt-2">
+                        {/* DUAL ACTION BUTTONS (Send Message & Schedule a Call) */}
+                        <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {/* Button 1: Send Message */}
                           <button
                             type="submit"
                             disabled={isSubmitting}
                             data-testid="contact-submit-btn"
-                            className="group relative w-full h-[50px] rounded-[14px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[14.5px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-xl active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                            className="group relative w-full h-[44px] rounded-[10px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[13px] sm:text-[14px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                           >
                             <span>
                               {isSubmitting
@@ -698,56 +605,78 @@ export function ContactBookingSection({
                                 : 'Send Message'}
                             </span>
                             {isSubmitting ? (
-                              <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                             ) : (
-                              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
                             )}
+                          </button>
+
+                          {/* Button 2: Schedule / Book a Call (Switches directly to Calendar tab) */}
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('call')}
+                            className="w-full h-[44px] rounded-[10px] bg-transparent text-[#12110b] dark:text-[#f4efea] border border-black/15 dark:border-white/15 hover:border-[#ff4f31] hover:text-[#ff4f31] dark:hover:border-[#ff4f31] dark:hover:text-[#ff4f31] font-semibold text-[13px] sm:text-[14px] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <CalendarIcon className="h-3.5 w-3.5 text-[#ff4f31]" />
+                            <span>{isNl ? 'Plan een Gesprek' : 'Book a Call'}</span>
                           </button>
                         </div>
                       </form>
                     )}
                   </motion.div>
                 ) : (
-                  /* ================= TAB 2: FRAMED CALENDLY BOOKING ================= */
+                  /* ================= TAB 2: ELEVATED CALENDLY BOOKING (Minimal Corners, Persisted URL) ================= */
                   <motion.div
                     key="tab-booking"
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                    className="space-y-3"
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    className="space-y-2.5"
                   >
-                    {/* URL Quick-Config Bar */}
-                    {showUrlEditor && (
-                      <div className="p-3 rounded-xl bg-black/[0.04] dark:bg-white/[0.05] flex items-center gap-2 text-xs">
+                    {/* Live Calendly Token / URL Input Bar (User-configurable link) */}
+                    <div className="flex items-center justify-between gap-2 p-2 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08]">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0 text-xs">
                         <LinkIcon className="h-3.5 w-3.5 text-[#ff4f31] shrink-0" />
                         <input
                           type="text"
-                          value={customCalendlyUrl}
-                          onChange={(e) => setCustomCalendlyUrl(e.target.value)}
-                          placeholder="Paste Calendly URL..."
-                          className="flex-1 bg-white dark:bg-black/30 rounded-lg px-3 py-1.5 outline-none text-xs border border-black/10 dark:border-white/10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIframeKey((k) => k + 1);
-                            setShowUrlEditor(false);
+                          value={urlInputValue}
+                          onChange={(e) => setUrlInputValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSaveCalendlyUrl();
+                            }
                           }}
-                          className="rounded-lg bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] px-3 py-1.5 font-semibold text-xs cursor-pointer"
-                        >
-                          Save
-                        </button>
+                          placeholder="Paste your Calendly URL or slug here..."
+                          className="w-full bg-white dark:bg-black/30 rounded-[6px] px-2.5 py-1 text-xs outline-none border border-black/10 dark:border-white/10"
+                        />
                       </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={handleSaveCalendlyUrl}
+                        className="px-3 py-1 rounded-[6px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] text-xs font-semibold hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                      >
+                        {urlSavedNotification ? 'Saved ✓' : 'Apply'}
+                      </button>
+                      <a
+                        href={customCalendlyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#ff4f31] transition-colors shrink-0"
+                        title="Open in new window"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
 
-                    {/* Framed Calendar Container */}
-                    <div className="relative w-full rounded-[20px] overflow-hidden bg-white dark:bg-black/20 border border-black/[0.08] dark:border-white/[0.1] shadow-inner h-[460px] sm:h-[490px]">
+                    {/* Framed Calendar Container with Minimal Radii (rounded-[14px]) */}
+                    <div className="relative w-full rounded-[14px] overflow-hidden bg-white dark:bg-black/20 border border-black/[0.08] dark:border-white/[0.1] shadow-inner h-[500px] sm:h-[530px]">
                       <iframe
                         key={iframeKey}
                         src={getThemedCalendlyUrl(customCalendlyUrl)}
                         title="Discovery Call Scheduling Calendar"
-                        className="w-full h-full border-none rounded-[18px]"
+                        className="w-full h-full border-none rounded-[12px]"
                         allow="microphone; camera"
                       />
                     </div>

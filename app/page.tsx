@@ -197,10 +197,7 @@ export default function HomePage() {
         <ContactBookingSection
           theme={theme}
           language={language}
-          calendlyUrl={
-            process.env.NEXT_PUBLIC_CALENDLY_URL ||
-            'https://calendly.com/frxcx-studio/intro-call'
-          }
+          calendlyUrl={process.env.NEXT_PUBLIC_CALENDLY_URL}
           studioEmail="hello@frxcx.studio"
           studioPhone="+1 (929) 822-5127"
           studioLocations="New York & Brussels • Global Remote"
