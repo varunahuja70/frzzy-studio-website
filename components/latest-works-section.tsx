@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { motion, useInView } from 'motion/react';
+import { ProtectedVideo } from '@/components/protected-video';
 import {
   Carousel3DCardInstance,
   LanguageCode,
@@ -120,15 +121,17 @@ function Work3DCardButton({
       />
 
       {/* 9:16 Vertical Client Reel Video — plays ONLY when in center slot, pauses on side slots */}
-      <video
+      <ProtectedVideo
         ref={videoRef}
-        src={card.item.videoSrc}
+        slotId={card.item.id}
+        fallbackSrc={card.item.videoSrc}
         poster={card.item.posterSrc}
         autoPlay={card.isCenter}
         loop
         muted
         playsInline
         preload="auto"
+        enableVisibilityObserver={false}
         className="absolute inset-0 h-full w-full object-cover"
       />
     </motion.button>

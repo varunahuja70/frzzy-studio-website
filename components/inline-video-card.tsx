@@ -3,6 +3,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'motion/react';
+import { ProtectedVideo } from '@/components/protected-video';
 import {
   HeroCardConfig,
   ViewportTier,
@@ -141,9 +142,18 @@ export function InlineVideoCard({
 
           {/* Auto-Playing Video Layer (when mediaType is 'video') */}
           {activeMedia.mediaType === 'video' && (
-            <video
+            <ProtectedVideo
               ref={videoRef}
-              src={activeMedia.src}
+              slotId={
+                card.id === 'card-1'
+                  ? 'hero-card-1'
+                  : card.id === 'card-2'
+                  ? 'hero-card-2'
+                  : card.id === 'card-3'
+                  ? 'hero-card-3'
+                  : 'hero-card-4'
+              }
+              fallbackSrc={activeMedia.src}
               poster={activeMedia.posterSrc}
               autoPlay
               loop

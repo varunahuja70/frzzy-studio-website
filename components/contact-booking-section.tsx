@@ -78,16 +78,22 @@ export function ContactBookingSection({
   const [customCalendlyUrl, setCustomCalendlyUrl] = useState(calendlyUrl);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('frxcx_calendly_url');
-      if (saved && saved.trim()) {
-        setCustomCalendlyUrl(saved.trim());
-      } else {
+    const syncSavedUrl = () => {
+      try {
+        const saved = localStorage.getItem('frxcx_calendly_url');
+        if (saved && saved.trim()) {
+          setCustomCalendlyUrl(saved.trim());
+        } else {
+          setCustomCalendlyUrl(calendlyUrl);
+        }
+      } catch {
         setCustomCalendlyUrl(calendlyUrl);
       }
-    } catch {
-      setCustomCalendlyUrl(calendlyUrl);
-    }
+    };
+
+    queueMicrotask(syncSavedUrl);
+    window.addEventListener('storage', syncSavedUrl);
+    return () => window.removeEventListener('storage', syncSavedUrl);
   }, [calendlyUrl]);
 
   const [formData, setFormData] = useState<FormState>({
@@ -127,15 +133,45 @@ export function ContactBookingSection({
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          category: formData.category,
+          message: formData.message,
+          agreeToTerms: formData.agreeToTerms,
+          companyWebsite: '', // Honeypot field: must be empty
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setErrors((prev) => ({
+          ...prev,
+          email: data.error || (isNl ? 'Verzenden mislukt' : 'Submission failed'),
+        }));
+      } else {
+        setIsSubmitted(true);
+      }
+    } catch {
+      setErrors((prev) => ({
+        ...prev,
+        email: isNl
+          ? 'Netwerkfout. Probeer het opnieuw.'
+          : 'Network error. Please try again.',
+      }));
+    } finally {
       setIsSubmitting(false);
-      setIsSubmitted(true);
-    }, 600);
+    }
   };
 
   const resetForm = () => {
@@ -564,6 +600,18 @@ export function ContactBookingSection({
                             </p>
                           )}
                         </div>
+
+                        {/* Anti-Bot Honeypot Field */}
+                        <input
+                          type="text"
+                          name="companyWebsite"
+                          tabIndex={-1}
+                          autoComplete="off"
+                          aria-hidden="true"
+                          style={{ display: 'none', position: 'absolute', left: '-9999px' }}
+                          value=""
+                          onChange={() => {}}
+                        />
 
                         {/* 6. Row: Dual Action Buttons */}
                         <div className="pt-2.5 pb-1 grid grid-cols-1 sm:grid-cols-2 gap-3">

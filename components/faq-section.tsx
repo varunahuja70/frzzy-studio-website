@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion, useInView } from 'motion/react';
+import { ProtectedVideo } from '@/components/protected-video';
 import {
   ArrowUpRight,
   Eye,
@@ -372,16 +373,22 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
                       className="object-cover"
                     />
 
-                    {/* Continuous Auto-Playing Video */}
-                    <video
-                      src={card.videoSrc}
+                    {/* Continuous Auto-Playing Protected Video */}
+                    <ProtectedVideo
+                      slotId={
+                        card.id === 'story'
+                          ? 'faq-reel-1'
+                          : card.id === 'pace'
+                          ? 'faq-reel-2'
+                          : 'faq-reel-3'
+                      }
+                      fallbackSrc={card.videoSrc}
                       poster={card.posterSrc}
                       autoPlay
                       loop
                       muted
                       playsInline
                       disablePictureInPicture
-                      controls={false}
                       className="absolute inset-0 h-full w-full object-cover pointer-events-none"
                     />
 
