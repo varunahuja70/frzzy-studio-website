@@ -331,35 +331,35 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
             </div>
           </div>
 
-          {/* ================= RIGHT COLUMN: 3 Vertical Video Cards + Aligned Bottom Button ================= */}
+          {/* ================= RIGHT COLUMN: Shifted Down, Borderless Video Cards + Tight Aligned Button ================= */}
           <div
             ref={rightColRef}
-            className="lg:col-span-6 lg:pt-[110px] xl:pt-[124px] flex flex-col justify-between h-full gap-8"
+            className="lg:col-span-6 flex flex-col justify-end lg:pt-36 xl:pt-48 gap-6 sm:gap-7 h-full"
           >
-            {/* 3 Vertical Reel Cards (Staggered Dynamic Height with Center Elevation) */}
+            {/* 3 Vertical Reel Cards (Borderless, Shifted Down, No Empty Gap) */}
             <motion.div
-              initial={{ y: 32, opacity: 0 }}
+              initial={{ y: 28, opacity: 0 }}
               animate={
                 isRightInView
                   ? { y: 0, opacity: 1 }
-                  : { y: 32, opacity: 0 }
+                  : { y: 28, opacity: 0 }
               }
               transition={{
-                duration: 0.68,
+                duration: 0.65,
                 delay: 0.06,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="grid grid-cols-3 gap-2.5 sm:gap-3.5 items-center w-full"
+              className="grid grid-cols-3 gap-2.5 sm:gap-4 items-end w-full"
             >
               {SHOWCASE_CARDS.map((card) => {
                 const isCenter = card.isCenter;
                 return (
                   <div
                     key={card.id}
-                    className={`relative overflow-hidden rounded-[18px] sm:rounded-[22px] bg-[#0c0c0e] select-none transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                    className={`relative overflow-hidden rounded-[20px] sm:rounded-[24px] bg-[#0c0c0e] select-none border-0 border-none transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                       isCenter
-                        ? 'aspect-[9/16] sm:scale-[1.05] z-10 shadow-[0_24px_50px_-16px_rgba(0,0,0,0.4)] border border-white/10'
-                        : 'aspect-[9/15.2] shadow-[0_16px_36px_-12px_rgba(0,0,0,0.25)] border border-black/5 dark:border-white/5 opacity-90 hover:opacity-100'
+                        ? 'aspect-[9/16] sm:scale-[1.06] z-10 shadow-[0_28px_60px_-14px_rgba(0,0,0,0.45)]'
+                        : 'aspect-[9/15.2] shadow-[0_18px_40px_-14px_rgba(0,0,0,0.3)] opacity-95 hover:opacity-100'
                     }`}
                   >
                     {/* Poster Fallback */}
@@ -367,7 +367,7 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
                       src={card.posterSrc}
                       alt={card.label}
                       fill
-                      sizes="(max-width: 768px) 33vw, 220px"
+                      sizes="(max-width: 768px) 33vw, 240px"
                       draggable={false}
                       className="object-cover"
                     />
@@ -388,21 +388,21 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
                     {/* Subtle Gradient Shade for Text & Badge Visibility */}
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/10"
+                      className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"
                     />
 
-                    {/* Middle Bold Subtitle Overlay (Matching reference screenshot) */}
+                    {/* Middle Subtitle Text Overlay */}
                     <div className="absolute inset-x-0 bottom-12 sm:bottom-14 px-2 sm:px-3 text-center pointer-events-none">
-                      <p className="text-[10px] sm:text-[12px] font-bold text-white tracking-wider uppercase leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                      <p className="text-[10px] sm:text-[12px] font-bold text-white tracking-wider uppercase leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]">
                         {card.subtitle}
                       </p>
                     </div>
 
                     {/* Bottom Frosted Pill Badge: Eye Icon + Label */}
                     <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 flex items-center justify-center pointer-events-none">
-                      <div className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white shadow-sm">
-                        <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 stroke-[2.2]" />
-                        <span className="text-[9px] sm:text-[10.5px] font-bold tracking-[0.14em] uppercase">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur-md text-white shadow-sm border border-white/10">
+                        <Eye className="h-3.5 w-3.5 stroke-[2.2]" />
+                        <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.14em] uppercase">
                           {card.label}
                         </span>
                       </div>
@@ -412,23 +412,23 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
               })}
             </motion.div>
 
-            {/* Bottom "Book a Project" Pill Button — Aligned Directly Opposite the Last FAQ Item */}
+            {/* Bottom "Book a Project" Pill Button — Directly Below the Cards, Aligned With Last FAQ */}
             <motion.button
               type="button"
               data-testid="faq-book-project-btn"
               onClick={onBookProject}
-              initial={{ y: 22, opacity: 0 }}
+              initial={{ y: 20, opacity: 0 }}
               animate={
                 isRightInView
                   ? { y: 0, opacity: 1 }
-                  : { y: 22, opacity: 0 }
+                  : { y: 20, opacity: 0 }
               }
               transition={{
-                duration: 0.62,
-                delay: 0.14,
+                duration: 0.6,
+                delay: 0.12,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="group relative flex h-[58px] sm:h-[64px] w-full items-center justify-between rounded-full bg-[#141416] dark:bg-[#f4efea] text-[#f4efea] dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white px-7 sm:px-8 shadow-[0_20px_44px_-16px_rgba(18,17,11,0.25)] transition-colors duration-400 cursor-pointer will-change-transform mt-auto"
+              className="group relative flex h-[58px] sm:h-[64px] w-full items-center justify-between rounded-full bg-[#141416] dark:bg-[#f4efea] text-[#f4efea] dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white px-7 sm:px-8 shadow-[0_20px_44px_-16px_rgba(18,17,11,0.25)] transition-colors duration-400 cursor-pointer will-change-transform"
             >
               <span className="relative block h-[24px] overflow-hidden text-[16px] sm:text-[17.5px] font-medium tracking-[-0.015em] leading-[24px]">
                 <span className="block transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-full">
