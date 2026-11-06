@@ -51,19 +51,17 @@ interface FormErrors {
 }
 
 const CATEGORIES_EN = [
-  'Web Design & Dev',
-  'Brand Identity',
-  '3D & Motion',
-  'Creative Direction',
-  'Full Production',
+  'Web & Digital Experience',
+  'Brand & Visual Identity',
+  '3D & Motion Direction',
+  'Full Studio Production',
 ];
 
 const CATEGORIES_NL = [
-  'Webdesign & Dev',
-  'Merkidentiteit',
-  '3D & Animatie',
-  'Creatieve Regie',
-  'Volledige Productie',
+  'Web & Digitale Ervaring',
+  'Merk & Visuele Identiteit',
+  '3D & Motion Regie',
+  'Volledige Studio Productie',
 ];
 
 export function ContactBookingSection({
@@ -576,14 +574,14 @@ export function ContactBookingSection({
                             )}
                           </div>
 
-                          {/* Row 3: Category Selector ("Kya karwana hai?") */}
+                          {/* Row 3: Category Selector — Premium Minimal Grid */}
                           <div>
                             <label className="block text-[13px] font-semibold text-[#12110b]/80 dark:text-[#f4efea]/80 mb-2">
                               {isNl
                                 ? 'Wat wil je laten maken?'
                                 : 'What are you looking to create?'}
                             </label>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                               {categories.map((cat) => {
                                 const isSelected = formData.category === cat;
                                 return (
@@ -596,16 +594,20 @@ export function ContactBookingSection({
                                         category: cat,
                                       }))
                                     }
-                                    className={`relative inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs sm:text-[12.5px] font-semibold transition-all duration-200 cursor-pointer ${
+                                    className={`group relative flex items-center justify-between h-[46px] rounded-[14px] px-4 text-[13.5px] font-medium transition-all duration-300 cursor-pointer ${
                                       isSelected
-                                        ? 'bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] shadow-xs'
-                                        : 'bg-white dark:bg-black/30 text-[#12110b]/70 dark:text-[#f4efea]/70 hover:bg-black/5 dark:hover:bg-white/10 border border-black/[0.06] dark:border-white/[0.08]'
+                                        ? 'bg-white dark:bg-[#25231c] text-[#12110b] dark:text-[#f4efea] border-2 border-[#12110b] dark:border-[#f4efea] shadow-sm'
+                                        : 'bg-white/80 dark:bg-black/25 text-[#12110b]/65 dark:text-[#f4efea]/65 border border-black/[0.08] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/20 hover:text-[#12110b] dark:hover:text-[#f4efea]'
                                     }`}
                                   >
-                                    {isSelected && (
-                                      <Check className="h-3 w-3 stroke-[2.5]" />
-                                    )}
-                                    <span>{cat}</span>
+                                    <span className="truncate">{cat}</span>
+                                    <span
+                                      className={`h-2 w-2 rounded-full transition-all duration-300 shrink-0 ${
+                                        isSelected
+                                          ? 'bg-[#ff4f31] scale-110 shadow-[0_0_8px_rgba(255,79,49,0.5)]'
+                                          : 'bg-black/10 dark:bg-white/15 group-hover:bg-black/25 dark:group-hover:bg-white/30'
+                                      }`}
+                                    />
                                   </button>
                                 );
                               })}
