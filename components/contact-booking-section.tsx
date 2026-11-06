@@ -30,107 +30,14 @@ interface ServiceCategory {
   id: string;
   en: string;
   nl: string;
-  icon: (props: { className?: string }) => React.JSX.Element;
 }
 
 const SERVICE_CATEGORIES: ServiceCategory[] = [
-  {
-    id: 'web',
-    en: 'Web Design & Dev',
-    nl: 'Webdesign & Dev',
-    icon: ({ className }) => (
-      <svg
-        className={className}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect width="18" height="18" x="3" y="3" rx="2" />
-        <path d="M3 9h18" />
-        <path d="M9 21V9" />
-      </svg>
-    ),
-  },
-  {
-    id: 'branding',
-    en: 'Brand Identity',
-    nl: 'Merkidentiteit',
-    icon: ({ className }) => (
-      <svg
-        className={className}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="m12 3-8 9 8 9 8-9-8-9Z" />
-        <path d="m4 12 8 3 8-3" />
-      </svg>
-    ),
-  },
-  {
-    id: '3d-motion',
-    en: '3D & Motion',
-    nl: '3D & Motion',
-    icon: ({ className }) => (
-      <svg
-        className={className}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="m21 8-9-5-9 5 9 5 9-5Z" />
-        <path d="m3 8 9 5v8l-9-5V8Z" />
-        <path d="m21 8-9 5v8l9-5V8Z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'direction',
-    en: 'Creative Direction',
-    nl: 'Creatieve Directie',
-    icon: ({ className }) => (
-      <svg
-        className={className}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
-  },
-  {
-    id: 'production',
-    en: 'Full Production',
-    nl: 'Volledige Productie',
-    icon: ({ className }) => (
-      <svg
-        className={className}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z" />
-      </svg>
-    ),
-  },
+  { id: 'web', en: 'Web Design & Dev', nl: 'Webdesign & Dev' },
+  { id: 'branding', en: 'Brand Identity', nl: 'Merkidentiteit' },
+  { id: '3d-motion', en: '3D & Motion', nl: '3D & Motion' },
+  { id: 'direction', en: 'Creative Direction', nl: 'Creatieve Directie' },
+  { id: 'production', en: 'Full Production', nl: 'Volledige Productie' },
 ];
 
 interface FormState {
@@ -293,7 +200,7 @@ export function ContactBookingSection({
             />
           </div>
 
-          {/* ================= RIGHT COLUMN: Spacious Form Layout ================= */}
+          {/* ================= RIGHT COLUMN: Spacious Minimalist Form ================= */}
           <div className="lg:col-span-7 flex flex-col justify-between px-1 py-1 sm:px-3 sm:py-2 lg:px-4 lg:py-2 min-h-full">
             <div>
               {/* Header Bar: Studio Brand Badge + Minimal Tab Switcher */}
@@ -317,11 +224,11 @@ export function ContactBookingSection({
                 </div>
 
                 {/* Minimal Segmented Pill Toggle */}
-                <div className="inline-flex items-center p-1 rounded-[10px] bg-black/[0.04] dark:bg-white/[0.06] relative">
+                <div className="inline-flex items-center p-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] relative">
                   <button
                     type="button"
                     onClick={() => setActiveTab('message')}
-                    className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-[8px] transition-colors duration-200 cursor-pointer ${
+                    className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-colors duration-200 cursor-pointer ${
                       activeTab === 'message'
                         ? 'text-[#12110b] dark:text-[#f4efea]'
                         : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
@@ -332,7 +239,7 @@ export function ContactBookingSection({
                     {activeTab === 'message' && (
                       <motion.div
                         layoutId="minimalTabIndicator"
-                        className="absolute inset-0 rounded-[8px] bg-white dark:bg-[#28261e] shadow-xs -z-10"
+                        className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
                         transition={{
                           type: 'spring',
                           stiffness: 450,
@@ -345,7 +252,7 @@ export function ContactBookingSection({
                   <button
                     type="button"
                     onClick={() => setActiveTab('call')}
-                    className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-[8px] transition-colors duration-200 cursor-pointer ${
+                    className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-colors duration-200 cursor-pointer ${
                       activeTab === 'call'
                         ? 'text-[#12110b] dark:text-[#f4efea]'
                         : 'text-[#12110b]/60 dark:text-[#f4efea]/60 hover:text-[#12110b] dark:hover:text-[#f4efea]'
@@ -356,7 +263,7 @@ export function ContactBookingSection({
                     {activeTab === 'call' && (
                       <motion.div
                         layoutId="minimalTabIndicator"
-                        className="absolute inset-0 rounded-[8px] bg-white dark:bg-[#28261e] shadow-xs -z-10"
+                        className="absolute inset-0 rounded-full bg-white dark:bg-[#28261e] shadow-xs -z-10"
                         transition={{
                           type: 'spring',
                           stiffness: 450,
@@ -388,7 +295,7 @@ export function ContactBookingSection({
               {/* Dynamic Content Views */}
               <AnimatePresence mode="wait">
                 {activeTab === 'message' ? (
-                  /* ================= TAB 1: FORM WITH CATEGORY BELOW EMAIL & MINIMAL INPUT FOCUS ================= */
+                  /* ================= TAB 1: FORM WITH BORDERLESS INPUTS & CLEAN EDITORIAL PILLS ================= */
                   <motion.div
                     key="tab-message"
                     initial={{ opacity: 0, y: 6 }}
@@ -412,7 +319,7 @@ export function ContactBookingSection({
                         <button
                           type="button"
                           onClick={resetForm}
-                          className="mt-6 inline-flex items-center gap-2 rounded-[12px] bg-black/5 dark:bg-white/10 hover:bg-[#ff4f31] hover:text-white dark:hover:bg-[#ff4f31] dark:hover:text-white px-5 py-2.5 text-xs font-semibold transition-colors cursor-pointer"
+                          className="mt-6 inline-flex items-center gap-2 rounded-full bg-black/5 dark:bg-white/10 hover:bg-[#ff4f31] hover:text-white dark:hover:bg-[#ff4f31] dark:hover:text-white px-5 py-2.5 text-xs font-semibold transition-colors cursor-pointer"
                         >
                           {isNl
                             ? 'Nieuw bericht versturen'
@@ -425,7 +332,7 @@ export function ContactBookingSection({
                         noValidate
                         className="space-y-4"
                       >
-                        {/* 1. Row: First Name & Last Name */}
+                        {/* 1. Row: First Name & Last Name (Seamless Borderless Design) */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label
@@ -453,14 +360,14 @@ export function ContactBookingSection({
                               placeholder={
                                 isNl ? 'Voornaam...' : 'Enter your first name...'
                               }
-                              className={`w-full h-[46px] sm:h-[48px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/30 px-3.5 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                                 errors.firstName
-                                  ? 'border-[#ff4f31]'
-                                  : 'border-black/[0.08] dark:border-white/[0.09] focus:border-[#12110b] dark:focus:border-white/80 focus:bg-white dark:focus:bg-black/50'
-                              } outline-none focus:ring-1 focus:ring-black/10 dark:focus:ring-white/15 transition-all duration-200`}
+                                  ? 'border-rose-500'
+                                  : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
+                              } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none transition-all duration-200`}
                             />
                             {errors.firstName && (
-                              <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                              <p className="mt-1 text-[11px] text-rose-500 font-medium">
                                 {errors.firstName}
                               </p>
                             )}
@@ -492,21 +399,21 @@ export function ContactBookingSection({
                               placeholder={
                                 isNl ? 'Achternaam...' : 'Enter your last name...'
                               }
-                              className={`w-full h-[46px] sm:h-[48px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/30 px-3.5 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                                 errors.lastName
-                                  ? 'border-[#ff4f31]'
-                                  : 'border-black/[0.08] dark:border-white/[0.09] focus:border-[#12110b] dark:focus:border-white/80 focus:bg-white dark:focus:bg-black/50'
-                              } outline-none focus:ring-1 focus:ring-black/10 dark:focus:ring-white/15 transition-all duration-200`}
+                                  ? 'border-rose-500'
+                                  : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
+                              } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none transition-all duration-200`}
                             />
                             {errors.lastName && (
-                              <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                              <p className="mt-1 text-[11px] text-rose-500 font-medium">
                                 {errors.lastName}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        {/* 2. Row: Email Address */}
+                        {/* 2. Row: Email Address (Seamless Borderless Design) */}
                         <div>
                           <label
                             htmlFor="email-input"
@@ -535,32 +442,29 @@ export function ContactBookingSection({
                                 ? 'Voer je e-mailadres in...'
                                 : 'Enter your email address...'
                             }
-                            className={`w-full h-[46px] sm:h-[48px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/30 px-3.5 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                            className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                               errors.email
-                                ? 'border-[#ff4f31]'
-                                : 'border-black/[0.08] dark:border-white/[0.09] focus:border-[#12110b] dark:focus:border-white/80 focus:bg-white dark:focus:bg-black/50'
-                            } outline-none focus:ring-1 focus:ring-black/10 dark:focus:ring-white/15 transition-all duration-200`}
+                                ? 'border-rose-500'
+                                : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
+                            } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none transition-all duration-200`}
                           />
                           {errors.email && (
-                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                            <p className="mt-1 text-[11px] text-rose-500 font-medium">
                               {errors.email}
                             </p>
                           )}
                         </div>
 
-                        {/* 3. Row: Category Selector (POSITIONED DIRECTLY BELOW EMAIL ADDRESS) */}
-                        <div className="pt-0.5">
+                        {/* 3. Row: Category Selector (DIRECTLY BELOW EMAIL - PURE EDITORIAL PILLS, NO ICONS/DOTS) */}
+                        <div className="pt-1">
                           <label className="block text-[13px] font-medium text-[#12110b]/80 dark:text-[#f4efea]/80 mb-2">
                             {isNl
                               ? 'Wat wil je laten maken?'
                               : 'What are you looking to create?'}
                           </label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
-                            {SERVICE_CATEGORIES.map((cat, idx) => {
+                          <div className="flex flex-wrap gap-2">
+                            {SERVICE_CATEGORIES.map((cat) => {
                               const isSelected = formData.category === cat.en;
-                              const IconComponent = cat.icon;
-                              const isLastOdd =
-                                idx === SERVICE_CATEGORIES.length - 1;
                               return (
                                 <button
                                   key={cat.id}
@@ -571,42 +475,21 @@ export function ContactBookingSection({
                                       category: cat.en,
                                     }))
                                   }
-                                  className={`group relative h-[44px] sm:h-[46px] px-3 sm:px-3.5 rounded-[10px] text-[13px] font-medium transition-all duration-200 cursor-pointer flex items-center justify-between gap-2 text-left ${
-                                    isLastOdd ? 'col-span-2 sm:col-span-1' : ''
-                                  } ${
+                                  className={`relative px-4 py-2.5 rounded-full text-[13px] tracking-[-0.01em] transition-all duration-200 cursor-pointer select-none ${
                                     isSelected
-                                      ? 'bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] shadow-[0_2px_8px_rgba(18,17,11,0.12)] border border-[#12110b] dark:border-[#f4efea]'
-                                      : 'bg-[#f8f7f5] dark:bg-black/25 text-[#12110b]/75 dark:text-[#f4efea]/75 border border-black/[0.07] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/25 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
+                                      ? 'bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] font-semibold shadow-xs'
+                                      : 'bg-[#f4f3f0] dark:bg-white/[0.05] text-[#12110b]/70 dark:text-[#f4efea]/70 hover:bg-[#edece8] dark:hover:bg-white/[0.08] hover:text-[#12110b] dark:hover:text-[#f4efea] font-medium'
                                   }`}
                                 >
-                                  <span className="flex items-center gap-2.5 truncate">
-                                    <IconComponent
-                                      className={`h-4 w-4 shrink-0 transition-opacity ${
-                                        isSelected
-                                          ? 'text-white dark:text-[#12110b] opacity-100'
-                                          : 'text-[#12110b]/55 dark:text-[#f4efea]/55 group-hover:opacity-85'
-                                      }`}
-                                    />
-                                    <span className="truncate tracking-[-0.01em]">
-                                      {isNl ? cat.nl : cat.en}
-                                    </span>
-                                  </span>
-
-                                  {isSelected ? (
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/20 dark:bg-black/15">
-                                      <Check className="h-2.5 w-2.5 stroke-[3]" />
-                                    </span>
-                                  ) : (
-                                    <span className="h-1.5 w-1.5 rounded-full bg-black/20 dark:bg-white/20 shrink-0" />
-                                  )}
+                                  <span>{isNl ? cat.nl : cat.en}</span>
                                 </button>
                               );
                             })}
                           </div>
                         </div>
 
-                        {/* 4. Row: Project Message / Brief */}
-                        <div>
+                        {/* 4. Row: Project Message / Brief (Seamless Borderless Design) */}
+                        <div className="pt-0.5">
                           <label
                             htmlFor="msg-input"
                             className="block text-[13px] font-medium text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
@@ -636,14 +519,14 @@ export function ContactBookingSection({
                                 ? 'Voer je bericht of projectomschrijving in...'
                                 : 'Enter your message or project requirements...'
                             }
-                            className={`w-full h-[105px] sm:h-[120px] rounded-[10px] bg-[#f8f7f5] dark:bg-black/30 p-3.5 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                            className={`w-full h-[105px] sm:h-[120px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] p-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                               errors.message
-                                ? 'border-[#ff4f31]'
-                                : 'border-black/[0.08] dark:border-white/[0.09] focus:border-[#12110b] dark:focus:border-white/80 focus:bg-white dark:focus:bg-black/50'
-                            } outline-none focus:ring-1 focus:ring-black/10 dark:focus:ring-white/15 resize-none transition-all duration-200`}
+                                ? 'border-rose-500'
+                                : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
+                            } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none resize-none transition-all duration-200`}
                           />
                           {errors.message && (
-                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                            <p className="mt-1 text-[11px] text-rose-500 font-medium">
                               {errors.message}
                             </p>
                           )}
@@ -676,7 +559,7 @@ export function ContactBookingSection({
                             </span>
                           </label>
                           {errors.agreeToTerms && (
-                            <p className="mt-1 text-[11px] text-[#ff4f31] font-medium">
+                            <p className="mt-1 text-[11px] text-rose-500 font-medium">
                               {errors.agreeToTerms}
                             </p>
                           )}
@@ -689,7 +572,7 @@ export function ContactBookingSection({
                             type="submit"
                             disabled={isSubmitting}
                             data-testid="contact-submit-btn"
-                            className="group relative w-full h-[48px] sm:h-[50px] rounded-[10px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                            className="group relative w-full h-[48px] sm:h-[50px] rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                           >
                             <span>
                               {isSubmitting
@@ -711,7 +594,7 @@ export function ContactBookingSection({
                           <button
                             type="button"
                             onClick={() => setActiveTab('call')}
-                            className="w-full h-[48px] sm:h-[50px] rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] text-[#12110b] dark:text-[#f4efea] border border-black/15 dark:border-white/15 hover:border-[#12110b] dark:hover:border-white font-semibold text-[14px] sm:text-[15px] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                            className="w-full h-[48px] sm:h-[50px] rounded-full bg-black/[0.03] dark:bg-white/[0.04] text-[#12110b] dark:text-[#f4efea] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] hover:text-[#12110b] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                           >
                             <CalendarIcon className="h-4 w-4 text-[#12110b]/70 dark:text-[#f4efea]/70" />
                             <span>
