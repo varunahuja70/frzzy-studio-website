@@ -1,8 +1,5 @@
-import { notFound, redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
 import { ADMIN_PATH } from '@/lib/auth/config';
-import { validateAdminSession } from '@/lib/auth/session';
-import { AdminLayoutShell } from '@/components/admin/admin-layout-shell';
 
 export const metadata = {
   robots: {
@@ -23,34 +20,5 @@ export default async function AdminRootLayout(props: {
     notFound();
   }
 
-  // Check current URL path to distinguish login from protected routes
-  const headerList = await headers();
-  const currentUrl = headerList.get('x-url') || '';
-  const isLoginPage = currentUrl.includes(`/${adminPath}/login`);
-
-  const sessionRes = await validateAdminSession();
-
-  // If user is accessing protected routes without valid 2FA session, redirect to login
-  if (!isLoginPage && !sessionRes.valid) {
-    // Note: If on login page, let it render directly
-    redirect(`/${adminPath}/login`);
-  }
-
-  // If already authenticated and visiting login page, redirect to dashboard
-  if (isLoginPage && sessionRes.valid) {
-    redirect(`/${adminPath}`);
-  }
-
-  if (isLoginPage) {
-    return <div className="min-h-screen w-full">{props.children}</div>;
-  }
-
-  return (
-    <AdminLayoutShell
-      adminPath={adminPath}
-      userEmail={sessionRes.admin?.email || 'admin@frxcxstudio.com'}
-    >
-      {props.children}
-    </AdminLayoutShell>
-  );
+  return <div className="min-h-screen w-full">{props.children}</div>;
 }

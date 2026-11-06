@@ -7,8 +7,13 @@ import {
   ArrowRight,
   Calendar as CalendarIcon,
   Check,
+  Compass,
   ExternalLink,
+  Globe,
+  Layers,
   MessageSquare,
+  Palette,
+  Sparkles,
 } from 'lucide-react';
 import { LanguageCode, ThemeMode } from '@/lib/hero-config';
 
@@ -21,8 +26,7 @@ export interface ContactBookingSectionProps {
   studioLocations?: string;
 }
 
-const DEFAULT_CALENDLY_URL =
-  'https://calendly.com/d/cp35-m2m-w7x/30-minute-meeting';
+const DEFAULT_CALENDLY_URL = 'https://calendly.com/frxcx-studio/intro-call';
 
 type ActiveTab = 'message' | 'call';
 
@@ -30,14 +34,15 @@ interface ServiceCategory {
   id: string;
   en: string;
   nl: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 const SERVICE_CATEGORIES: ServiceCategory[] = [
-  { id: 'web', en: 'Web Design & Dev', nl: 'Webdesign & Dev' },
-  { id: 'branding', en: 'Brand Identity', nl: 'Merkidentiteit' },
-  { id: '3d-motion', en: '3D & Motion', nl: '3D & Motion' },
-  { id: 'direction', en: 'Creative Direction', nl: 'Creatieve Directie' },
-  { id: 'production', en: 'Full Production', nl: 'Volledige Productie' },
+  { id: 'web', en: 'Web Design & Dev', nl: 'Webdesign & Dev', icon: Globe },
+  { id: 'branding', en: 'Brand Identity', nl: 'Merkidentiteit', icon: Palette },
+  { id: '3d-motion', en: '3D & Motion', nl: '3D & Motion', icon: Layers },
+  { id: 'direction', en: 'Creative Direction', nl: 'Creatieve Directie', icon: Compass },
+  { id: 'production', en: 'Full Production', nl: 'Volledige Productie', icon: Sparkles },
 ];
 
 interface FormState {
@@ -368,14 +373,14 @@ export function ContactBookingSection({
                         noValidate
                         className="space-y-4"
                       >
-                        {/* 1. Row: First Name & Last Name (Seamless Borderless Design) */}
+                        {/* 1. Row: First Name & Last Name (Pixel-Perfect Minimal Design) */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label
                               htmlFor="fn-input"
                               className="block text-[13px] font-medium text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
                             >
-                              {isNl ? 'Voornaam' : 'First Name'}
+                              {isNl ? 'Voornaam' : 'First name'}
                             </label>
                             <input
                               id="fn-input"
@@ -394,13 +399,13 @@ export function ContactBookingSection({
                                 }
                               }}
                               placeholder={
-                                isNl ? 'Voornaam...' : 'Enter your first name...'
+                                isNl ? 'Voornaam' : 'First Name'
                               }
-                              className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#faf9f5] dark:bg-white/[0.03] hover:bg-[#f4f3ed] dark:hover:bg-white/[0.05] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                                 errors.firstName
                                   ? 'border-rose-500'
-                                  : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
-                              } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none transition-all duration-200`}
+                                  : 'border-[#e8e7e3] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/20 focus:border-[#12110b] dark:focus:border-[#f4efea]'
+                              } focus:bg-white dark:focus:bg-[#181712] outline-none focus:outline-none ring-0 focus:ring-0 transition-colors duration-200`}
                             />
                             {errors.firstName && (
                               <p className="mt-1 text-[11px] text-rose-500 font-medium">
@@ -414,7 +419,7 @@ export function ContactBookingSection({
                               htmlFor="ln-input"
                               className="block text-[13px] font-medium text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
                             >
-                              {isNl ? 'Achternaam' : 'Last Name'}
+                              {isNl ? 'Achternaam' : 'Last name'}
                             </label>
                             <input
                               id="ln-input"
@@ -433,13 +438,13 @@ export function ContactBookingSection({
                                 }
                               }}
                               placeholder={
-                                isNl ? 'Achternaam...' : 'Enter your last name...'
+                                isNl ? 'Achternaam' : 'Last name'
                               }
-                              className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                              className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#faf9f5] dark:bg-white/[0.03] hover:bg-[#f4f3ed] dark:hover:bg-white/[0.05] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                                 errors.lastName
                                   ? 'border-rose-500'
-                                  : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
-                              } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none transition-all duration-200`}
+                                  : 'border-[#e8e7e3] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/20 focus:border-[#12110b] dark:focus:border-[#f4efea]'
+                              } focus:bg-white dark:focus:bg-[#181712] outline-none focus:outline-none ring-0 focus:ring-0 transition-colors duration-200`}
                             />
                             {errors.lastName && (
                               <p className="mt-1 text-[11px] text-rose-500 font-medium">
@@ -449,13 +454,13 @@ export function ContactBookingSection({
                           </div>
                         </div>
 
-                        {/* 2. Row: Email Address (Seamless Borderless Design) */}
+                        {/* 2. Row: Email Address (Pixel-Perfect Minimal Design) */}
                         <div>
                           <label
                             htmlFor="email-input"
                             className="block text-[13px] font-medium text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
                           >
-                            {isNl ? 'E-mailadres' : 'Email Address'}
+                            {isNl ? 'E-mailadres' : 'Email address'}
                           </label>
                           <input
                             id="email-input"
@@ -475,14 +480,14 @@ export function ContactBookingSection({
                             }}
                             placeholder={
                               isNl
-                                ? 'Voer je e-mailadres in...'
-                                : 'Enter your email address...'
+                                ? 'E-mailadres'
+                                : 'Email address'
                             }
-                            className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                            className={`w-full h-[46px] sm:h-[48px] rounded-[12px] bg-[#faf9f5] dark:bg-white/[0.03] hover:bg-[#f4f3ed] dark:hover:bg-white/[0.05] px-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                               errors.email
                                 ? 'border-rose-500'
-                                : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
-                            } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none transition-all duration-200`}
+                                : 'border-[#e8e7e3] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/20 focus:border-[#12110b] dark:focus:border-[#f4efea]'
+                            } focus:bg-white dark:focus:bg-[#181712] outline-none focus:outline-none ring-0 focus:ring-0 transition-colors duration-200`}
                           />
                           {errors.email && (
                             <p className="mt-1 text-[11px] text-rose-500 font-medium">
@@ -491,8 +496,8 @@ export function ContactBookingSection({
                           )}
                         </div>
 
-                        {/* 3. Row: Category Selector (DIRECTLY BELOW EMAIL - PURE EDITORIAL PILLS, NO ICONS/DOTS) */}
-                        <div className="pt-1">
+                        {/* 3. Row: Category Selector (DIRECTLY BELOW EMAIL - REFINED EDITORIAL TILES) */}
+                        <div className="pt-0.5">
                           <label className="block text-[13px] font-medium text-[#12110b]/80 dark:text-[#f4efea]/80 mb-2">
                             {isNl
                               ? 'Wat wil je laten maken?'
@@ -501,6 +506,7 @@ export function ContactBookingSection({
                           <div className="flex flex-wrap gap-2">
                             {SERVICE_CATEGORIES.map((cat) => {
                               const isSelected = formData.category === cat.en;
+                              const IconComponent = cat.icon;
                               return (
                                 <button
                                   key={cat.id}
@@ -511,28 +517,40 @@ export function ContactBookingSection({
                                       category: cat.en,
                                     }))
                                   }
-                                  className={`relative px-4 py-2.5 rounded-full text-[13px] tracking-[-0.01em] transition-all duration-200 cursor-pointer select-none ${
+                                  className={`group relative inline-flex items-center gap-2 px-3.5 py-2 rounded-[12px] text-[13px] tracking-[-0.01em] transition-all duration-200 cursor-pointer select-none border ${
                                     isSelected
-                                      ? 'bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] font-semibold shadow-xs'
-                                      : 'bg-[#f4f3f0] dark:bg-white/[0.05] text-[#12110b]/70 dark:text-[#f4efea]/70 hover:bg-[#edece8] dark:hover:bg-white/[0.08] hover:text-[#12110b] dark:hover:text-[#f4efea] font-medium'
+                                      ? 'bg-[#12110b] text-white dark:bg-[#f4efea] dark:text-[#12110b] border-[#12110b] dark:border-[#f4efea] font-medium shadow-xs'
+                                      : 'bg-[#faf9f5] dark:bg-white/[0.03] text-[#12110b]/75 dark:text-[#f4efea]/75 border-[#e8e7e3] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/20 hover:bg-[#f4f3ed] dark:hover:bg-white/[0.06] hover:text-[#12110b] dark:hover:text-[#f4efea] font-normal'
                                   }`}
                                 >
+                                  <IconComponent
+                                    className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                                      isSelected
+                                        ? 'text-white dark:text-[#12110b]'
+                                        : 'text-[#12110b]/50 dark:text-[#f4efea]/50 group-hover:text-[#12110b] dark:group-hover:text-[#f4efea]'
+                                    }`}
+                                  />
                                   <span>{isNl ? cat.nl : cat.en}</span>
+                                  {isSelected ? (
+                                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/20 dark:bg-black/15 text-[10px] font-bold">
+                                      ✓
+                                    </span>
+                                  ) : (
+                                    <span className="h-1 w-1 rounded-full bg-black/20 dark:bg-white/25" />
+                                  )}
                                 </button>
                               );
                             })}
                           </div>
                         </div>
 
-                        {/* 4. Row: Project Message / Brief (Seamless Borderless Design) */}
+                        {/* 4. Row: Project Message / Brief (Matching Clean Form Styling) */}
                         <div className="pt-0.5">
                           <label
                             htmlFor="msg-input"
                             className="block text-[13px] font-medium text-[#12110b]/80 dark:text-[#f4efea]/80 mb-1.5"
                           >
-                            {isNl
-                              ? 'Hoe kunnen we je helpen?'
-                              : 'How can we help you?'}
+                            {isNl ? 'Bericht' : 'Message'}
                           </label>
                           <textarea
                             id="msg-input"
@@ -552,14 +570,14 @@ export function ContactBookingSection({
                             }}
                             placeholder={
                               isNl
-                                ? 'Voer je bericht of projectomschrijving in...'
-                                : 'Enter your message or project requirements...'
+                                ? 'Eventuele aanvullende informatie....'
+                                : 'Any additional information....'
                             }
-                            className={`w-full h-[105px] sm:h-[120px] rounded-[12px] bg-[#f4f3f0] dark:bg-white/[0.05] hover:bg-[#edece8] dark:hover:bg-white/[0.07] p-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
+                            className={`w-full h-[98px] sm:h-[110px] rounded-[12px] bg-[#faf9f5] dark:bg-white/[0.03] hover:bg-[#f4f3ed] dark:hover:bg-white/[0.05] p-4 text-[14px] text-[#12110b] dark:text-[#f4efea] placeholder-[#12110b]/35 dark:placeholder-[#f4efea]/35 border ${
                               errors.message
                                 ? 'border-rose-500'
-                                : 'border-transparent focus:border-black/15 dark:focus:border-white/20'
-                            } focus:bg-white dark:focus:bg-[#181712] focus:shadow-[0_2px_10px_rgba(0,0,0,0.04)] outline-none resize-none transition-all duration-200`}
+                                : 'border-[#e8e7e3] dark:border-white/[0.08] hover:border-black/25 dark:hover:border-white/20 focus:border-[#12110b] dark:focus:border-[#f4efea]'
+                            } focus:bg-white dark:focus:bg-[#181712] outline-none focus:outline-none ring-0 focus:ring-0 resize-none transition-colors duration-200`}
                           />
                           {errors.message && (
                             <p className="mt-1 text-[11px] text-rose-500 font-medium">
@@ -613,21 +631,20 @@ export function ContactBookingSection({
                           onChange={() => {}}
                         />
 
-                        {/* 6. Row: Dual Action Buttons */}
-                        <div className="pt-2.5 pb-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {/* Button 1: Send Message */}
+                        {/* 6. Row: High-Impact Single Primary Action Button */}
+                        <div className="pt-2">
                           <button
                             type="submit"
                             disabled={isSubmitting}
                             data-testid="contact-submit-btn"
                             data-track="cta_send_message"
-                            className="group relative w-full h-[48px] sm:h-[50px] rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                            className="group relative w-full h-[48px] sm:h-[50px] rounded-[12px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] tracking-[-0.01em] transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                           >
                             <span>
                               {isSubmitting
                                 ? isNl
-                                  ? 'Verzenden...'
-                                  : 'Sending...'
+                                ? 'Verzenden...'
+                                : 'Sending...'
                                 : isNl
                                 ? 'Verstuur Bericht'
                                 : 'Send Message'}
@@ -637,19 +654,6 @@ export function ContactBookingSection({
                             ) : (
                               <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
                             )}
-                          </button>
-
-                          {/* Button 2: Book a Call (Direct switch to calendar tab) */}
-                          <button
-                            type="button"
-                            data-track="cta_switch_to_calendar"
-                            onClick={() => setActiveTab('call')}
-                            className="w-full h-[48px] sm:h-[50px] rounded-full bg-black/[0.03] dark:bg-white/[0.04] text-[#12110b] dark:text-[#f4efea] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] hover:text-[#12110b] dark:hover:text-white font-semibold text-[14px] sm:text-[15px] transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
-                          >
-                            <CalendarIcon className="h-4 w-4 text-[#12110b]/70 dark:text-[#f4efea]/70" />
-                            <span>
-                              {isNl ? 'Plan een Gesprek' : 'Book a Call'}
-                            </span>
                           </button>
                         </div>
                       </form>

@@ -407,7 +407,7 @@ export function FaqSection({ language, onBookProject }: FaqSectionProps) {
 
                     {/* Bottom Frosted Pill Badge: Eye Icon + Label */}
                     <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 flex items-center justify-center pointer-events-none">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur-md text-white shadow-sm border border-white/10">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/65 backdrop-blur-md text-white shadow-sm border-0 border-transparent">
                         <Eye className="h-3.5 w-3.5 stroke-[2.2]" />
                         <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.14em] uppercase">
                           {card.label}
