@@ -2,12 +2,17 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { PALETTE_EVENT, readLivePalette } from '@/lib/palette';
 
 const Z_OUTLINE: [number, number][] = [
   [1, 2], [33, 2], [33, 6.19], [20.94, 19], [25, 19], [25, 23.24],
   [12.24, 36], [33, 36], [33, 42], [2, 42], [2, 37.76], [14.76, 25],
   [11, 25], [11, 20.81], [23.06, 8], [1, 8]
 ];
+
+// Accent + ivory follow the active site palette; set from CSS when the scene is created.
+let ACCENT = 0xC6FF00;
+let IVORY = 0xF3EFE7;
 
 function lin(hex: number): THREE.Color {
   return new THREE.Color(hex).convertSRGBToLinear();
@@ -29,8 +34,8 @@ function makeEnv(renderer: THREE.WebGLRenderer): THREE.Texture {
 
   panel(0xffffff, 4, [0, 7, 0], [Math.PI / 2, 0, 0], [8, 8]);
   panel(0xffffff, 2.6, [-7, 1, 3], [0, Math.PI / 2, 0], [2.5, 9]);
-  panel(0xC6FF00, 2.4, [7, -1, -1], [0, -Math.PI / 2, 0], [2, 7]);
-  panel(0xF3EFE7, 1.2, [0, -1, -8], [0, 0, 0], [14, 2.5]);
+  panel(ACCENT, 2.4, [7, -1, -1], [0, -Math.PI / 2, 0], [2, 7]);
+  panel(IVORY, 1.2, [0, -1, -8], [0, 0, 0], [14, 2.5]);
   panel(0xffffff, 1.6, [3, 2, 8], [0, Math.PI, 0], [4, 1.5]);
 
   return pmrem.fromScene(env, 0.03).texture;
@@ -97,6 +102,10 @@ export function Viewport3D() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+    const pal = readLivePalette();
+    ACCENT = pal.accentHex;
+    IVORY = pal.ivoryHex;
+
     const scene = new THREE.Scene();
     scene.environment = makeEnv(renderer);
 
@@ -124,28 +133,28 @@ export function Viewport3D() {
     fill.position.set(-5, 2, 3);
     scene.add(fill);
 
-    const rim = new THREE.PointLight(lin(0xC6FF00), 1.4, 20);
+    const rim = new THREE.PointLight(lin(ACCENT), 1.4, 20);
     rim.position.set(-4, 1, -3);
     scene.add(rim);
 
-    const zapLight = new THREE.PointLight(lin(0xC6FF00), 0, 7);
+    const zapLight = new THREE.PointLight(lin(ACCENT), 0, 7);
     zapLight.position.set(0, 0, 1.2);
     scene.add(zapLight);
 
     const ivoryMat = new THREE.MeshPhysicalMaterial({
-      color: lin(0xF3EFE7),
+      color: lin(IVORY),
       roughness: 0.24,
       metalness: 0,
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     });
     const voltMat = new THREE.MeshPhysicalMaterial({
-      color: lin(0xC6FF00),
+      color: lin(ACCENT),
       roughness: 0.2,
       metalness: 0,
       clearcoat: 1,
       clearcoatRoughness: 0.04,
-      emissive: lin(0xC6FF00),
+      emissive: lin(ACCENT),
       emissiveIntensity: 0.14,
     });
 
@@ -173,7 +182,7 @@ export function Viewport3D() {
     scene.add(floor);
 
     const ringMat = new THREE.MeshBasicMaterial({
-      color: lin(0xC6FF00),
+      color: lin(ACCENT),
       transparent: true,
       opacity: 0.45,
       side: THREE.DoubleSide,
@@ -185,7 +194,7 @@ export function Viewport3D() {
 
     const ring2 = new THREE.Mesh(
       new THREE.RingGeometry(2.7, 2.71, 128),
-      new THREE.MeshBasicMaterial({ color: lin(0xF3EFE7), transparent: true, opacity: 0.18, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: lin(IVORY), transparent: true, opacity: 0.18, side: THREE.DoubleSide })
     );
     ring2.rotation.x = -Math.PI / 2;
     ring2.position.y = floorY + 0.01;
@@ -205,7 +214,7 @@ export function Viewport3D() {
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ARC_N * 3), 3));
       const line = new THREE.Line(
         geo,
-        new THREE.LineBasicMaterial({ color: lin(0xC6FF00), transparent: true, opacity: 0, depthTest: false })
+        new THREE.LineBasicMaterial({ color: lin(ACCENT), transparent: true, opacity: 0, depthTest: false })
       );
       line.renderOrder = 5;
       g.add(line);
@@ -223,9 +232,33 @@ export function Viewport3D() {
     spGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
     const sparks = new THREE.Points(
       spGeo,
-      new THREE.PointsMaterial({ color: lin(0xC6FF00), size: 0.07, transparent: true, opacity: 0.95, depthWrite: false })
+      new THREE.PointsMaterial({ color: lin(ACCENT), size: 0.07, transparent: true, opacity: 0.95, depthWrite: false })
     );
     g.add(sparks);
+
+    // Live palette switch: recolour this scene in place. (Remounting would create a new WebGL
+    // context per switch, and browsers only allow ~16, so fast switching would blank the viewport.)
+    const recolor = () => {
+      const p = readLivePalette();
+      ACCENT = p.accentHex;
+      IVORY = p.ivoryHex;
+      const acc = lin(ACCENT);
+      const ivo = lin(IVORY);
+      rim.color.copy(acc);
+      zapLight.color.copy(acc);
+      ivoryMat.color.copy(ivo);
+      voltMat.color.copy(acc);
+      voltMat.emissive.copy(acc);
+      ringMat.color.copy(acc);
+      (ring2.material as THREE.MeshBasicMaterial).color.copy(ivo);
+      arcs.forEach((arc) => (arc.line.material as THREE.LineBasicMaterial).color.copy(acc));
+      (sparks.material as THREE.PointsMaterial).color.copy(acc);
+      const oldEnv = scene.environment;
+      scene.environment = makeEnv(renderer); // reflections include an accent panel
+      oldEnv?.dispose();
+      renderer.render(scene, camera);
+    };
+    window.addEventListener(PALETTE_EVENT, recolor);
 
     const ROWS: [number, number, number][] = [
       [0.77, -0.28, 0.28],
@@ -326,7 +359,11 @@ export function Viewport3D() {
     if (reduce) {
       g.rotation.set(-0.06, 0.42, 0);
       renderer.render(scene, camera);
-      return;
+      return () => {
+        window.removeEventListener(PALETTE_EVENT, recolor);
+        window.removeEventListener('resize', layout);
+        renderer.dispose();
+      };
     }
 
     box.addEventListener('pointermove', onPointerMove, { passive: true });
@@ -345,7 +382,7 @@ export function Viewport3D() {
 
     function frame(now: number) {
       animId = requestAnimationFrame(frame);
-      if (!inView || document.hidden) {
+      if (!inView || document.hidden || box?.closest('[data-covered]')) {
         last = now;
         return;
       }
@@ -403,6 +440,7 @@ export function Viewport3D() {
     animId = requestAnimationFrame(frame);
 
     return () => {
+      window.removeEventListener(PALETTE_EVENT, recolor);
       cancelAnimationFrame(animId);
       observer.disconnect();
       box.removeEventListener('pointermove', onPointerMove);

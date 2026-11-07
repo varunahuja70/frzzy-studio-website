@@ -141,7 +141,7 @@ export function WorkCardArt({ item }: { item: CaseStudy }) {
         <>
           <div className="layer slow">
             <svg className="full" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-              <g stroke="#F3EFE7" strokeOpacity=".3" strokeWidth=".6">
+              <g style={{ stroke: 'var(--ivory)' }} strokeOpacity=".3" strokeWidth=".6">
                 <line x1="94.0" y1="50.0" x2="190.0" y2="50.0" />
                 <line x1="93.6" y1="53.1" x2="187.2" y2="74.5" />
                 <line x1="92.6" y1="56.1" x2="179.1" y2="97.7" />
@@ -177,7 +177,7 @@ export function WorkCardArt({ item }: { item: CaseStudy }) {
             <svg className="star" viewBox="0 0 44 44" aria-hidden="true">
               <path
                 d="M22 4 L25.5 18.5 L40 22 L25.5 25.5 L22 40 L18.5 25.5 L4 22 L18.5 18.5 Z"
-                fill="#C6FF00"
+                style={{ fill: 'var(--volt)' }}
               />
             </svg>
           </div>
@@ -199,13 +199,13 @@ export function WorkCardArt({ item }: { item: CaseStudy }) {
       {item.artType === 'ground' && (
         <div className="layer">
           <svg className="full" viewBox="0 0 160 100" aria-hidden="true">
-            <g stroke="#F3EFE7" strokeWidth="3" strokeLinecap="square">
+            <g style={{ stroke: 'var(--ivory)' }} strokeWidth="3" strokeLinecap="square">
               <line x1="80" y1="12" x2="80" y2="50" />
               <line x1="44" y1="50" x2="116" y2="50" />
               <line x1="58" y1="64" x2="102" y2="64" />
               <line x1="70" y1="78" x2="90" y2="78" />
             </g>
-            <circle cx="80" cy="30" r="5" fill="#C6FF00" />
+            <circle cx="80" cy="30" r="5" style={{ fill: 'var(--volt)' }} />
           </svg>
         </div>
       )}

@@ -8,15 +8,49 @@ import { ShowreelStaticCanvas } from '@/components/frzzy/showreel-static-canvas'
 import { Viewport3D } from '@/components/frzzy/viewport-3d';
 import { WorkCardArt } from '@/components/frzzy/work-card-art';
 import { SvgSymbols } from '@/components/frzzy/svg-symbols';
+import { CalendlyEmbed } from '@/components/frzzy/calendly-embed';
+import { ProjectCard } from '@/components/frzzy/project-card';
+import { StudioFaq } from '@/components/frzzy/studio-faq';
+import { ProcessSteps } from '@/components/frzzy/process-steps';
+import { PaletteSwitcher } from '@/components/frzzy/palette-switcher';
+import { usePaletteVersion } from '@/components/frzzy/use-palette-version';
+import { ImageBand } from '@/components/frzzy/image-band';
+import { Hero3DBackdrop } from '@/components/frzzy/hero-3d-backdrop';
+import { RevealOnScroll } from '@/components/frzzy/reveal-on-scroll';
+import { StackScroll } from '@/components/frzzy/stack-scroll';
 
-type ViewRoute = 'home' | 'work' | 'case' | 'services' | 'about' | 'contact';
+// The wide card at the top of the Work page. Change the slug to feature a different project.
+const FEATURED_SLUG = 'short-circuit';
+
+// Page-switch overlay timing (ms). Two panels slide across: an ivory one leads and the accent
+// panel follows WIPE_LAG_MS later (reversed on the way out). WIPE_MS is each slide, WIPE_HOLD_MS
+// the pause while the screen is covered. Total ≈ 2 × (WIPE_MS + WIPE_LAG_MS) + WIPE_HOLD_MS.
+// The CSS reads these via --wipe-ms / --wipe-lag / --wipe-hold.
+const WIPE_MS = 380;
+const WIPE_LAG_MS = 35;
+const WIPE_HOLD_MS = 100;
+
+// Destination name shown on the overlay ("→ Work").
+const VIEW_LABELS: Record<string, string> = {
+  home: 'Home',
+  work: 'Work',
+  services: 'Services',
+  about: 'About',
+  contact: 'Contact',
+  book: 'Book a call',
+};
+
+type ViewRoute = 'home' | 'work' | 'case' | 'services' | 'about' | 'contact' | 'book';
 
 export default function FrzzyStudioPage() {
   const [currentView, setCurrentView] = useState<ViewRoute>('home');
   const [currentCaseSlug, setCurrentCaseSlug] = useState<string>('grid-runner');
   const [workFilter, setWorkFilter] = useState<string>('all');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Bumps on a live palette switch; keys the canvas/3D effects below so they redraw in the new colours.
+  const paletteVersion = usePaletteVersion();
   const [isWiping, setIsWiping] = useState<'idle' | 'cover' | 'leave'>('idle');
+  const [wipeLabel, setWipeLabel] = useState('');
 
   // Contact form state
   const [contactName, setContactName] = useState('');
@@ -46,7 +80,7 @@ export default function FrzzyStudioPage() {
       const slug = hash.replace('case-', '');
       if (CASES[slug]) return { view: 'case', slug };
     }
-    if (['home', 'work', 'services', 'about', 'contact'].includes(hash)) {
+    if (['home', 'work', 'services', 'about', 'contact', 'book'].includes(hash)) {
       return { view: hash as ViewRoute };
     }
     return { view: 'home' };
@@ -68,6 +102,7 @@ export default function FrzzyStudioPage() {
       return;
     }
 
+    setWipeLabel(slug ? CASES[slug]?.title ?? 'Work' : VIEW_LABELS[targetRoute] ?? '');
     setIsWiping('cover');
     setTimeout(() => {
       if (slug) setCurrentCaseSlug(slug);
@@ -78,8 +113,8 @@ export default function FrzzyStudioPage() {
       setIsWiping('leave');
       setTimeout(() => {
         setIsWiping('idle');
-      }, 360);
-    }, 340);
+      }, WIPE_MS + WIPE_LAG_MS + 40);
+    }, WIPE_MS + WIPE_LAG_MS + WIPE_HOLD_MS);
   }, []);
 
   // Listen to browser hash changes
@@ -233,9 +268,12 @@ export default function FrzzyStudioPage() {
   const nextCase = CASES[nextCaseSlug];
 
   return (
-    <div className="bg-[#080808] text-[#F3EFE7] min-h-screen relative font-[family-name:var(--display)] selection:bg-[#C6FF00] selection:text-[#080808]">
+    <div className="frzzy-site bg-[var(--black)] text-[var(--ivory)] min-h-screen relative font-[family-name:var(--display)] selection:bg-[var(--volt)] selection:text-[var(--on-volt)]">
       <SvgSymbols />
       <FrzzyCursor />
+      <PaletteSwitcher />
+      <RevealOnScroll />
+      <StackScroll />
 
       {/* Top Charge Progress Bar */}
       <div ref={chargeBarRef} className="charge" aria-hidden="true" />
@@ -243,11 +281,31 @@ export default function FrzzyStudioPage() {
       {/* Full-Screen High-Voltage Transition Wipe */}
       <div
         className={`wipe ${isWiping === 'cover' ? 'cover' : isWiping === 'leave' ? 'leave' : ''}`}
+        style={
+          {
+            '--wipe-ms': `${WIPE_MS}ms`,
+            '--wipe-lag': `${WIPE_LAG_MS}ms`,
+            '--wipe-hold': `${WIPE_HOLD_MS}ms`,
+          } as React.CSSProperties
+        }
         aria-hidden="true"
       >
-        <svg viewBox="0 0 34 44">
-          <use href="#z" />
-        </svg>
+        <div className="wipe-panel wipe-back" />
+        <div className="wipe-panel wipe-front">
+          <div className="wipe-center">
+            <span className="wipe-mark">
+              {['base', 's1', 's2', 's3'].map((k) => (
+                <svg key={k} className={`m ${k}`} viewBox="0 0 34 44">
+                  <use href="#z" />
+                </svg>
+              ))}
+            </span>
+            <span className="wipe-label">→ {wipeLabel}</span>
+            <span className="wipe-bar">
+              <i />
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Site Header */}
@@ -325,6 +383,17 @@ export default function FrzzyStudioPage() {
             </li>
             <li>
               <a
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigateTo('#book');
+                }}
+                aria-current={currentView === 'book' ? 'page' : undefined}
+              >
+                Book a call
+              </a>
+            </li>
+            <li>
+              <a
                 className="btn btn-volt magnetic"
                 onClick={() => {
                   setMobileMenuOpen(false);
@@ -347,6 +416,8 @@ export default function FrzzyStudioPage() {
           <div className="view enter" data-view="home">
             {/* Hero */}
             <section className="hero" id="top">
+              {/* Back layer: live 3D bolts behind the strands and the FRZZY wordmark */}
+              <Hero3DBackdrop />
               <div className="hero-word" aria-hidden="true">
                 <span className="sc" ref={scRef}>
                   <span className="base">FRZZY</span>
@@ -356,7 +427,7 @@ export default function FrzzyStudioPage() {
                 </span>
               </div>
 
-              <HeroStrandsCanvas scRef={scRef} />
+              <HeroStrandsCanvas key={`strands-${paletteVersion}`} scRef={scRef} />
 
               <div className="hero-ui wrap">
                 <div className="hero-top">
@@ -429,7 +500,7 @@ export default function FrzzyStudioPage() {
             <section className="reel" aria-label="Showreel">
               <div className="wrap">
                 <div className="reel-frame" ref={reelFrameRef} id="reel-frame">
-                  <ShowreelStaticCanvas />
+                  <ShowreelStaticCanvas key={`reel-${paletteVersion}`} />
                   <div className="reel-corner" aria-hidden="true">
                     <svg style={{ color: 'var(--ivory)' }}>
                       <use href="#z" />
@@ -475,25 +546,26 @@ export default function FrzzyStudioPage() {
                 </div>
 
                 <div className="work-grid">
-                  {CASE_ORDER.slice(0, 4).map((slug) => {
-                    const item = CASES[slug];
-                    return (
-                      <a
-                        key={item.slug}
-                        className="card"
-                        onClick={() => navigateTo(`#case-${item.slug}`)}
-                      >
-                        <WorkCardArt item={item} />
-                        <div className="card-meta">
-                          <h3>{item.title}</h3>
-                          <p className="mono muted">{item.type}</p>
-                        </div>
-                      </a>
-                    );
-                  })}
+                  {CASE_ORDER.slice(0, 4).map((slug, i) => (
+                    <ProjectCard
+                      key={slug}
+                      item={CASES[slug]}
+                      index={i + 1}
+                      total={CASE_ORDER.length}
+                      onOpen={navigateTo}
+                    />
+                  ))}
                 </div>
               </div>
             </section>
+
+            {/* Image chapter: original FRZZY render, tinted by the palette */}
+            <ImageBand
+              src="/assets/frzzy/frzzy-bolts.webp"
+              eyebrow="The studio"
+              title={<>Ideas, <em>built to move.</em></>}
+              body="Motion, 3D and branding made in-house, from the first sketch to the final render."
+            />
 
             {/* Services Teaser */}
             <section className="section" id="home-services">
@@ -542,99 +614,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             {/* Process Section */}
-            <section className="section" id="process">
-              <div className="wrap">
-                <div className="sec-head">
-                  <p className="mono muted">03 / Process</p>
-                  <div>
-                    <h2>How a project charges up.</h2>
-                    <p className="lede">Four stages, named after the thing we are made of.</p>
-                  </div>
-                </div>
-
-                <div className="process">
-                  <div className="step">
-                    <svg className="ico ico-spark" viewBox="0 0 44 44" aria-hidden="true">
-                      <g className="rays" stroke="currentColor" strokeWidth="2" strokeLinecap="square">
-                        <line x1="22" y1="1" x2="22" y2="4" />
-                        <line x1="22" y1="40" x2="22" y2="43" />
-                        <line x1="1" y1="22" x2="4" y2="22" />
-                        <line x1="40" y1="22" x2="43" y2="22" />
-                        <line x1="7" y1="7" x2="9" y2="9" />
-                        <line x1="35" y1="35" x2="37" y2="37" />
-                        <line x1="37" y1="7" x2="35" y2="9" />
-                        <line x1="7" y1="37" x2="9" y2="35" />
-                      </g>
-                      <path
-                        className="star"
-                        d="M22 7 L25 19 L37 22 L25 25 L22 37 L19 25 L7 22 L19 19 Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                    <p className="mono muted">Stage 1</p>
-                    <h3>Spark</h3>
-                    <p>We dig into your brief, your audience and the one feeling the piece has to leave behind.</p>
-                  </div>
-
-                  <div className="step">
-                    <svg className="ico ico-charge" viewBox="0 0 44 44" aria-hidden="true">
-                      <rect x="6" y="13" width="28" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" />
-                      <rect className="tip" x="34" y="18" width="4" height="8" fill="currentColor" />
-                      <rect className="fill" x="10" y="17" width="20" height="10" fill="currentColor" />
-                      <polyline
-                        className="mini"
-                        points="21,15.5 17.5,22 21.5,22 18.5,28.5"
-                        fill="none"
-                        stroke="#080808"
-                        strokeWidth="1.8"
-                        strokeLinejoin="miter"
-                      />
-                    </svg>
-                    <p className="mono muted">Stage 2</p>
-                    <h3>Charge</h3>
-                    <p>Moodboards, styleframes and a direction you approve before a single frame is animated.</p>
-                  </div>
-
-                  <div className="step">
-                    <svg className="ico ico-strike" viewBox="0 0 44 44" aria-hidden="true">
-                      <polyline
-                        className="bolt"
-                        pathLength="100"
-                        points="26,4 14,23 24,23 16,40"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinejoin="miter"
-                        strokeLinecap="square"
-                      />
-                      <g className="hit" stroke="currentColor" strokeWidth="2" strokeLinecap="square">
-                        <line x1="10" y1="42" x2="7" y2="40" />
-                        <line x1="22" y1="42" x2="25" y2="40" />
-                        <line x1="16" y1="43" x2="16" y2="43.5" />
-                      </g>
-                    </svg>
-                    <p className="mono muted">Stage 3</p>
-                    <h3>Strike</h3>
-                    <p>Animation, 3D and sound come together. You see progress at every milestone.</p>
-                  </div>
-
-                  <div className="step">
-                    <svg className="ico ico-ground" viewBox="0 0 44 44" aria-hidden="true">
-                      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square">
-                        <line className="wire" x1="22" y1="5" x2="22" y2="20" />
-                        <line className="g1" x1="8" y1="20" x2="36" y2="20" />
-                        <line className="g2" x1="13" y1="27" x2="31" y2="27" />
-                        <line className="g3" x1="18" y1="34" x2="26" y2="34" />
-                      </g>
-                      <circle className="pulse" cx="22" cy="5" r="3" fill="currentColor" />
-                    </svg>
-                    <p className="mono muted">Stage 4</p>
-                    <h3>Ground</h3>
-                    <p>Final files in every size and format your channels need, ready to post.</p>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <ProcessSteps eyebrow="03 / Process" id="process" />
 
             {/* The Name Section */}
             <section className="section" id="name">
@@ -736,32 +716,58 @@ export default function FrzzyStudioPage() {
 
             <section className="section">
               <div className="wrap">
-                <div className="work-grid three" id="all-work">
-                  {CASE_ORDER.filter(
+                {(() => {
+                  const visible = CASE_ORDER.filter(
                     (slug) => workFilter === 'all' || CASES[slug].category === workFilter
-                  ).map((slug) => {
-                    const item = CASES[slug];
-                    return (
-                      <a
-                        key={item.slug}
-                        className="card"
-                        onClick={() => navigateTo(`#case-${item.slug}`)}
-                      >
-                        <WorkCardArt item={item} />
-                        <div className="card-meta">
-                          <h3>{item.title}</h3>
-                          <p className="mono muted">{item.type}</p>
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
+                  );
+                  // Feature one project in a wide card when it's part of the current filter.
+                  const featured = visible.includes(FEATURED_SLUG) ? FEATURED_SLUG : null;
+                  const rest = visible.filter((slug) => slug !== featured);
+                  const total = CASE_ORDER.length;
+                  const indexOf = (slug: string) => CASE_ORDER.indexOf(slug) + 1;
 
-                {CASE_ORDER.filter(
-                  (slug) => workFilter === 'all' || CASES[slug].category === workFilter
-                ).length === 0 && (
-                  <p className="mono muted empty-note">Nothing here yet. Try another filter.</p>
-                )}
+                  return (
+                    <>
+                      <div className="index-bar">
+                        <span className="mono index-label">
+                          <i aria-hidden="true" /> Selected experiments
+                        </span>
+                        <span className="mono muted" aria-live="polite">
+                          (FRZ — {String(visible.length).padStart(2, '0')})
+                        </span>
+                        <span className="mono muted">©{new Date().getFullYear()}</span>
+                      </div>
+
+                      {featured && (
+                        <ProjectCard
+                          item={CASES[featured]}
+                          index={indexOf(featured)}
+                          total={total}
+                          onOpen={navigateTo}
+                          featured
+                        />
+                      )}
+
+                      {rest.length > 0 && (
+                        <div className="work-grid three" id="all-work">
+                          {rest.map((slug) => (
+                            <ProjectCard
+                              key={slug}
+                              item={CASES[slug]}
+                              index={indexOf(slug)}
+                              total={total}
+                              onOpen={navigateTo}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {visible.length === 0 && (
+                        <p className="mono muted empty-note">Nothing here yet. Try another filter.</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </section>
 
@@ -921,90 +927,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             {/* Process Section */}
-            <section className="section">
-              <div className="wrap">
-                <div className="sec-head">
-                  <p className="mono muted">How we work</p>
-                  <div>
-                    <h2>How a project charges up.</h2>
-                    <p className="lede">Four stages, named after the thing we are made of.</p>
-                  </div>
-                </div>
-
-                <div className="process">
-                  <div className="step">
-                    <svg className="ico ico-spark" viewBox="0 0 44 44" aria-hidden="true">
-                      <g className="rays" stroke="currentColor" strokeWidth="2" strokeLinecap="square">
-                        <line x1="22" y1="1" x2="22" y2="4" />
-                        <line x1="22" y1="40" x2="22" y2="43" />
-                        <line x1="1" y1="22" x2="4" y2="22" />
-                        <line x1="40" y1="22" x2="43" y2="22" />
-                      </g>
-                      <path
-                        className="star"
-                        d="M22 7 L25 19 L37 22 L25 25 L22 37 L19 25 L7 22 L19 19 Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                    <p className="mono muted">Stage 1</p>
-                    <h3>Spark</h3>
-                    <p>We dig into your brief, your audience and the one feeling the piece has to leave behind.</p>
-                  </div>
-
-                  <div className="step">
-                    <svg className="ico ico-charge" viewBox="0 0 44 44" aria-hidden="true">
-                      <rect x="6" y="13" width="28" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" />
-                      <rect className="tip" x="34" y="18" width="4" height="8" fill="currentColor" />
-                      <rect className="fill" x="10" y="17" width="20" height="10" fill="currentColor" />
-                      <polyline
-                        className="mini"
-                        points="21,15.5 17.5,22 21.5,22 18.5,28.5"
-                        fill="none"
-                        stroke="#080808"
-                        strokeWidth="1.8"
-                        strokeLinejoin="miter"
-                      />
-                    </svg>
-                    <p className="mono muted">Stage 2</p>
-                    <h3>Charge</h3>
-                    <p>Moodboards, styleframes and a direction you approve before a single frame is animated.</p>
-                  </div>
-
-                  <div className="step">
-                    <svg className="ico ico-strike" viewBox="0 0 44 44" aria-hidden="true">
-                      <polyline
-                        className="bolt"
-                        pathLength="100"
-                        points="26,4 14,23 24,23 16,40"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinejoin="miter"
-                        strokeLinecap="square"
-                      />
-                    </svg>
-                    <p className="mono muted">Stage 3</p>
-                    <h3>Strike</h3>
-                    <p>Animation, 3D and sound come together. You see progress at every milestone.</p>
-                  </div>
-
-                  <div className="step">
-                    <svg className="ico ico-ground" viewBox="0 0 44 44" aria-hidden="true">
-                      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="square">
-                        <line className="wire" x1="22" y1="5" x2="22" y2="20" />
-                        <line className="g1" x1="8" y1="20" x2="36" y2="20" />
-                        <line className="g2" x1="13" y1="27" x2="31" y2="27" />
-                        <line className="g3" x1="18" y1="34" x2="26" y2="34" />
-                      </g>
-                      <circle className="pulse" cx="22" cy="5" r="3" fill="currentColor" />
-                    </svg>
-                    <p className="mono muted">Stage 4</p>
-                    <h3>Ground</h3>
-                    <p>Final files in every size and format your channels need, ready to post.</p>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <ProcessSteps eyebrow="Process" />
 
             <section className="cta-band">
               <div className="wrap">
@@ -1042,6 +965,15 @@ export default function FrzzyStudioPage() {
                 </p>
               </div>
             </section>
+
+            <ImageBand
+              variant="framed"
+              src="/assets/frzzy/frzzy-monolith.webp"
+              position="center 42%"
+              eyebrow="In-house"
+              title={<>One small team, <em>end to end.</em></>}
+              body="Concept, 3D, animation and sound handled by the same people, so nothing gets lost between hand-offs."
+            />
 
             {/* The Name with Viewport 3D */}
             <section className="section">
@@ -1185,6 +1117,20 @@ export default function FrzzyStudioPage() {
               <div className="wrap">
                 <div className="contact-grid">
                   <div className="reach">
+                    <div className="reach-item book-prompt">
+                      <p className="mono muted">Prefer to talk?</p>
+                      <span className="val">Book a video call</span>
+                      <p className="muted">Pick a time that suits you. The meeting link lands in your inbox straight away.</p>
+                      <div className="reach-row">
+                        <a className="btn btn-volt magnetic" onClick={() => navigateTo('#book')}>
+                          Book a call{' '}
+                          <svg aria-hidden="true">
+                            <use href="#arrow" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+
                     <div className="reach-item">
                       <p className="mono muted">Email</p>
                       <div className="reach-row">
@@ -1345,6 +1291,77 @@ export default function FrzzyStudioPage() {
                 </div>
               </div>
             </section>
+
+            <StudioFaq onBookCall={() => navigateTo('#book')} />
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/*                       BOOK A CALL VIEW                   */}
+        {/* ======================================================== */}
+        {currentView === 'book' && (
+          <div className="view enter" data-view="book">
+            <section className="page-hero">
+              <div className="wrap">
+                <p className="mono muted crumb">
+                  <a onClick={() => navigateTo('#home')}>FRZZY</a>
+                  <span>/</span>
+                  <a onClick={() => navigateTo('#contact')}>Contact</a>
+                  <span>/</span>
+                  <span>Book a call</span>
+                </p>
+                <h1 className="page-title">
+                  Book a call<span className="dot">.</span>
+                </h1>
+                <p className="page-lede">
+                  Pick a time that works for you. You’ll get the video link by email straight away, and so will we.
+                </p>
+              </div>
+            </section>
+
+            <section className="section" id="book-main">
+              <div className="wrap">
+                <div className="book-grid">
+                  <aside className="book-how" aria-label="How booking works">
+                    <p className="mono muted">How it works</p>
+                    <ol className="book-steps">
+                      <li>
+                        <span className="mono">01</span>
+                        <div>
+                          <h3>Pick a time</h3>
+                          <p>Choose a day and a slot. Times show in your own time zone.</p>
+                        </div>
+                      </li>
+                      <li>
+                        <span className="mono">02</span>
+                        <div>
+                          <h3>Tell us the basics</h3>
+                          <p>Your name, email and a line about the project, so we come prepared.</p>
+                        </div>
+                      </li>
+                      <li>
+                        <span className="mono">03</span>
+                        <div>
+                          <h3>Get the link</h3>
+                          <p>You and the studio both get a calendar invite with the meeting link and reminders.</p>
+                        </div>
+                      </li>
+                    </ol>
+                    <p className="muted book-alt">
+                      Rather write it down?{' '}
+                      <a onClick={() => navigateTo('#contact')}>Send us a brief instead</a>.
+                    </p>
+                  </aside>
+
+                  <CalendlyEmbed
+                    key={`cal-${paletteVersion}`}
+                    prefillName={contactName}
+                    prefillEmail={contactEmail}
+                    studioEmail="frxcxstudio@gmail.com"
+                  />
+                </div>
+              </div>
+            </section>
           </div>
         )}
       </main>
@@ -1352,13 +1369,33 @@ export default function FrzzyStudioPage() {
       {/* Site Footer */}
       <footer className="site-foot">
         <div className="wrap">
-          <div className="foot-big">
-            <span className="wm" aria-hidden="true">
-              <span>FR</span>
-              <svg className="z"><use href="#z" /></svg>
-              <svg className="z z2"><use href="#z" /></svg>
-              <span>Y</span>
-            </span>
+          <div className="foot-band">
+            <div className="ib-media" aria-hidden="true">
+              {/* eslint-disable-next-line @next/next/no-img-element -- decorative, CSS-tinted background */}
+              <img src="/assets/frzzy/frzzy-field.webp" alt="" loading="lazy" decoding="async" />
+              <span className="ib-tint" />
+            </div>
+            <div className="foot-big">
+              <span className="wm" aria-hidden="true">
+                <span>FR</span>
+                <svg className="z"><use href="#z" /></svg>
+                <svg className="z z2"><use href="#z" /></svg>
+                <span>Y</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="foot-contact">
+            <p className="mono muted">Got an idea? Say hello</p>
+            <a className="foot-email" href="mailto:frxcxstudio@gmail.com">
+              frxcxstudio@gmail.com
+              <svg aria-hidden="true">
+                <use href="#arrow" />
+              </svg>
+            </a>
+            <a className="btn btn-ghost magnetic" href="#book" onClick={(e) => { e.preventDefault(); navigateTo('#book'); }}>
+              Book a call
+            </a>
           </div>
 
           <div className="foot-row">
@@ -1371,6 +1408,7 @@ export default function FrzzyStudioPage() {
               <li><a onClick={() => navigateTo('#services')}>Services</a></li>
               <li><a onClick={() => navigateTo('#about')}>About</a></li>
               <li><a onClick={() => navigateTo('#contact')}>Contact</a></li>
+              <li><a onClick={() => navigateTo('#book')}>Book a call</a></li>
             </ul>
             <p className="mono muted">
               © {new Date().getFullYear()} FRZZY Studio · India · Worldwide

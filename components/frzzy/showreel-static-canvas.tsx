@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { readLivePalette } from '@/lib/palette';
 
 export function ShowreelStaticCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -13,6 +14,7 @@ export function ShowreelStaticCanvas() {
     if (!ctx) return;
 
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pal = readLivePalette(); // colours follow the active site palette
     const W = canvas.width;
     const H = canvas.height;
     const img = ctx.createImageData(W, H);
@@ -38,11 +40,11 @@ export function ShowreelStaticCanvas() {
       ctx.putImageData(img, 0, 0);
 
       const y = Math.floor(((performance.now() - start) / 18) % (H + 20)) - 10;
-      ctx.fillStyle = 'rgba(198,255,0,0.35)';
+      ctx.fillStyle = `rgba(${pal.accentRgb}, 0.35)`;
       ctx.fillRect(0, y, W, 2);
 
       if (Math.random() < 0.08) {
-        ctx.fillStyle = 'rgba(243,239,231,0.18)';
+        ctx.fillStyle = `rgba(${pal.ivoryRgb}, 0.18)`;
         ctx.fillRect(0, Math.floor(Math.random() * H), W, 1 + Math.floor(Math.random() * 3));
       }
     }

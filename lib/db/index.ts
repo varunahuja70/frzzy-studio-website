@@ -580,10 +580,13 @@ export async function initDatabase(): Promise<void> {
     }
   }
 
-  // Seed default share templates
+  // Seed default share templates.
+  // created_by is a foreign key to admins(id), so on a fresh database with no superadmin yet
+  // there is no valid creator: skip seeding (it runs on the next boot once an admin exists)
+  // instead of inserting a fake 'system' id that fails the FK and aborts the whole init.
   const superAdminRow = await client.execute(`SELECT id FROM admins WHERE role = 'superadmin' LIMIT 1;`);
-  const creatorId = superAdminRow.rows[0]?.id ? String(superAdminRow.rows[0].id) : 'system';
-  for (const tpl of DEFAULT_SHARE_TEMPLATES) {
+  const creatorId = superAdminRow.rows[0]?.id ? String(superAdminRow.rows[0].id) : null;
+  for (const tpl of creatorId ? DEFAULT_SHARE_TEMPLATES : []) {
     const existing = await client.execute({
       sql: `SELECT id FROM share_templates WHERE name = ? LIMIT 1`,
       args: [tpl.name],

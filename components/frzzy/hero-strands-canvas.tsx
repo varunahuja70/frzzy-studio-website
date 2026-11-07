@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { readLivePalette } from '@/lib/palette';
 
 interface Point {
   x: number;
@@ -53,6 +54,9 @@ export function HeroStrandsCanvas({ scRef, onZap }: HeroStrandsCanvasProps) {
     if (!heroEl) return;
 
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Colours follow the active site palette (see lib/palette.ts).
+    const pal = readLivePalette();
+    const accent = `rgb(${pal.accentRgb})`;
 
     let W = 0;
     let H = 0;
@@ -216,7 +220,7 @@ export function HeroStrandsCanvas({ scRef, onZap }: HeroStrandsCanvasProps) {
         s = strands[i];
         if (!s.volt && s.c < 0.35) trace(s);
       }
-      ctx.strokeStyle = 'rgba(243,239,231,0.34)';
+      ctx.strokeStyle = `rgba(${pal.ivoryRgb}, 0.34)`;
       ctx.stroke();
 
       ctx.beginPath();
@@ -224,7 +228,7 @@ export function HeroStrandsCanvas({ scRef, onZap }: HeroStrandsCanvasProps) {
         s = strands[i];
         if (!s.volt && s.c >= 0.35) trace(s);
       }
-      ctx.strokeStyle = 'rgba(243,239,231,0.9)';
+      ctx.strokeStyle = `rgba(${pal.ivoryRgb}, 0.9)`;
       ctx.stroke();
 
       ctx.beginPath();
@@ -232,10 +236,10 @@ export function HeroStrandsCanvas({ scRef, onZap }: HeroStrandsCanvasProps) {
         s = strands[i];
         if (s.volt) trace(s);
       }
-      ctx.strokeStyle = 'rgba(198,255,0,0.85)';
+      ctx.strokeStyle = `rgba(${pal.accentRgb}, 0.85)`;
       ctx.stroke();
 
-      ctx.fillStyle = '#C6FF00';
+      ctx.fillStyle = accent;
       for (i = 0; i < strands.length; i++) {
         s = strands[i];
         if (s.c > 0.5) {
@@ -248,7 +252,7 @@ export function HeroStrandsCanvas({ scRef, onZap }: HeroStrandsCanvasProps) {
 
       if (arcs.length) {
         ctx.lineWidth = 1.6;
-        ctx.strokeStyle = '#C6FF00';
+        ctx.strokeStyle = accent;
         for (let q = 0; q < arcs.length; q++) {
           const A = arcs[q];
           ctx.globalAlpha = Math.max(0, A.life / A.max);
