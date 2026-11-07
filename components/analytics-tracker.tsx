@@ -27,6 +27,9 @@ export function AnalyticsTracker() {
       typeof window === 'undefined' ||
       window.location.pathname.startsWith('/studio-vault') ||
       window.location.pathname.startsWith('/api/admin') ||
+      // Inside an iframe = the vault's Site Appearance live preview (the site can only be framed by
+      // itself, see frame-ancestors in next.config.ts): don't count previews as visits.
+      window.self !== window.top ||
       navigator.doNotTrack === '1' ||
       (window as unknown as { globalPrivacyControl?: boolean }).globalPrivacyControl === true
     ) {

@@ -78,7 +78,10 @@ export function HeroStrandsCanvas({ scRef, onZap }: HeroStrandsCanvasProps) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       W = canvas.clientWidth;
       H = canvas.clientHeight;
-      if (!W || !H) return;
+      if (!W || !H) {
+        strands = []; // hidden (strands turned off): nothing to simulate
+        return;
+      }
       canvas.width = Math.round(W * dpr);
       canvas.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

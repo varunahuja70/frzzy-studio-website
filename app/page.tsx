@@ -12,7 +12,6 @@ import { CalendlyEmbed } from '@/components/frzzy/calendly-embed';
 import { ProjectCard } from '@/components/frzzy/project-card';
 import { StudioFaq } from '@/components/frzzy/studio-faq';
 import { ProcessSteps } from '@/components/frzzy/process-steps';
-import { PaletteSwitcher } from '@/components/frzzy/palette-switcher';
 import { usePaletteVersion } from '@/components/frzzy/use-palette-version';
 import { ImageBand } from '@/components/frzzy/image-band';
 import { Hero3DBackdrop } from '@/components/frzzy/hero-3d-backdrop';
@@ -271,7 +270,6 @@ export default function FrzzyStudioPage() {
     <div className="frzzy-site bg-[var(--black)] text-[var(--ivory)] min-h-screen relative font-[family-name:var(--display)] selection:bg-[var(--volt)] selection:text-[var(--on-volt)]">
       <SvgSymbols />
       <FrzzyCursor />
-      <PaletteSwitcher />
       <RevealOnScroll />
       <StackScroll />
 
@@ -434,7 +432,8 @@ export default function FrzzyStudioPage() {
                   <p className="mono muted">Motion · 3D · Visuals</p>
                   <p className="mono muted hint">
                     <i />
-                    <span>Brush through the strands · click to zap</span>
+                    <span className="hint-strands">Brush through the strands · click to zap</span>
+                    <span className="hint-zap">Move to tilt · click to zap</span>
                   </p>
                   <p className="mono muted">Studio · India</p>
                 </div>

@@ -1,11 +1,11 @@
 /**
  * Site colour themes: the single source of truth.
  *
- * ✏️ Choose the live palette: change DEFAULT_PALETTE.
- * ✏️ Add a palette: copy an entry in PALETTES and change the colours. The CSS, the switcher and
+ * ✏️ The live palette (and look, scroll mode, strands) is chosen in Studio Vault → Site Appearance.
+ * ✏️ Add a palette: copy an entry in PALETTES and change the colours. The CSS, the vault picker and
  *    the canvas/3D effects all pick it up automatically. Every palette passes WCAG contrast checks
  *    (text ≥ 7:1, secondary text / accent ≥ 4.5:1, button borders ≥ 3:1); keep that when editing.
- * Preview: the palette switcher (bottom-right, `npm run dev` only), or ?palette=<id> in any URL.
+ * Preview without saving: ?palette=<id>&look=<id>&scroll=<id>&strands=<id> in any URL.
  *
  * Token meaning (CSS names kept from the original brand so no styles had to be renamed):
  *   bg → --black (page background)        surface → --charcoal (cards, panels)
@@ -58,10 +58,11 @@ export const PALETTES: Palette[] = [
     bg: '#FFFFFF', surface: '#FFE3E3', text: '#0A0A0A', muted: '#595959', stone: '#858585', line: '#EAEAEA', accent: '#0A0A0A', onAccent: '#FFFFFF' },
 ];
 
+/** Fallback palette when no admin choice is stored yet. The live choice is made in
+ *  Studio Vault → Site Appearance (stored in the `settings` table, see lib/site-appearance.ts). */
 export const DEFAULT_PALETTE = 'cobalt';
 
-export const PALETTE_STORAGE_KEY = 'frzzy-palette';
-/** Fired on window after a live palette change; canvas/3D effects re-initialise on it. */
+/** Fired on window when appearance attributes change; canvas/3D effects recolour on it. */
 export const PALETTE_EVENT = 'frzzy:palette';
 
 const rgb = (hex: string) => {
@@ -80,9 +81,10 @@ function tokens(p: Palette): string {
   ].join(';');
 }
 
-/** CSS custom properties for every palette (rendered into <head> by app/layout.tsx). */
-export function paletteCss(): string {
-  const def = PALETTES.find((p) => p.id === DEFAULT_PALETTE) ?? PALETTES[0];
+/** CSS custom properties for every palette (rendered into <head> by app/layout.tsx).
+ *  `activeId` is also used for plain :root, so the page is right even before any script runs. */
+export function paletteCss(activeId: string = DEFAULT_PALETTE): string {
+  const def = PALETTES.find((p) => p.id === activeId) ?? PALETTES.find((p) => p.id === DEFAULT_PALETTE) ?? PALETTES[0];
   return [`:root{${tokens(def)}}`, ...PALETTES.map((p) => `:root[data-palette="${p.id}"]{${tokens(p)}}`)].join('\n');
 }
 
@@ -90,7 +92,6 @@ export function paletteCss(): string {
  * Looks: the overall styling on top of the colours.
  *   mac    → rounded corners, frosted glass, soft depth, macOS window frames, SF-style type
  *   studio → the original FRZZY style: hard edges, heavy type
- * ✏️ Choose the live look: change DEFAULT_LOOK. Preview with the switcher or ?look=studio|mac.
  */
 export const LOOKS = [
   { id: 'mac', name: 'Mac', note: 'Rounded, glassy, soft depth' },
@@ -98,14 +99,12 @@ export const LOOKS = [
 ] as const;
 export type LookId = (typeof LOOKS)[number]['id'];
 export const DEFAULT_LOOK: LookId = 'mac';
-export const LOOK_STORAGE_KEY = 'frzzy-look';
 
 /**
  * Scroll modes.
  *   stack  → "page by page": each section slides up over the previous one, which pins,
  *            shrinks back slightly and dims (tall sections finish scrolling before they pin)
  *   normal → regular scrolling
- * ✏️ Choose the live mode: change DEFAULT_SCROLL. Preview with the switcher or ?scroll=normal|stack.
  */
 export const SCROLLS = [
   { id: 'stack', name: 'Stack', note: 'Sections slide over each other, page by page' },
@@ -113,75 +112,59 @@ export const SCROLLS = [
 ] as const;
 export type ScrollId = (typeof SCROLLS)[number]['id'];
 export const DEFAULT_SCROLL: ScrollId = 'stack';
-export const SCROLL_STORAGE_KEY = 'frzzy-scroll';
 
 /**
- * Runs inline in <head> before first paint, so the page never flashes the wrong colours/look.
- * Order for each: ?palette= / ?look= in the URL, then a saved preview choice, then the default.
+ * Hero strands (the hanging lines at the top of the home hero).
+ * With strands off, clicking the hero still zaps (wordmark glitch + 3D bolts spin).
  */
-export const paletteBootScript = `(function(){
-function pick(attr,ids,d,k,param){try{
-var q=new URLSearchParams(location.search).get(param);
-if(q&&ids.indexOf(q)>-1){localStorage.setItem(k,q);}
-var s=localStorage.getItem(k);
-document.documentElement.setAttribute(attr,ids.indexOf(s)>-1?s:d);
-}catch(e){document.documentElement.setAttribute(attr,d);}}
-pick('data-palette',${JSON.stringify(PALETTES.map((p) => p.id))},${JSON.stringify(DEFAULT_PALETTE)},${JSON.stringify(PALETTE_STORAGE_KEY)},'palette');
-pick('data-look',${JSON.stringify(LOOKS.map((l) => l.id))},${JSON.stringify(DEFAULT_LOOK)},${JSON.stringify(LOOK_STORAGE_KEY)},'look');
-pick('data-scroll',${JSON.stringify(SCROLLS.map((m) => m.id))},${JSON.stringify(DEFAULT_SCROLL)},${JSON.stringify(SCROLL_STORAGE_KEY)},'scroll');
-})();`;
+export const STRANDS = [
+  { id: 'off', name: 'Off', note: 'Clean hero with the 3D bolts' },
+  { id: 'on', name: 'On', note: 'Hanging strands you can brush through' },
+] as const;
+export type StrandsId = (typeof STRANDS)[number]['id'];
+export const DEFAULT_STRANDS: StrandsId = 'off';
 
-/** Switch look live (client only). Fires a resize so canvases re-measure their (re-styled) frames. */
-export function applyLook(id: string) {
-  if (!LOOKS.some((l) => l.id === id)) return;
-  document.documentElement.setAttribute('data-look', id);
-  try {
-    localStorage.setItem(LOOK_STORAGE_KEY, id);
-  } catch {
-    /* private mode */
-  }
-  const url = new URL(window.location.href);
-  if (url.searchParams.has('look')) {
-    url.searchParams.set('look', id);
-    window.history.replaceState(window.history.state, '', url.toString());
-  }
-  window.dispatchEvent(new CustomEvent(PALETTE_EVENT, { detail: id }));
-  window.dispatchEvent(new Event('resize'));
+/** The whole site appearance, as chosen by an admin in Studio Vault → Site Appearance. */
+export interface SiteAppearance {
+  palette: string;
+  look: LookId;
+  scroll: ScrollId;
+  strands: StrandsId;
 }
 
-/** Switch scroll mode live (client only). */
-export function applyScroll(id: string) {
-  if (!SCROLLS.some((m) => m.id === id)) return;
-  document.documentElement.setAttribute('data-scroll', id);
-  try {
-    localStorage.setItem(SCROLL_STORAGE_KEY, id);
-  } catch {
-    /* private mode */
-  }
-  const url = new URL(window.location.href);
-  if (url.searchParams.has('scroll')) {
-    url.searchParams.set('scroll', id);
-    window.history.replaceState(window.history.state, '', url.toString());
-  }
-  window.dispatchEvent(new Event('resize'));
+export const DEFAULT_APPEARANCE: SiteAppearance = {
+  palette: DEFAULT_PALETTE,
+  look: DEFAULT_LOOK,
+  scroll: DEFAULT_SCROLL,
+  strands: DEFAULT_STRANDS,
+};
+
+const pickId = <T extends string>(value: unknown, ids: readonly T[], fallback: T): T =>
+  typeof value === 'string' && (ids as readonly string[]).includes(value) ? (value as T) : fallback;
+
+/** Validates stored/submitted data: unknown values fall back to the defaults. */
+export function normalizeAppearance(raw: unknown): SiteAppearance {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    palette: pickId(r.palette, PALETTES.map((p) => p.id), DEFAULT_PALETTE),
+    look: pickId(r.look, LOOKS.map((l) => l.id), DEFAULT_LOOK),
+    scroll: pickId(r.scroll, SCROLLS.map((m) => m.id), DEFAULT_SCROLL),
+    strands: pickId(r.strands, STRANDS.map((m) => m.id), DEFAULT_STRANDS),
+  };
 }
 
-/** Switch palette live (client only): updates <html>, remembers it, and notifies the effects. */
-export function applyPalette(id: string) {
-  if (!PALETTES.some((p) => p.id === id)) return;
-  document.documentElement.setAttribute('data-palette', id);
-  try {
-    localStorage.setItem(PALETTE_STORAGE_KEY, id);
-  } catch {
-    /* private mode */
-  }
-  const url = new URL(window.location.href);
-  if (url.searchParams.has('palette')) {
-    url.searchParams.set('palette', id);
-    window.history.replaceState(window.history.state, '', url.toString());
-  }
-  window.dispatchEvent(new CustomEvent(PALETTE_EVENT, { detail: id }));
-}
+/**
+ * Inline <head> script. The admin's choice is server-rendered onto <html> by app/layout.tsx;
+ * this only applies one-off PREVIEW overrides from the URL (?palette=&look=&scroll=&strands=,
+ * used by the vault's live preview; nothing is saved), and clears per-browser choices left
+ * behind by the old on-page switcher so they can never override the admin's settings.
+ */
+export const appearanceBootScript = `(function(){try{
+var q=new URLSearchParams(location.search),r=document.documentElement;
+var m={palette:${JSON.stringify(PALETTES.map((p) => p.id))},look:${JSON.stringify(LOOKS.map((l) => l.id))},scroll:${JSON.stringify(SCROLLS.map((x) => x.id))},strands:${JSON.stringify(STRANDS.map((x) => x.id))}};
+for(var k in m){var v=q.get(k);if(v&&m[k].indexOf(v)>-1)r.setAttribute('data-'+k,v);}
+['frzzy-palette','frzzy-look','frzzy-scroll','frzzy-strands'].forEach(function(x){localStorage.removeItem(x);});
+}catch(e){}})();`;
 
 export interface LivePalette {
   /** "r, g, b" strings, ready for `rgba(${x}, alpha)` */

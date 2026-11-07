@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Inter_Tight, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
-import { paletteBootScript, paletteCss } from '@/lib/palette';
+import { connection } from 'next/server';
+import { appearanceBootScript, paletteCss } from '@/lib/palette';
+import { getSiteAppearance } from '@/lib/site-appearance';
 
 const geistSans = Geist({
   subsets: ['latin'],
@@ -48,22 +50,31 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Render per request so a change saved in Studio Vault → Site Appearance shows up immediately.
+  await connection();
+  const { value: appearance } = await getSiteAppearance();
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
+      data-palette={appearance.palette}
+      data-look={appearance.look}
+      data-scroll={appearance.scroll}
+      data-strands={appearance.strands}
       className={`${geistSans.variable} ${geistMono.variable} ${interTight.variable} ${plusJakarta.variable} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden overflow-x-clip`}
     >
       <head>
-        {/* Sets <html data-palette> before first paint so the page never flashes the wrong colours. */}
-        <script dangerouslySetInnerHTML={{ __html: paletteBootScript }} />
+        {/* Appearance is server-rendered on <html> above (set in the vault); this script only applies
+            one-off ?palette=&look=… preview overrides, e.g. for the vault's live preview. */}
+        <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
         {/* Colour tokens for every palette, generated from lib/palette.ts. */}
-        <style id="palette-tokens" dangerouslySetInnerHTML={{ __html: paletteCss() }} />
+        <style id="palette-tokens" dangerouslySetInnerHTML={{ __html: paletteCss(appearance.palette) }} />
       </head>
       <body
         suppressHydrationWarning
