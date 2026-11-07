@@ -56,6 +56,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  serverExternalPackages: ['@libsql/client', 'drizzle-orm', '@node-rs/argon2'],
   eslint: {
     ignoreDuringBuilds: true,
   },
