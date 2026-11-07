@@ -36,6 +36,7 @@ import {
   Building2,
   Lock,
   Palette,
+  Star,
 } from 'lucide-react';
 
 interface AdminLayoutShellProps {
@@ -303,6 +304,14 @@ export function AdminLayoutShell({
       show: hasPerm('audit:view'),
     },
     {
+      name: 'Reviews',
+      href: `/${adminPath}/reviews`,
+      icon: Star,
+      active: activePath.startsWith(`/${adminPath}/reviews`),
+      badge: null,
+      show: hasPerm('settings:view'),
+    },
+    {
       name: 'Site Appearance',
       href: `/${adminPath}/appearance`,
       icon: Palette,
@@ -332,6 +341,7 @@ export function AdminLayoutShell({
     { name: 'Roles & Access', description: 'Permissions & lead visibility scopes', href: `/${adminPath}/roles`, icon: KeyRound },
     { name: 'Sessions & Security', description: 'Active logins & hardware sessions', href: `/${adminPath}/security`, icon: ShieldCheck },
     { name: 'Audit Log', description: 'Immutable admin activity log', href: `/${adminPath}/audit`, icon: ClipboardList },
+    { name: 'Reviews', description: 'Client reviews shown on the website', href: `/${adminPath}/reviews`, icon: Star },
     { name: 'Site Appearance', description: 'Public website palette, look, scroll & hero', href: `/${adminPath}/appearance`, icon: Palette },
     { name: 'Settings', description: 'Vault preferences & notifications', href: `/${adminPath}/settings`, icon: Settings },
   ];

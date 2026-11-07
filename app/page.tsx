@@ -17,6 +17,7 @@ import { ImageBand } from '@/components/frzzy/image-band';
 import { Hero3DBackdrop } from '@/components/frzzy/hero-3d-backdrop';
 import { RevealOnScroll } from '@/components/frzzy/reveal-on-scroll';
 import { StackScroll } from '@/components/frzzy/stack-scroll';
+import { StudioReviews } from '@/components/frzzy/studio-reviews';
 
 // The wide card at the top of the Work page. Change the slug to feature a different project.
 const FEATURED_SLUG = 'short-circuit';
@@ -658,6 +659,9 @@ export default function FrzzyStudioPage() {
             </section>
 
             {/* CTA Band */}
+            {/* Client reviews (placeholders are hidden on the live site) */}
+            <StudioReviews onStartProject={() => navigateTo('#contact')} />
+
             <section className="cta-band">
               <div className="wrap">
                 <h2>Got a brief?<br />Let’s make it FRZZY.</h2>

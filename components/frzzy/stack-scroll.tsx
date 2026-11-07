@@ -98,9 +98,15 @@ export function StackScroll() {
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onResize);
 
-    // a new view is mounted by the hash router, or the mode is switched live
+    // a new view is mounted by the hash router, a section is added to the current view later
+    // (e.g. reviews once they've loaded), or the mode is switched live
     const viewObserver = new MutationObserver((muts) => {
-      if (muts.some((m) => Array.from(m.addedNodes).some((n) => n instanceof HTMLElement && n.classList.contains('view')))) collect();
+      const changed = muts.some(
+        (m) =>
+          (m.target instanceof HTMLElement && m.target.classList.contains('view')) ||
+          Array.from(m.addedNodes).some((n) => n instanceof HTMLElement && n.classList.contains('view'))
+      );
+      if (changed) collect();
     });
     viewObserver.observe(site, { childList: true, subtree: true });
     const modeObserver = new MutationObserver(collect);

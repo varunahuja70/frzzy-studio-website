@@ -142,6 +142,18 @@ Consistent with the studio's luxury aesthetic:
 - **Defaults** (used until something is saved, or via *Reset to defaults*): Volt · Mac · Stack · Strands off — defined in `lib/palette.ts`, where new palettes can also be added.
 - **Preview links**: any page URL accepts `?palette=…&look=…&scroll=…&strands=…` for a one-off preview; it is never saved and visitors cannot change the live appearance.
 
+### Client Reviews (home page "What clients say")
+
+`/studio-vault/reviews` (sidebar: **Reviews**) manages the reviews shown on the home page:
+
+- **Add review**: name, role, company/brand, review text (10–800 characters), 1–5 star rating, where it was posted (X, Instagram, LinkedIn, website or no icon) with an optional link, an optional photo, and *Show on the website*. A live preview shows the card exactly as it will look on the site.
+- **Photos** are cropped to a square and compressed in the browser (320×320 WebP, typically 20–40 KB), then stored with the review. Without a photo, the person's initials are shown.
+- **Per review**: *Edit*, *Hide* / *Show on site*, *Delete* (asks for confirmation), and ↑ ↓ to change the order on the site. Up to 30 reviews.
+- **On the site**: only reviews marked *Show on site* appear; the whole section is hidden while none are shown. Changes appear within ~15 seconds.
+- **Permissions**: `settings:view` to see the page, `settings:edit` to change anything. Every change is written to the audit log (`SETTINGS_UPDATED`, resource `site_reviews`).
+- **Storage**: `settings` table, key `site_reviews`. Public API: `GET /api/reviews` (published only) and `GET /api/reviews/{id}/photo`.
+- Only publish genuine reviews the client has agreed to share.
+
 ---
 
 ## 6. Secret Rotation & Zero-Downtime Key Lifecycle

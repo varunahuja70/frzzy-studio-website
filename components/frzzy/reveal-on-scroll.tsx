@@ -16,6 +16,8 @@ const SELECTOR = [
   '.process .step',
   '.services li',
   '.faq-item',
+  '.review',
+  '.reviews-head',
   '.reach-item',
   '.book-steps li',
   '.value',
