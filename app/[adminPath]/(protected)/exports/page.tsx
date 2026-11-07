@@ -578,7 +578,7 @@ export default function AdminExportsPage(props: {
                 className="h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-colors cursor-pointer z-30"
                 aria-label="Close modal"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4 pointer-events-none" />
               </button>
             </div>
             <p className="text-xs text-[#a09d93]">
