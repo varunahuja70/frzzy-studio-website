@@ -93,7 +93,7 @@ export default function AdminDashboardPage(props: {
   const [data, setData] = useState<DashboardMetrics | null>(cached || null);
   const [loading, setLoading] = useState(!cached);
   const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [hoveredPoint, setHoveredPoint] = useState<{ label: string; value: number } | null>(null);
+  const [hoveredPoint, setHoveredPoint] = useState<{ label: string; value: number; x: number; y: number; date?: string } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -368,68 +368,35 @@ export default function AdminDashboardPage(props: {
           </div>
 
           {/* SVG Area Chart */}
-          <div className="relative h-[260px] sm:h-[280px] w-full pt-4">
-            {timeline.length > 1 ? (
-              <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
-                <defs>
-                  <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ff4f31" stopOpacity="0.28" />
-                    <stop offset="100%" stopColor="#ff4f31" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+          <div className="relative h-[260px] sm:h-[280px] w-full pt-2">
+            {timeline.length > 0 ? (
+              (() => {
+                const paddingLeft = 45;
+                const paddingRight = 25;
+                const paddingTop = 20;
+                const baselineY = 190;
+                const plotWidth = 800 - paddingLeft - paddingRight;
+                const plotHeight = baselineY - paddingTop;
 
-                {/* Grid guidelines */}
-                <line x1="0" y1="25" x2="100" y2="25" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="3 3" />
-                <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="3 3" />
-                <line x1="0" y1="75" x2="100" y2="75" stroke="currentColor" strokeOpacity="0.06" strokeDasharray="3 3" />
+                const values = timeline.map((item: any) =>
+                  chartMetric === 'visitors'
+                    ? item.visitors
+                    : chartMetric === 'pageviews'
+                    ? item.pageviews
+                    : chartMetric === 'clicks'
+                    ? item.clicks
+                    : item.leads
+                );
 
-                {/* Area path */}
-                <path
-                  d={`M 0 100 ${timeline
-                    .map((item: { visitors: number; pageviews: number; clicks: number; leads: number }, idx: number) => {
-                      const x = (idx / (timeline.length - 1)) * 100;
-                      const val =
-                        chartMetric === 'visitors'
-                          ? item.visitors
-                          : chartMetric === 'pageviews'
-                          ? item.pageviews
-                          : chartMetric === 'clicks'
-                          ? item.clicks
-                          : item.leads;
-                      const y = 100 - (val / maxChartValue) * 85;
-                      return `L ${x} ${y}`;
-                    })
-                    .join(' ')} L 100 100 Z`}
-                  fill="url(#areaGradient)"
-                />
+                const maxValRaw = Math.max(...values, 0);
+                const maxVal = maxValRaw === 0 ? 5 : Math.ceil(maxValRaw * 1.25);
+                const allZero = values.every((v: number) => v === 0);
 
-                {/* Stroke line */}
-                <path
-                  d={`M ${timeline
-                    .map((item: { visitors: number; pageviews: number; clicks: number; leads: number }, idx: number) => {
-                      const x = (idx / (timeline.length - 1)) * 100;
-                      const val =
-                        chartMetric === 'visitors'
-                          ? item.visitors
-                          : chartMetric === 'pageviews'
-                          ? item.pageviews
-                          : chartMetric === 'clicks'
-                          ? item.clicks
-                          : item.leads;
-                      const y = 100 - (val / maxChartValue) * 85;
-                      return `${idx === 0 ? '' : 'L '}${x} ${y}`;
-                    })
-                    .join(' ')}`}
-                  fill="none"
-                  stroke="#ff4f31"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                {/* Data Points */}
-                {timeline.map((item: { date: string; visitors: number; pageviews: number; clicks: number; leads: number }, idx: number) => {
-                  const x = (idx / (timeline.length - 1)) * 100;
+                const points = timeline.map((item: any, idx: number) => {
+                  const x =
+                    timeline.length === 1
+                      ? paddingLeft + plotWidth / 2
+                      : paddingLeft + (idx / (timeline.length - 1)) * plotWidth;
                   const val =
                     chartMetric === 'visitors'
                       ? item.visitors
@@ -438,33 +405,195 @@ export default function AdminDashboardPage(props: {
                       : chartMetric === 'clicks'
                       ? item.clicks
                       : item.leads;
-                  const y = 100 - (val / maxChartValue) * 85;
-                  return (
-                    <circle
-                      key={item.date}
-                      cx={x}
-                      cy={y}
-                      r="3.5"
-                      fill="#ffffff"
-                      stroke="#ff4f31"
-                      strokeWidth="2"
-                      className="cursor-pointer transition-transform hover:scale-150"
-                      onMouseEnter={() => setHoveredPoint({ label: item.date, value: val })}
-                      onMouseLeave={() => setHoveredPoint(null)}
-                    />
-                  );
-                })}
-              </svg>
+                  const y = baselineY - (val / maxVal) * plotHeight;
+                  return { x, y, val, date: item.date };
+                });
+
+                // Generate smooth Catmull-Rom Bezier Spline
+                let linePath = '';
+                if (points.length === 1) {
+                  linePath = `M ${paddingLeft} ${points[0].y} L ${paddingLeft + plotWidth} ${points[0].y}`;
+                } else {
+                  linePath = `M ${points[0].x} ${points[0].y}`;
+                  for (let i = 0; i < points.length - 1; i++) {
+                    const p0 = points[i === 0 ? 0 : i - 1];
+                    const p1 = points[i];
+                    const p2 = points[i + 1];
+                    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+
+                    const cp1x = p1.x + (p2.x - p0.x) / 6;
+                    const cp1y = p1.y + (p2.y - p0.y) / 6;
+                    const cp2x = p2.x - (p3.x - p1.x) / 6;
+                    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+                    linePath += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+                  }
+                }
+
+                const areaPath = `${linePath} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`;
+
+                const midY = (paddingTop + baselineY) / 2;
+                const midVal = Math.round(maxVal / 2);
+
+                return (
+                  <div className="relative w-full h-full">
+                    <svg className="w-full h-full overflow-visible" viewBox="0 0 800 240">
+                      <defs>
+                        <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ff4f31" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#ff4f31" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* Y-Axis Value Labels & Horizontal Guidelines */}
+                      <g className="text-[#5a6265] dark:text-[#a09d93] opacity-40 text-[10px] font-mono select-none">
+                        {/* Top Guideline */}
+                        <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft + plotWidth} y2={paddingTop} stroke="currentColor" strokeDasharray="3 3" />
+                        <text x={paddingLeft - 8} y={paddingTop + 3} textAnchor="end">{maxVal}</text>
+
+                        {/* Mid Guideline */}
+                        <line x1={paddingLeft} y1={midY} x2={paddingLeft + plotWidth} y2={midY} stroke="currentColor" strokeDasharray="3 3" />
+                        <text x={paddingLeft - 8} y={midY + 3} textAnchor="end">{midVal}</text>
+
+                        {/* Baseline Guideline */}
+                        <line x1={paddingLeft} y1={baselineY} x2={paddingLeft + plotWidth} y2={baselineY} stroke="currentColor" strokeDasharray="3 3" />
+                        <text x={paddingLeft - 8} y={baselineY + 3} textAnchor="end">0</text>
+                      </g>
+
+                      {/* Area Fill */}
+                      {!allZero && (
+                        <path d={areaPath} fill="url(#areaGradient)" />
+                      )}
+
+                      {/* Line Stroke */}
+                      <path
+                        d={linePath}
+                        fill="none"
+                        stroke="#ff4f31"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray={allZero ? '4 4' : undefined}
+                        className={allZero ? 'opacity-40' : undefined}
+                      />
+
+                      {/* Active Hover Crosshair Line */}
+                      {hoveredPoint && (
+                        <line
+                          x1={hoveredPoint.x}
+                          y1={paddingTop}
+                          x2={hoveredPoint.x}
+                          y2={baselineY}
+                          stroke="#ff4f31"
+                          strokeWidth="1.5"
+                          strokeDasharray="3 3"
+                          className="opacity-70"
+                        />
+                      )}
+
+                      {/* Data Point Circles */}
+                      {points.map((pt, idx) => {
+                        const isHovered = hoveredPoint?.date === pt.date;
+                        return (
+                          <g key={pt.date || idx}>
+                            {isHovered && (
+                              <circle
+                                cx={pt.x}
+                                cy={pt.y}
+                                r="8"
+                                fill="#ff4f31"
+                                fillOpacity="0.25"
+                                className="animate-ping"
+                              />
+                            )}
+                            <circle
+                              cx={pt.x}
+                              cy={pt.y}
+                              r={isHovered ? 5 : 3.5}
+                              fill="#ffffff"
+                              stroke="#ff4f31"
+                              strokeWidth={isHovered ? 2.5 : 2}
+                              className="cursor-pointer transition-all"
+                              onMouseEnter={() => setHoveredPoint({ label: pt.date, value: pt.val, x: pt.x, y: pt.y, date: pt.date })}
+                              onMouseLeave={() => setHoveredPoint(null)}
+                            />
+                          </g>
+                        );
+                      })}
+
+                      {/* X-Axis Date Labels */}
+                      <g className="text-[#5a6265] dark:text-[#a09d93] opacity-60 text-[10px] select-none font-sans">
+                        {points.map((pt, idx) => {
+                          // Show a balanced subset if many points exist
+                          const showLabel =
+                            points.length <= 10 ||
+                            idx === 0 ||
+                            idx === points.length - 1 ||
+                            idx % Math.ceil(points.length / 6) === 0;
+
+                          if (!showLabel) return null;
+
+                          // Parse Month and Day
+                          let displayDate = pt.date;
+                          try {
+                            const p = pt.date.split('-');
+                            if (p.length === 3) {
+                              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                              const m = months[parseInt(p[1], 10) - 1];
+                              const d = parseInt(p[2], 10);
+                              displayDate = `${m} ${d}`;
+                            }
+                          } catch {}
+
+                          return (
+                            <text
+                              key={pt.date || idx}
+                              x={pt.x}
+                              y={baselineY + 22}
+                              textAnchor="middle"
+                              className="fill-current"
+                            >
+                              {displayDate}
+                            </text>
+                          );
+                        })}
+                      </g>
+                    </svg>
+
+                    {/* Subtle empty state badge when all values are 0 */}
+                    {allZero && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-6">
+                        <div className="px-3.5 py-1.5 rounded-full bg-black/40 dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-xs font-medium text-[#5a6265] dark:text-[#a09d93] backdrop-blur-xs flex items-center gap-1.5 shadow-xs">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#ff4f31]" />
+                          <span>0 {chartMetric} recorded in this period</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hover Floating Glass Tooltip */}
+                    {hoveredPoint && (
+                      <div
+                        className="absolute px-3 py-1.5 rounded-[12px] bg-[#181712]/95 dark:bg-[#f4efea]/95 text-white dark:text-[#12110b] border border-white/15 dark:border-black/10 shadow-xl pointer-events-none text-xs flex flex-col gap-0.5 transition-all z-20"
+                        style={{
+                          left: `${(hoveredPoint.x / 800) * 100}%`,
+                          top: `${Math.max(10, ((hoveredPoint.y - 45) / 240) * 100)}%`,
+                          transform: 'translateX(-50%)',
+                        }}
+                      >
+                        <span className="text-[10px] text-[#a09d93] dark:text-[#5a6265] font-semibold">{hoveredPoint.label}</span>
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span className="h-2 w-2 rounded-full bg-[#ff4f31]" />
+                          <span>{hoveredPoint.value}</span>
+                          <span className="font-normal capitalize text-[11px] opacity-80">{chartMetric}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               <div className="h-full flex items-center justify-center text-xs text-[#5a6265] dark:text-[#a09d93]">
                 Telemetry data points will populate as visitors explore the site.
-              </div>
-            )}
-
-            {/* Hover Tooltip */}
-            {hoveredPoint && (
-              <div className="absolute top-2 right-4 px-3 py-1.5 rounded-[10px] bg-black/80 dark:bg-white/90 text-white dark:text-black text-xs font-semibold shadow-lg pointer-events-none">
-                {hoveredPoint.label}: {hoveredPoint.value} {chartMetric}
               </div>
             )}
           </div>

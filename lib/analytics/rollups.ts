@@ -162,6 +162,20 @@ export async function getDashboardData(
   // Timeline aggregation (group by day YYYY-MM-DD)
   const timelineMap = new Map<string, { pageviews: number; visitorsSet: Set<string>; clicks: number; leads: number }>();
 
+  // Pre-populate continuous daily buckets across the entire period so chart never flatlines across arbitrary leaps
+  const dayMs = 24 * 60 * 60 * 1000;
+  const bucketStart = Math.min(startMs, now - 6 * dayMs);
+  for (let cursor = bucketStart; cursor <= now; cursor += dayMs) {
+    const d = new Date(cursor).toISOString().slice(0, 10);
+    if (!timelineMap.has(d)) {
+      timelineMap.set(d, { pageviews: 0, visitorsSet: new Set(), clicks: 0, leads: 0 });
+    }
+  }
+  const todayStr = new Date(now).toISOString().slice(0, 10);
+  if (!timelineMap.has(todayStr)) {
+    timelineMap.set(todayStr, { pageviews: 0, visitorsSet: new Set(), clicks: 0, leads: 0 });
+  }
+
   currentEvents.forEach((evt) => {
     const d = new Date(evt.createdAt).toISOString().slice(0, 10);
     if (!timelineMap.has(d)) {
