@@ -2908,6 +2908,9 @@ a.card:hover .card-tags li:not(.is-featured) {
 
 /* Header logo: small "Studio" after the FRZZY wordmark */
 .brand .brand-sub {
+  /* the logo row is vertically centred; drop "Studio" so its bottom sits on the FRZZY baseline */
+  position: relative;
+  top: .31em;
   margin-left: .38em;
   font-size: .5em;
   font-weight: 500;
