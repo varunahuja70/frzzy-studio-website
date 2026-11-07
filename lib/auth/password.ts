@@ -6,6 +6,8 @@ const PEPPER =
   process.env.ADMIN_PASSWORD_PEPPER ||
   'frxcx-studio-argon2id-server-pepper-secret-production-hardened-2026';
 
+const PREVIOUS_PEPPER = process.env.PREVIOUS_ADMIN_PASSWORD_PEPPER || null;
+
 /**
  * Checks if a password has been breached in public dumps using the HaveIBeenPwned k-anonymity API.
  * Only the first 5 characters of the SHA-1 hash are ever sent to the network.
@@ -112,28 +114,139 @@ export async function verifyPassword(
   storedHash: string,
   salt: string
 ): Promise<boolean> {
-  try {
-    const pepperedPassword = `${password}${PEPPER}`;
+  const tryWithPepper = async (pepperVal: string): Promise<boolean> => {
+    try {
+      const pepperedPassword = `${password}${pepperVal}`;
+      const computedHash = await argon2id({
+        password: pepperedPassword,
+        salt,
+        parallelism: 4,
+        iterations: 3,
+        memorySize: 65536,
+        hashLength: 32,
+        outputType: 'encoded',
+      });
 
-    const computedHash = await argon2id({
-      password: pepperedPassword,
-      salt,
-      parallelism: 4,
-      iterations: 3,
-      memorySize: 65536,
-      hashLength: 32,
-      outputType: 'encoded',
-    });
+      const computedBuffer = Buffer.from(computedHash);
+      const storedBuffer = Buffer.from(storedHash);
 
-    const computedBuffer = Buffer.from(computedHash);
-    const storedBuffer = Buffer.from(storedHash);
+      if (computedBuffer.length !== storedBuffer.length) {
+        return false;
+      }
 
-    if (computedBuffer.length !== storedBuffer.length) {
+      return crypto.timingSafeEqual(computedBuffer, storedBuffer);
+    } catch {
       return false;
     }
+  };
 
-    return crypto.timingSafeEqual(computedBuffer, storedBuffer);
-  } catch {
-    return false;
+  const matchesCurrent = await tryWithPepper(PEPPER);
+  if (matchesCurrent) return true;
+
+  if (PREVIOUS_PEPPER) {
+    return await tryWithPepper(PREVIOUS_PEPPER);
+  }
+
+  return false;
+}
+
+/**
+ * Generates an 18-character cryptographically secure temporary password
+ * guaranteed to have uppercase, lowercase, numbers, and symbols.
+ */
+export function generateTemporaryPassword(length: number = 18): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const symbols = '!@#$%^&*()_+~=';
+  const all = upper + lower + digits + symbols;
+
+  // Guarantee at least 2 of each class
+  const bytes = crypto.randomBytes(24);
+  const chars: string[] = [
+    upper[bytes[0] % upper.length],
+    upper[bytes[1] % upper.length],
+    lower[bytes[2] % lower.length],
+    lower[bytes[3] % lower.length],
+    digits[bytes[4] % digits.length],
+    digits[bytes[5] % digits.length],
+    symbols[bytes[6] % symbols.length],
+    symbols[bytes[7] % symbols.length],
+  ];
+
+  for (let i = 8; i < 18; i++) {
+    chars.push(all[bytes[i] % all.length]);
+  }
+
+  // Fisher-Yates shuffle
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = bytes[i + 4] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join('');
+}
+
+/**
+ * Checks if the proposed password matches any of the user's last 5 passwords.
+ * Returns true if the password was previously used (forbidden).
+ */
+export async function checkPasswordHistory(adminId: string, candidatePassword: string): Promise<boolean> {
+  const { db, ensureDatabaseReady } = await import('@/lib/db');
+  const { passwordHistory } = await import('@/lib/db/schema');
+  const { eq, desc } = await import('drizzle-orm');
+
+  await ensureDatabaseReady();
+
+  const historyEntries = await db
+    .select()
+    .from(passwordHistory)
+    .where(eq(passwordHistory.adminId, adminId))
+    .orderBy(desc(passwordHistory.createdAt))
+    .limit(5);
+
+  for (const entry of historyEntries) {
+    const matches = await verifyPassword(candidatePassword, entry.passwordHash, entry.salt);
+    if (matches) {
+      return true; // Match found: cannot reuse
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Records a new password into the password history for the admin.
+ * Maintains only the most recent 5 records.
+ */
+export async function recordPasswordHistory(adminId: string, hash: string, salt: string): Promise<void> {
+  const { db, ensureDatabaseReady } = await import('@/lib/db');
+  const { passwordHistory } = await import('@/lib/db/schema');
+  const { eq, desc } = await import('drizzle-orm');
+
+  await ensureDatabaseReady();
+
+  // Insert current
+  await db.insert(passwordHistory).values({
+    id: crypto.randomUUID(),
+    adminId,
+    passwordHash: hash,
+    salt,
+    createdAt: Date.now(),
+  });
+
+  // Prune entries beyond the latest 5
+  const allEntries = await db
+    .select({ id: passwordHistory.id })
+    .from(passwordHistory)
+    .where(eq(passwordHistory.adminId, adminId))
+    .orderBy(desc(passwordHistory.createdAt));
+
+  if (allEntries.length > 5) {
+    const toDelete = allEntries.slice(5).map((e) => e.id);
+    for (const oldId of toDelete) {
+      await db.delete(passwordHistory).where(eq(passwordHistory.id, oldId));
+    }
   }
 }
+

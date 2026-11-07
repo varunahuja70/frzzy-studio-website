@@ -20,5 +20,14 @@ export default async function AdminRootLayout(props: {
     notFound();
   }
 
-  return <div className="min-h-screen w-full">{props.children}</div>;
+  return (
+    <div className="min-h-screen w-full bg-[#12110b] text-[#f4efea] dark">
+      <script
+        dangerouslySetInnerHTML={{
+          __html: "document.documentElement.classList.add('dark');",
+        }}
+      />
+      {props.children}
+    </div>
+  );
 }

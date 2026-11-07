@@ -16,7 +16,6 @@ import {
   X,
   Sun,
   Moon,
-  Clock,
   Sparkles,
   Search,
   Bell,
@@ -28,6 +27,14 @@ import {
   Shield,
   User,
   Sliders,
+  UserCheck,
+  KeyRound,
+  FileSpreadsheet,
+  CheckSquare,
+  Briefcase,
+  Inbox,
+  Building2,
+  Lock,
 } from 'lucide-react';
 
 interface AdminLayoutShellProps {
@@ -38,7 +45,7 @@ interface AdminLayoutShellProps {
 
 export function AdminLayoutShell({
   children,
-  userEmail = 'admin@frxcxstudio.com',
+  userEmail = '',
   adminPath,
 }: AdminLayoutShellProps) {
   const pathname = usePathname();
@@ -47,6 +54,15 @@ export function AdminLayoutShell({
   // Sidebar states
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isRailCollapsed, setIsRailCollapsed] = useState(false);
+
+  // Optimistic Navigation State for instant (<100ms) UI updates
+  const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  useEffect(() => {
+    setIsNavigating(false);
+    setOptimisticPath(null);
+  }, [pathname]);
 
   // Top bar dropdowns
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -63,25 +79,32 @@ export function AdminLayoutShell({
   // New leads unread count badge
   const [unreadLeadsCount, setUnreadLeadsCount] = useState<number>(0);
 
-  // Session idle timeout
-  const [idleWarningOpen, setIdleWarningOpen] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(120);
-
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync theme with document
+  // Sync theme with document: Always enforce pure dark mode by default
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    root.classList.add('dark');
   }, [theme]);
 
-  // Close dropdowns on outside click
+  // Keyboard shortcut Cmd+K or Ctrl+K & Close dropdowns on outside click
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setSearchFocused(true);
+      } else if (e.key === 'Escape') {
+        setSearchFocused(false);
+        setNotificationsOpen(false);
+        setProfileDropdownOpen(false);
+        setMobileDrawerOpen(false);
+      }
+    };
+
     const handleClickOutside = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileDropdownOpen(false);
@@ -89,12 +112,20 @@ export function AdminLayoutShell({
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotificationsOpen(false);
       }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchFocused(false);
+      }
     };
+
+    window.addEventListener('keydown', handleKeyDown);
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
-  // Fetch unread leads badge
+  // Fetch unread leads badge on mount and 60s interval
   useEffect(() => {
     let isMounted = true;
     const fetchBadge = async () => {
@@ -111,47 +142,64 @@ export function AdminLayoutShell({
       }
     };
     fetchBadge();
+    const interval = setInterval(fetchBadge, 60000);
     return () => {
       isMounted = false;
+      clearInterval(interval);
     };
-  }, [pathname]);
+  }, []);
 
-  // Idle timeout tracking (13m warning, 15m logout)
+  // Resilient Session Heartbeat: Keep session alive silently in the background
   useEffect(() => {
-    let lastActivity = Date.now();
-    const IDLE_LIMIT_MS = 15 * 60 * 1000;
-    const WARNING_TIME_MS = 13 * 60 * 1000;
-
-    const resetActivity = () => {
-      lastActivity = Date.now();
-      if (idleWarningOpen) {
-        setIdleWarningOpen(false);
-      }
+    const keepSessionAlive = () => {
+      fetch('/api/admin/sessions', { method: 'PATCH' }).catch(() => {});
     };
 
-    const events = ['mousemove', 'keydown', 'scroll', 'click'];
-    events.forEach((evt) => window.addEventListener(evt, resetActivity, { passive: true }));
+    // Heartbeat every 5 minutes while dashboard is open
+    const interval = setInterval(keepSessionAlive, 5 * 60 * 1000);
 
-    const checkInterval = setInterval(() => {
-      const elapsed = Date.now() - lastActivity;
-      if (elapsed >= IDLE_LIMIT_MS) {
-        fetch('/api/admin/logout', { method: 'POST' }).finally(() => {
-          router.push(`/${adminPath}/login`);
-        });
-      } else if (elapsed >= WARNING_TIME_MS) {
-        setIdleWarningOpen(true);
-        const rem = Math.max(0, Math.floor((IDLE_LIMIT_MS - elapsed) / 1000));
-        setSecondsRemaining(rem);
-      } else {
-        setIdleWarningOpen(false);
-      }
-    }, 1000);
+    // Refresh activity whenever user switches back to this tab or moves mouse/clicks
+    window.addEventListener('focus', keepSessionAlive);
+
+    // Initial ping on mount
+    keepSessionAlive();
 
     return () => {
-      events.forEach((evt) => window.removeEventListener(evt, resetActivity));
-      clearInterval(checkInterval);
+      clearInterval(interval);
+      window.removeEventListener('focus', keepSessionAlive);
     };
-  }, [adminPath, idleWarningOpen, router]);
+  }, []);
+
+  const [currentUser, setCurrentUser] = useState<{
+    name: string | null;
+    email: string;
+    roleName: string;
+    isSuperAdmin: boolean;
+    permissions: string[];
+  }>({
+    name: null,
+    email: userEmail,
+    roleName: 'Super Admin',
+    isSuperAdmin: true,
+    permissions: ['users:manage', 'leads:export', 'audit:view', 'settings:view'],
+  });
+
+  useEffect(() => {
+    fetch('/api/admin/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.email) {
+          setCurrentUser({
+            name: data.name,
+            email: data.email,
+            roleName: data.roleName || 'Staff',
+            isSuperAdmin: Boolean(data.isSuperAdmin),
+            permissions: data.permissions || [],
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -161,79 +209,141 @@ export function AdminLayoutShell({
     }
   }, [adminPath, router]);
 
+  const hasPerm = (p: string) => currentUser.isSuperAdmin || currentUser.permissions.includes(p);
+  const activePath = optimisticPath || pathname;
+
   const navItems = [
     {
       name: 'Dashboard',
       href: `/${adminPath}`,
       icon: LayoutDashboard,
-      active: pathname === `/${adminPath}`,
+      active: activePath === `/${adminPath}`,
       badge: null,
+      show: hasPerm('dashboard:view_analytics') || hasPerm('dashboard:view_kpis'),
+    },
+    {
+      name: 'My Tasks',
+      href: `/${adminPath}/tasks`,
+      icon: CheckSquare,
+      active: activePath.startsWith(`/${adminPath}/tasks`),
+      badge: null,
+      show: true,
+    },
+    {
+      name: 'Work Items',
+      href: `/${adminPath}/work-items`,
+      icon: Briefcase,
+      active: activePath.startsWith(`/${adminPath}/work-items`),
+      badge: null,
+      show: hasPerm('work_items:view') || hasPerm('work_items:view_all') || hasPerm('work_items:view_assigned'),
+    },
+    {
+      name: 'Intake Inbox',
+      href: `/${adminPath}/intake`,
+      icon: Inbox,
+      active: activePath.startsWith(`/${adminPath}/intake`),
+      badge: null,
+      show: hasPerm('intake:create') || hasPerm('work_items:create'),
     },
     {
       name: 'Leads',
       href: `/${adminPath}/leads`,
       icon: Users,
-      active: pathname.startsWith(`/${adminPath}/leads`),
+      active: activePath.startsWith(`/${adminPath}/leads`),
       badge: unreadLeadsCount > 0 ? `${unreadLeadsCount}` : null,
+      show: hasPerm('leads:view'),
+    },
+    {
+      name: 'Clients',
+      href: `/${adminPath}/clients`,
+      icon: Building2,
+      active: activePath.startsWith(`/${adminPath}/clients`),
+      badge: null,
+      show: hasPerm('clients:view'),
+    },
+    {
+      name: 'Lead Exports',
+      href: `/${adminPath}/exports`,
+      icon: FileSpreadsheet,
+      active: activePath.startsWith(`/${adminPath}/exports`),
+      badge: null,
+      show: hasPerm('leads:export'),
+    },
+    {
+      name: 'Team & Users',
+      href: `/${adminPath}/users`,
+      icon: UserCheck,
+      active: activePath.startsWith(`/${adminPath}/users`),
+      badge: null,
+      show: hasPerm('users:manage'),
+    },
+    {
+      name: 'Roles & Access',
+      href: `/${adminPath}/roles`,
+      icon: KeyRound,
+      active: activePath.startsWith(`/${adminPath}/roles`),
+      badge: null,
+      show: hasPerm('users:manage'),
     },
     {
       name: 'Sessions & Security',
       href: `/${adminPath}/security`,
       icon: ShieldCheck,
-      active: pathname.startsWith(`/${adminPath}/security`),
+      active: activePath.startsWith(`/${adminPath}/security`),
       badge: null,
+      show: true,
     },
     {
       name: 'Audit Log',
       href: `/${adminPath}/audit`,
       icon: ClipboardList,
-      active: pathname.startsWith(`/${adminPath}/audit`),
+      active: activePath.startsWith(`/${adminPath}/audit`),
       badge: null,
+      show: hasPerm('audit:view'),
     },
     {
       name: 'Settings',
       href: `/${adminPath}/settings`,
       icon: Settings,
-      active: pathname.startsWith(`/${adminPath}/settings`),
+      active: activePath.startsWith(`/${adminPath}/settings`),
       badge: null,
+      show: hasPerm('settings:view'),
     },
+  ].filter((item) => item.show);
+
+  const searchablePages = [
+    { name: 'Dashboard', description: 'Metrics overview & conversion funnels', href: `/${adminPath}`, icon: LayoutDashboard },
+    { name: 'Work Items', description: 'Manage customer deliverables & tasks', href: `/${adminPath}/work-items`, icon: Briefcase },
+    { name: 'My Tasks', description: 'Assigned jobs & deliveries', href: `/${adminPath}/tasks`, icon: CheckSquare },
+    { name: 'Intake Queue', description: 'Log incoming project requests', href: `/${adminPath}/intake`, icon: Inbox },
+    { name: 'Clients Directory', description: 'Customer accounts & CRM records', href: `/${adminPath}/clients`, icon: Building2 },
+    { name: 'Leads Pipeline', description: 'Inbound inquiries & status tracking', href: `/${adminPath}/leads`, icon: Users },
+    { name: 'Lead Exports', description: 'Export client lists to XLSX/CSV', href: `/${adminPath}/exports`, icon: FileSpreadsheet },
+    { name: 'Team & Users', description: 'Admin accounts & access controls', href: `/${adminPath}/users`, icon: UserCheck },
+    { name: 'Roles & Access', description: 'Permissions & lead visibility scopes', href: `/${adminPath}/roles`, icon: KeyRound },
+    { name: 'Sessions & Security', description: 'Active logins & hardware sessions', href: `/${adminPath}/security`, icon: ShieldCheck },
+    { name: 'Audit Log', description: 'Immutable admin activity log', href: `/${adminPath}/audit`, icon: ClipboardList },
+    { name: 'Settings', description: 'Vault preferences & notifications', href: `/${adminPath}/settings`, icon: Settings },
   ];
+
+  const filteredPages = searchQuery.trim()
+    ? searchablePages.filter((p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : searchablePages;
 
   // Derive current page title for breadcrumb
   const currentNav = navItems.find((n) => n.active) || navItems[0];
 
   return (
     <div className="min-h-screen w-full bg-[#f4f3f0] dark:bg-[#12110b] text-[#12110b] dark:text-[#f4efea] flex flex-col font-sans transition-colors duration-300">
-      {/* Session Expiring Modal */}
-      {idleWarningOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-[24px] bg-white dark:bg-[#1a1914] p-6 shadow-2xl border border-black/[0.08] dark:border-white/[0.1] text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
-            <div className="h-12 w-12 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
-              <Clock className="h-6 w-6" />
-            </div>
-            <h4 className="text-[17px] font-semibold tracking-tight">Session Expiring</h4>
-            <p className="text-xs text-[#5a6265] dark:text-[#a09d93] mt-2 mb-5 leading-relaxed">
-              You have been inactive for over 13 minutes. To protect client lead confidentiality, you will be logged out in{' '}
-              <span className="font-semibold text-[#ff4f31] tabular-nums">{secondsRemaining}s</span>.
-            </p>
-            <div className="flex gap-2 w-full">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex-1 h-[40px] rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
-              >
-                Log Out
-              </button>
-              <button
-                type="button"
-                onClick={() => setIdleWarningOpen(false)}
-                className="flex-1 h-[40px] rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] text-xs font-semibold hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white transition-colors cursor-pointer"
-              >
-                Stay Logged In
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Top Thin Progress Bar for Immediate Click Feedback */}
+      {isNavigating && (
+        <div
+          aria-hidden="true"
+          className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[#ff4f31] via-amber-400 to-[#ff4f31] z-[9999] animate-pulse pointer-events-none"
+        />
       )}
 
       {/* Main Framework Container */}
@@ -293,8 +403,15 @@ export function AdminLayoutShell({
                 <Link
                   key={item.name}
                   href={item.href}
+                  prefetch={true}
+                  onClick={() => {
+                    if (pathname !== item.href) {
+                      setOptimisticPath(item.href);
+                      setIsNavigating(true);
+                    }
+                  }}
                   title={isRailCollapsed ? item.name : undefined}
-                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-[12px] text-[13px] font-medium transition-all duration-200 ${
+                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-[12px] text-[13px] font-medium transition-all duration-200 cursor-pointer ${
                     item.active
                       ? 'bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] shadow-xs'
                       : 'text-[#5a6265] dark:text-[#a09d93] hover:bg-black/[0.04] dark:hover:bg-white/[0.05] hover:text-[#12110b] dark:hover:text-[#f4efea]'
@@ -323,11 +440,11 @@ export function AdminLayoutShell({
               <div className="flex items-center justify-between p-2 rounded-[12px] bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05]">
                 <div className="flex items-center gap-2.5 overflow-hidden">
                   <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-[#ff4f31] to-amber-500 text-white font-bold text-[11px] flex items-center justify-center shrink-0">
-                    SA
+                    {currentUser.name ? currentUser.name.slice(0, 2).toUpperCase() : currentUser.email.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex flex-col overflow-hidden">
-                    <span className="text-[12px] font-semibold truncate leading-tight">{userEmail}</span>
-                    <span className="text-[10px] text-[#5a6265] dark:text-[#a09d93]">Super Admin</span>
+                    <span className="text-[12px] font-semibold truncate leading-tight">{currentUser.name || currentUser.email}</span>
+                    <span className="text-[10px] text-[#5a6265] dark:text-[#a09d93]">{currentUser.roleName}</span>
                   </div>
                 </div>
 
@@ -383,10 +500,11 @@ export function AdminLayoutShell({
                     </div>
                     <button
                       type="button"
+                      aria-label="Close menu drawer"
                       onClick={() => setMobileDrawerOpen(false)}
                       className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
                     >
-                      <X className="h-5 w-5" />
+                      <X className="h-5 w-5 pointer-events-none" />
                     </button>
                   </div>
 
@@ -397,8 +515,15 @@ export function AdminLayoutShell({
                         <Link
                           key={item.name}
                           href={item.href}
-                          onClick={() => setMobileDrawerOpen(false)}
-                          className={`flex items-center gap-3 px-3.5 py-3 rounded-[12px] text-[14px] font-medium transition-all ${
+                          prefetch={true}
+                          onClick={() => {
+                            setMobileDrawerOpen(false);
+                            if (pathname !== item.href) {
+                              setOptimisticPath(item.href);
+                              setIsNavigating(true);
+                            }
+                          }}
+                          className={`flex items-center gap-3 px-3.5 py-3 rounded-[12px] text-[14px] font-medium transition-all cursor-pointer ${
                             item.active
                               ? 'bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b]'
                               : 'text-[#5a6265] dark:text-[#a09d93] hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
@@ -469,31 +594,92 @@ export function AdminLayoutShell({
 
             {/* Right: Quick Search + Range Tabs + Notifications + Theme + Profile */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Quick Search Bar */}
-              <div
-                className={`relative hidden md:flex items-center rounded-full transition-all duration-200 border ${
-                  searchFocused
-                    ? 'w-[240px] bg-white dark:bg-[#1b1a14] border-black/30 dark:border-white/30 shadow-xs'
-                    : 'w-[180px] bg-black/[0.03] dark:bg-white/[0.04] border-transparent hover:border-black/10 dark:hover:border-white/10'
-                }`}
-              >
-                <Search className="h-3.5 w-3.5 ml-3 text-[#5a6265] dark:text-[#a09d93]" />
-                <input
-                  type="text"
-                  placeholder="Quick search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setSearchFocused(false)}
-                  className="w-full bg-transparent px-2 py-1.5 text-xs text-[#12110b] dark:text-[#f4efea] placeholder-[#5a6265]/60 dark:placeholder-[#a09d93]/60 outline-none"
-                />
-                <kbd className="mr-2 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-black/[0.06] dark:bg-white/[0.08] text-[#5a6265] dark:text-[#a09d93]">
-                  ⌘K
-                </kbd>
+              {/* Quick Search & Command Palette */}
+              <div ref={searchContainerRef} className="relative">
+                <div
+                  className={`relative hidden md:flex items-center rounded-full transition-all duration-200 border ${
+                    searchFocused
+                      ? 'w-[250px] bg-[#181712] border-[#ff4f31] shadow-[0_0_20px_rgba(255,79,49,0.25)]'
+                      : 'w-[180px] bg-white/[0.04] border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <Search className="h-3.5 w-3.5 ml-3 text-[#a09d93] shrink-0" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search Vault (⌘K)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setSearchFocused(true)}
+                    className="w-full bg-transparent px-2.5 py-1.5 text-xs text-[#f4efea] placeholder-[#a09d93]/60 outline-none"
+                  />
+                  {searchQuery ? (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => setSearchQuery('')}
+                      className="mr-2 text-[#a09d93] hover:text-white cursor-pointer"
+                    >
+                      <X className="h-3 w-3 pointer-events-none" />
+                    </button>
+                  ) : (
+                    <kbd className="mr-2 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-white/[0.08] text-[#a09d93] border border-white/10 shrink-0">
+                      ⌘K
+                    </kbd>
+                  )}
+                </div>
+
+                {/* Command Palette Dropdown */}
+                <AnimatePresence>
+                  {searchFocused && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-[320px] rounded-[20px] bg-[#181712]/98 backdrop-blur-2xl border border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.85)] p-2 z-50 text-left overflow-hidden"
+                    >
+                      <div className="px-3 py-2 border-b border-white/[0.07] flex items-center justify-between text-[11px] text-[#a09d93]">
+                        <span className="font-semibold uppercase tracking-wider text-[10px]">Quick Navigation</span>
+                        <span>{filteredPages.length} routes</span>
+                      </div>
+                      <div className="max-h-[300px] overflow-y-auto py-1 space-y-0.5">
+                        {filteredPages.map((page) => {
+                          const Icon = page.icon;
+                          return (
+                            <Link
+                              key={page.href}
+                              href={page.href}
+                              prefetch={true}
+                              onClick={() => {
+                                setSearchFocused(false);
+                                setSearchQuery('');
+                                if (pathname !== page.href) {
+                                  setOptimisticPath(page.href);
+                                  setIsNavigating(true);
+                                }
+                              }}
+                              className="group flex items-center gap-3 px-3 py-2.5 rounded-[12px] text-xs hover:bg-white/[0.06] transition-colors cursor-pointer"
+                            >
+                              <div className="h-7 w-7 rounded-lg bg-white/[0.05] group-hover:bg-[#ff4f31]/15 text-[#a09d93] group-hover:text-[#ff4f31] flex items-center justify-center transition-colors shrink-0">
+                                <Icon className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-[#f4efea] group-hover:text-white truncate">{page.name}</p>
+                                <p className="text-[10px] text-[#a09d93] truncate">{page.description}</p>
+                              </div>
+                              <ChevronRight className="h-3.5 w-3.5 text-white/20 group-hover:text-[#ff4f31] transition-colors shrink-0" />
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Date Range Selector Pills */}
-              <div className="hidden sm:inline-flex items-center p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06]">
+              <div className="hidden sm:inline-flex items-center p-0.5 rounded-full bg-white/[0.04] border border-white/10 shadow-inner">
                 {(['today', '7d', '30d', '90d'] as const).map((range) => (
                   <button
                     key={range}
@@ -501,8 +687,8 @@ export function AdminLayoutShell({
                     onClick={() => setActiveRange(range)}
                     className={`px-2.5 py-1 text-[11px] font-semibold rounded-full transition-all cursor-pointer ${
                       activeRange === range
-                        ? 'bg-white dark:bg-[#25241d] text-[#12110b] dark:text-[#f4efea] shadow-xs'
-                        : 'text-[#5a6265] dark:text-[#a09d93] hover:text-[#12110b] dark:hover:text-[#f4efea]'
+                        ? 'bg-[#25241d] text-[#f4efea] shadow-xs border border-white/10'
+                        : 'text-[#a09d93] hover:text-[#f4efea]'
                     }`}
                   >
                     {range === 'today' ? 'Today' : range.toUpperCase()}
@@ -515,10 +701,10 @@ export function AdminLayoutShell({
                 <button
                   type="button"
                   onClick={() => setNotificationsOpen((o) => !o)}
-                  className="relative h-9 w-9 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  className="relative h-9 w-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
                   title="Notifications"
                 >
-                  <Bell className="h-4 w-4 text-[#5a6265] dark:text-[#a09d93]" />
+                  <Bell className="h-4 w-4 text-[#a09d93]" />
                   <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#ff4f31]" />
                 </button>
 
@@ -529,25 +715,60 @@ export function AdminLayoutShell({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
                       transition={{ duration: 0.16 }}
-                      className="absolute right-0 mt-2 w-80 rounded-[18px] bg-white dark:bg-[#1a1914] border border-black/[0.08] dark:border-white/[0.1] shadow-2xl p-4 z-50 text-left"
+                      className="absolute right-0 mt-2 w-84 rounded-[22px] bg-[#181712]/98 backdrop-blur-2xl border border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.85)] p-4 z-50 text-left"
                     >
-                      <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.06] dark:border-white/[0.08]">
-                        <span className="text-[13px] font-semibold">Security & Inquiries</span>
-                        <span className="text-[10px] text-emerald-500 font-medium">All systems green</span>
+                      <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+                        <div className="flex items-center gap-2">
+                          <Bell className="h-4 w-4 text-[#ff4f31]" />
+                          <span className="text-[13px] font-bold text-white">System Security</span>
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Vault Active
+                        </span>
                       </div>
-                      <div className="py-2 flex flex-col gap-2 max-h-60 overflow-y-auto">
-                        <div className="p-2 rounded-[10px] bg-black/[0.02] dark:bg-white/[0.03] text-xs">
-                          <p className="font-semibold text-[12px]">Argon2id + 2FA Active</p>
-                          <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93] mt-0.5">
-                            Hardware vault defense operational.
-                          </p>
+
+                      <div className="py-2 flex flex-col gap-2 max-h-72 overflow-y-auto">
+                        <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
+                          <div className="flex items-start gap-2.5">
+                            <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-xs text-[#f4efea]">Hardware Vault Defense</p>
+                              <p className="text-[11px] text-[#a09d93] mt-0.5 leading-snug">
+                                Argon2id memory-hardened encryption + TOTP 2FA active across all sessions.
+                              </p>
+                              <span className="text-[9.5px] text-[#a09d93]/60 mt-1 inline-block">Security Layer</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="p-2 rounded-[10px] bg-black/[0.02] dark:bg-white/[0.03] text-xs">
-                          <p className="font-semibold text-[12px]">Inquiries Encrypted</p>
-                          <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93] mt-0.5">
-                            Client PII secured with AES-256-GCM.
-                          </p>
+
+                        <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
+                          <div className="flex items-start gap-2.5">
+                            <div className="h-7 w-7 rounded-lg bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center shrink-0 mt-0.5">
+                              <Lock className="h-3.5 w-3.5" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-xs text-[#f4efea]">Client PII Protected</p>
+                              <p className="text-[11px] text-[#a09d93] mt-0.5 leading-snug">
+                                AES-256-GCM encryption verified on all incoming client leads and contacts.
+                              </p>
+                              <span className="text-[9.5px] text-[#a09d93]/60 mt-1 inline-block">Privacy Guard</span>
+                            </div>
+                          </div>
                         </div>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-white/[0.08] flex items-center justify-between text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="text-[#a09d93] hover:text-white transition-colors cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                        <span className="text-[10px] text-[#a09d93]/50">FRXCX Sec-Ops</span>
                       </div>
                     </motion.div>
                   )}
@@ -558,13 +779,13 @@ export function AdminLayoutShell({
               <button
                 type="button"
                 onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-                className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
                 title="Toggle Light / Dark"
               >
                 {theme === 'dark' ? (
                   <Sun className="h-4 w-4 text-amber-400" />
                 ) : (
-                  <Moon className="h-4 w-4 text-slate-700" />
+                  <Moon className="h-4 w-4 text-slate-400" />
                 )}
               </button>
 
@@ -573,7 +794,7 @@ export function AdminLayoutShell({
                 <button
                   type="button"
                   onClick={() => setProfileDropdownOpen((o) => !o)}
-                  className="flex items-center gap-2 p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
                 >
                   <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-[#ff4f31] to-amber-500 text-white font-bold text-[11px] flex items-center justify-center shadow-xs">
                     SA
@@ -587,45 +808,55 @@ export function AdminLayoutShell({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
                       transition={{ duration: 0.16 }}
-                      className="absolute right-0 mt-2 w-56 rounded-[18px] bg-white dark:bg-[#1a1914] border border-black/[0.08] dark:border-white/[0.1] shadow-2xl p-2 z-50 text-left"
+                      className="absolute right-0 mt-2 w-64 rounded-[22px] bg-[#181712]/98 backdrop-blur-2xl border border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.85)] p-2 z-50 text-left overflow-hidden"
                     >
-                      <div className="px-3 py-2 border-b border-black/[0.06] dark:border-white/[0.08]">
-                        <p className="text-[12px] font-semibold truncate leading-tight">{userEmail}</p>
-                        <p className="text-[10px] text-[#5a6265] dark:text-[#a09d93]">Super Administrator</p>
+                      <div className="px-3 py-3 border-b border-white/[0.08]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-[#ff4f31] to-amber-500 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                            {currentUser.name ? currentUser.name.slice(0, 2).toUpperCase() : currentUser.email.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <p className="text-xs font-bold text-[#f4efea] truncate">{currentUser.name || currentUser.email}</p>
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold mt-0.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              {currentUser.roleName}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="py-1">
+                      <div className="py-1.5 space-y-0.5">
                         <Link
                           href={`/${adminPath}/security`}
                           onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-[10px] text-xs hover:bg-black/5 dark:hover:bg-white/5 font-medium transition-colors"
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-[#a09d93] hover:text-white hover:bg-white/[0.06] font-medium transition-colors"
                         >
-                          <ShieldCheck className="h-3.5 w-3.5 text-[#5a6265] dark:text-[#a09d93]" />
+                          <ShieldCheck className="h-3.5 w-3.5 text-[#ff4f31]" />
                           <span>Security & Sessions</span>
                         </Link>
                         <Link
                           href={`/${adminPath}/audit`}
                           onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-[10px] text-xs hover:bg-black/5 dark:hover:bg-white/5 font-medium transition-colors"
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-[#a09d93] hover:text-white hover:bg-white/[0.06] font-medium transition-colors"
                         >
-                          <ClipboardList className="h-3.5 w-3.5 text-[#5a6265] dark:text-[#a09d93]" />
+                          <ClipboardList className="h-3.5 w-3.5 text-amber-400" />
                           <span>Audit Trail</span>
                         </Link>
                         <Link
                           href={`/${adminPath}/settings`}
                           onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-[10px] text-xs hover:bg-black/5 dark:hover:bg-white/5 font-medium transition-colors"
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-[#a09d93] hover:text-white hover:bg-white/[0.06] font-medium transition-colors"
                         >
-                          <Settings className="h-3.5 w-3.5 text-[#5a6265] dark:text-[#a09d93]" />
+                          <Settings className="h-3.5 w-3.5 text-[#a09d93]" />
                           <span>Preferences</span>
                         </Link>
                       </div>
 
-                      <div className="pt-1 border-t border-black/[0.06] dark:border-white/[0.08]">
+                      <div className="pt-1.5 border-t border-white/[0.08]">
                         <button
                           type="button"
                           onClick={handleLogout}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-[10px] text-xs text-rose-500 hover:bg-rose-500/10 font-medium transition-colors cursor-pointer"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 font-semibold transition-colors cursor-pointer"
                         >
                           <LogOut className="h-3.5 w-3.5" />
                           <span>Sign Out</span>

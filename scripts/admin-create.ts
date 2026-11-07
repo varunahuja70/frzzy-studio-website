@@ -2,6 +2,7 @@ import readline from 'readline';
 import crypto from 'crypto';
 import { db, ensureDatabaseReady } from '../lib/db';
 import { admins, recoveryCodes } from '../lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { hashPassword, validatePasswordPolicy } from '../lib/auth/password';
 import { generateTotpSetup, generateRecoveryCodes } from '../lib/auth/totp';
 import { logAuditEvent } from '../lib/auth/audit';
@@ -110,31 +111,50 @@ async function main() {
   });
   console.log('==========================================================\n');
 
-  const adminId = crypto.randomUUID();
+  const normalizedEmail = email.toLowerCase().trim();
+  const existing = await db
+    .select()
+    .from(admins)
+    .where(eq(admins.email, normalizedEmail))
+    .limit(1);
+
+  let adminId: string;
   const now = Date.now();
 
-  // Save admin record
-  await db.insert(admins).values({
-    id: adminId,
-    email: email.toLowerCase().trim(),
-    passwordHash: hash,
-    salt,
-    twoFactorSecret: totp.secret,
-    twoFactorEnabled: true,
-    role: 'superadmin',
-    status: 'active',
-    createdAt: now,
-    updatedAt: now,
-  });
+  if (existing.length > 0) {
+    adminId = existing[0].id;
+    await db
+      .update(admins)
+      .set({
+        passwordHash: hash,
+        salt,
+        twoFactorSecret: null,
+        twoFactorEnabled: false,
+        mustSetup2Fa: false,
+        mustChangePassword: false,
+        status: 'active',
+        role: 'superadmin',
+        updatedAt: now,
+      })
+      .where(eq(admins.id, adminId));
 
-  // Save recovery codes
-  for (const codeHash of hashedCodes) {
-    await db.insert(recoveryCodes).values({
-      id: crypto.randomUUID(),
-      adminId,
-      codeHash,
-      used: false,
+    await db.delete(recoveryCodes).where(eq(recoveryCodes.adminId, adminId));
+    console.log(`\nExisting account for "${normalizedEmail}" successfully updated with new password.`);
+  } else {
+    adminId = crypto.randomUUID();
+    await db.insert(admins).values({
+      id: adminId,
+      email: normalizedEmail,
+      passwordHash: hash,
+      salt,
+      twoFactorSecret: null,
+      twoFactorEnabled: false,
+      mustSetup2Fa: false,
+      mustChangePassword: false,
+      role: 'superadmin',
+      status: 'active',
       createdAt: now,
+      updatedAt: now,
     });
   }
 

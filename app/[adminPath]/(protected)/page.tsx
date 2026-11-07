@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { DashboardMetrics } from '@/lib/analytics/rollups';
 import { ReauthModal } from '@/components/admin/reauth-modal';
+import { getCachedData, setCachedData } from '@/lib/client-cache';
 
 function AnimatedNumber({ value, suffix = '', prefix = '' }: { value: number; suffix?: string; prefix?: string }) {
   const [display, setDisplay] = useState(value);
@@ -88,8 +89,9 @@ export default function AdminDashboardPage(props: {
 
   const [range, setRange] = useState<'today' | '7d' | '30d' | '90d'>('30d');
   const [chartMetric, setChartMetric] = useState<'visitors' | 'pageviews' | 'clicks' | 'leads'>('visitors');
-  const [data, setData] = useState<DashboardMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = getCachedData<DashboardMetrics>(`dashboard_metrics_${range}`);
+  const [data, setData] = useState<DashboardMetrics | null>(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<{ label: string; value: number } | null>(null);
 
@@ -100,6 +102,7 @@ export default function AdminDashboardPage(props: {
       if (res.ok) {
         const json = await res.json();
         setData(json);
+        setCachedData(`dashboard_metrics_${range}`, json);
       }
     } catch (err) {
       console.error('Dashboard load failed:', err);

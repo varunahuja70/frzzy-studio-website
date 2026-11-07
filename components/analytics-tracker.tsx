@@ -22,9 +22,11 @@ export function AnalyticsTracker() {
   const scrollMilestonesRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
-    // 1. Respect Do Not Track and Global Privacy Control
+    // 1. Do not run on administrative vault routes or when Do Not Track is enabled
     if (
       typeof window === 'undefined' ||
+      window.location.pathname.startsWith('/studio-vault') ||
+      window.location.pathname.startsWith('/api/admin') ||
       navigator.doNotTrack === '1' ||
       (window as unknown as { globalPrivacyControl?: boolean }).globalPrivacyControl === true
     ) {

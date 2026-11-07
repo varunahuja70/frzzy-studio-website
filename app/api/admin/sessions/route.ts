@@ -101,3 +101,22 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to revoke session' }, { status: 500 });
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const sessionRes = await validateAdminSession();
+    if (!sessionRes.valid || !sessionRes.session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const now = Date.now();
+    await db
+      .update(sessions)
+      .set({ lastActiveAt: now })
+      .where(eq(sessions.id, sessionRes.session.id));
+
+    return NextResponse.json({ success: true, lastActiveAt: now });
+  } catch {
+    return NextResponse.json({ error: 'Failed to update session activity' }, { status: 500 });
+  }
+}

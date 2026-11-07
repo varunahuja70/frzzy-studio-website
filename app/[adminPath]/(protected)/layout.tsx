@@ -17,7 +17,7 @@ export default async function ProtectedAdminLayout(props: {
   return (
     <AdminLayoutShell
       adminPath={adminPath}
-      userEmail={sessionRes.admin?.email || 'admin@frxcxstudio.com'}
+      userEmail={sessionRes.admin?.email || ''}
     >
       {props.children}
     </AdminLayoutShell>

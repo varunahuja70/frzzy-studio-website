@@ -8,3 +8,5 @@ coverage/
 data/*.db*
 data/*.db-wal
 data/*.db-shm
+tsconfig.tsbuildinfo
+screenshots/

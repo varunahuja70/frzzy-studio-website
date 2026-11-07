@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
 import { db, ensureDatabaseReady } from '../db';
 import { sessions, admins } from '../db/schema';
@@ -7,17 +8,35 @@ import { eq, and } from 'drizzle-orm';
 export const SESSION_COOKIE_NAME = 'admin_session';
 export const CSRF_COOKIE_NAME = 'admin_csrf';
 
-export const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
-export const ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
+export const IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours of inactivity
+export const ABSOLUTE_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000; // 30 days persistent session
+
+interface CachedSessionValidation {
+  result: SessionValidationResult;
+  timestamp: number;
+}
+const sessionValidationCache = new Map<string, CachedSessionValidation>();
+const SESSION_CACHE_TTL_MS = 4000; // 4-second short-lived cache to deduplicate concurrent requests
+
+export function invalidateSessionValidationCache(tokenHash?: string) {
+  if (tokenHash) {
+    sessionValidationCache.delete(tokenHash);
+  } else {
+    sessionValidationCache.clear();
+  }
+}
 
 export interface SessionValidationResult {
   valid: boolean;
-  reason?: 'missing' | 'expired_idle' | 'expired_absolute' | 'invalid' | 'requires_2fa';
+  reason?: 'missing' | 'expired_idle' | 'expired_absolute' | 'invalid' | 'requires_2fa' | 'deleted' | 'account_expired';
   admin?: {
     id: string;
     email: string;
+    name?: string | null;
     role: string;
     twoFactorEnabled: boolean;
+    mustChangePassword: boolean;
+    mustSetup2Fa: boolean;
   };
   session?: {
     id: string;
@@ -64,17 +83,22 @@ export async function createAdminSession(params: {
  * Validates a session from the cookie jar or passed token string.
  */
 export async function validateAdminSession(
-  rawToken?: string
+  rawTokenOrReq?: string | NextRequest
 ): Promise<SessionValidationResult> {
   await ensureDatabaseReady();
 
-  let token = rawToken;
+  let token: string | undefined;
+  if (typeof rawTokenOrReq === 'string') {
+    token = rawTokenOrReq;
+  } else if (rawTokenOrReq && typeof rawTokenOrReq === 'object' && 'cookies' in rawTokenOrReq) {
+    token = rawTokenOrReq.cookies.get(SESSION_COOKIE_NAME)?.value;
+  }
+
   if (!token) {
     try {
       const cookieJar = await cookies();
       token = cookieJar.get(SESSION_COOKIE_NAME)?.value;
     } catch {
-      // If outside React request context
       return { valid: false, reason: 'missing' };
     }
   }
@@ -84,6 +108,12 @@ export async function validateAdminSession(
   }
 
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const now = Date.now();
+
+  const cached = sessionValidationCache.get(tokenHash);
+  if (cached && now - cached.timestamp < SESSION_CACHE_TTL_MS) {
+    return cached.result;
+  }
 
   // Query session joined with admin
   const rows = await db
@@ -106,7 +136,13 @@ export async function validateAdminSession(
     return { valid: false, reason: 'invalid' };
   }
 
-  const now = Date.now();
+  if (admin.deletedAt) {
+    return { valid: false, reason: 'deleted' };
+  }
+
+  if (admin.expiresAt && now > admin.expiresAt) {
+    return { valid: false, reason: 'account_expired' };
+  }
 
   // Check absolute timeout (8 hours)
   if (now > session.expiresAt) {
@@ -128,8 +164,11 @@ export async function validateAdminSession(
       admin: {
         id: admin.id,
         email: admin.email,
+        name: admin.name,
         role: admin.role,
         twoFactorEnabled: admin.twoFactorEnabled,
+        mustChangePassword: Boolean(admin.mustChangePassword),
+        mustSetup2Fa: Boolean(admin.mustSetup2Fa),
       },
       session: {
         id: session.id,
@@ -140,19 +179,24 @@ export async function validateAdminSession(
     };
   }
 
-  // Touch session's lastActiveAt
-  await db
-    .update(sessions)
-    .set({ lastActiveAt: now })
-    .where(eq(sessions.id, session.id));
+  // Touch session's lastActiveAt asynchronously only once every 60 seconds
+  if (now - session.lastActiveAt > 60 * 1000) {
+    db.update(sessions)
+      .set({ lastActiveAt: now })
+      .where(eq(sessions.id, session.id))
+      .catch(() => {});
+  }
 
-  return {
+  const result: SessionValidationResult = {
     valid: true,
     admin: {
       id: admin.id,
       email: admin.email,
+      name: admin.name,
       role: admin.role,
       twoFactorEnabled: admin.twoFactorEnabled,
+      mustChangePassword: Boolean(admin.mustChangePassword),
+      mustSetup2Fa: Boolean(admin.mustSetup2Fa),
     },
     session: {
       id: session.id,
@@ -161,6 +205,9 @@ export async function validateAdminSession(
       twoFactorVerified: true,
     },
   };
+
+  sessionValidationCache.set(tokenHash, { result, timestamp: now });
+  return result;
 }
 
 /**

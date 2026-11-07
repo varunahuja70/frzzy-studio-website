@@ -27,22 +27,19 @@ const ContactFormSchema = z.object({
     .email('Invalid email address')
     .max(100, 'Email too long')
     .toLowerCase(),
-  category: z.enum([
-    'Web Design & Dev',
-    'Brand Identity',
-    '3D & Motion',
-    'Creative Direction',
-    'Full Production',
-  ]),
+  category: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .default('3D & Motion'),
   message: z
     .string()
     .trim()
     .min(5, 'Message must be at least 5 characters')
-    .max(2000, 'Message cannot exceed 2000 characters')
+    .max(5000, 'Message cannot exceed 5000 characters')
     .transform((str) => str.replace(/[<>]/g, '')),
-  agreeToTerms: z.literal(true, {
-    message: 'You must accept the terms',
-  }),
+  agreeToTerms: z.boolean().optional().default(true),
   // Anti-bot honeypot field (must be empty)
   companyWebsite: z.string().max(0, 'Spam detected').optional().or(z.literal('')),
 });

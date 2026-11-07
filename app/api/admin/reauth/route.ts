@@ -7,6 +7,7 @@ import { admins } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyPassword } from '@/lib/auth/password';
 import { logAuditEvent } from '@/lib/auth/audit';
+import { createReauthGrant } from '@/lib/auth/reauth';
 
 const ReauthSchema = z.object({
   password: z.string().min(1),
@@ -55,14 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate short-lived reauth token valid for 5 minutes (300s)
-    const reauthToken = crypto.randomBytes(24).toString('hex');
-    const secret = process.env.ADMIN_PASSWORD_PEPPER || 'reauth-pepper';
-    const signature = crypto
-      .createHmac('sha256', secret)
-      .update(`${sessionRes.admin.id}:${Date.now() + 300000}:${reauthToken}`)
-      .digest('hex');
-
-    const signedGrant = `${sessionRes.admin.id}:${Date.now() + 300000}:${reauthToken}:${signature}`;
+    const signedGrant = createReauthGrant(sessionRes.admin.id, 300000);
 
     const response = NextResponse.json({
       success: true,

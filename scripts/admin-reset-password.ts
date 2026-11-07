@@ -1,6 +1,6 @@
 import readline from 'readline';
 import { db, ensureDatabaseReady } from '../lib/db';
-import { admins } from '../lib/db/schema';
+import { admins, recoveryCodes, sessions } from '../lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { hashPassword, validatePasswordPolicy } from '../lib/auth/password';
 import { destroyAllAdminSessions } from '../lib/auth/session';
@@ -96,27 +96,36 @@ async function main() {
 
   const { hash, salt } = await hashPassword(password);
 
+  // Invalidate old recovery codes
+  await db.delete(recoveryCodes).where(eq(recoveryCodes.adminId, admin.id));
+
   await db
     .update(admins)
     .set({
       passwordHash: hash,
       salt,
+      twoFactorEnabled: false,
+      mustSetup2Fa: false,
+      twoFactorSecret: null,
+      mustChangePassword: false,
       updatedAt: Date.now(),
     })
     .where(eq(admins.id, admin.id));
 
-  // Invalidate all active sessions for security
+  // Invalidate all active sessions for security across all devices
   await destroyAllAdminSessions(admin.id);
 
   await logAuditEvent({
     adminId: admin.id,
-    action: 'PASSWORD_CHANGED',
+    action: 'PASSWORD_RESET_FORCED_2FA',
     resource: email,
     ipAddress: '127.0.0.1 (CLI)',
     userAgent: 'CLI admin:reset-password',
   });
 
-  console.log(`\n✅ Password successfully reset for "${email}". All existing sessions revoked.\n`);
+  console.log(`\n✅ Password successfully reset for "${email}".`);
+  console.log('🔒 Mandatory TOTP 2FA re-enrollment will be enforced at next login.');
+  console.log('🗑️  All active sessions and previous recovery codes revoked.\n');
   process.exit(0);
 }
 

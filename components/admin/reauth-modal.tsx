@@ -23,6 +23,17 @@ export function ReauthModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password) {
@@ -58,20 +69,29 @@ export function ReauthModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.94, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 16 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-md rounded-[24px] bg-[#ffffff] dark:bg-[#1a1914] p-7 shadow-[0_24px_60px_-16px_rgba(18,17,11,0.2)] border border-black/[0.08] dark:border-white/[0.1] text-[#12110b] dark:text-[#f4efea]"
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md rounded-[24px] bg-[#181712] p-7 shadow-[0_32px_80px_-20px_rgba(0,0,0,0.7)] border border-white/10 text-[#f4efea]"
           >
             <button
               type="button"
-              onClick={onClose}
-              className="absolute top-5 right-5 h-8 w-8 rounded-full flex items-center justify-center bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] transition-colors"
+              aria-label="Close modal"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+              }}
+              className="absolute top-5 right-5 h-9 w-9 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-all cursor-pointer z-30"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4 pointer-events-none" />
             </button>
 
             <div className="flex items-center gap-3 mb-4">

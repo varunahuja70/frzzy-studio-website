@@ -53,6 +53,7 @@ export default function AdminLoginPage(props: {
       } else if (data.requires2Fa) {
         setStep('2fa');
       } else {
+        // Direct login success: redirect into vault
         window.location.href = `/${adminPath}`;
       }
     } catch {
@@ -156,7 +157,7 @@ export default function AdminLoginPage(props: {
                     autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@frxcxstudio.com"
+                    placeholder="name@studio.com"
                     className="w-full h-[48px] rounded-[14px] bg-white/[0.05] hover:bg-white/[0.08] focus:bg-white/[0.09] px-4 pl-10 text-[14px] text-white border border-white/10 focus:border-[#ff4f31] outline-none transition-all placeholder-white/30"
                   />
                   <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-white/40" />

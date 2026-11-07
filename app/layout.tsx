@@ -1,7 +1,19 @@
 import type { Metadata } from 'next';
-import { Inter_Tight, Plus_Jakarta_Sans } from 'next/font/google';
+import { Geist, Geist_Mono, Inter_Tight, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
+
+const geistSans = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist-sans',
+  display: 'swap',
+});
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
+  display: 'swap',
+});
 
 const interTight = Inter_Tight({
   subsets: ['latin'],
@@ -18,20 +30,20 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Weichie — Think. Shoot. Design.',
+  title: 'FRZZY Studio — Motion, 3D & Visuals with Static Energy',
   description:
-    'Pixel-perfect interactive editorial hero experience with Weichie navigation, staggered bottom-up reveal animations, and hover-triggered inline video cards.',
+    'FRZZY Studio makes motion design, 3D and branding with static energy. Stay FRZZY.',
   openGraph: {
-    title: 'Weichie — Think. Shoot. Design.',
+    title: 'FRZZY Studio — Motion, 3D & Visuals with Static Energy',
     description:
-      'Pixel-perfect interactive editorial hero experience with Weichie navigation, staggered bottom-up reveal animations, and hover-triggered inline video cards.',
+      'FRZZY Studio makes motion design, 3D and branding with static energy. Stay FRZZY.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Weichie — Think. Shoot. Design.',
+    title: 'FRZZY Studio — Motion, 3D & Visuals with Static Energy',
     description:
-      'Pixel-perfect interactive editorial hero experience with Weichie navigation, staggered bottom-up reveal animations, and hover-triggered inline video cards.',
+      'FRZZY Studio makes motion design, 3D and branding with static energy. Stay FRZZY.',
   },
 };
 
@@ -44,11 +56,11 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${interTight.variable} ${plusJakarta.variable} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden overflow-x-hidden`}
+      className={`${geistSans.variable} ${geistMono.variable} ${interTight.variable} ${plusJakarta.variable} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden overflow-x-hidden`}
     >
       <body
         suppressHydrationWarning
-        className="bg-[#ecf5f4] text-[#12110b] dark:bg-[#12110b] dark:text-[#f4efea] antialiased selection:bg-[#ff4f31] selection:text-white transition-colors duration-500 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 overflow-x-hidden"
+        className="bg-[#080808] text-[#F3EFE7] antialiased selection:bg-[#C6FF00] selection:text-[#080808] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 overflow-x-hidden"
       >
         <AnalyticsTracker />
         {children}

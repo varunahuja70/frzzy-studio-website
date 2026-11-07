@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardList, Shield, User, Clock, RefreshCw, Filter, Search } from 'lucide-react';
+import { getCachedData, setCachedData } from '@/lib/client-cache';
 
 interface AuditLogItem {
   id: string;
@@ -21,8 +22,9 @@ export default function AdminAuditPage(props: {
   const { adminPath } = use(props.params);
   const router = useRouter();
 
-  const [logs, setLogs] = useState<AuditLogItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getCachedData<AuditLogItem[]>('audit_logs');
+  const [logs, setLogs] = useState<AuditLogItem[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [search, setSearch] = useState('');
 
   const fetchLogs = useCallback(async () => {
@@ -36,6 +38,7 @@ export default function AdminAuditPage(props: {
       if (!res.ok) throw new Error('Failed to fetch audit trail');
       const data = await res.json();
       setLogs(data.logs || []);
+      setCachedData('audit_logs', data.logs || []);
     } catch (err) {
       console.error(err);
     } finally {

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { db, ensureDatabaseReady } from '@/lib/db';
-import { admins } from '@/lib/db/schema';
+import { admins, recoveryCodes } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyPassword } from '@/lib/auth/password';
 import { checkLoginLockout, recordLoginAttempt } from '@/lib/auth/rate-limit';
 import { createAdminSession, SESSION_COOKIE_NAME } from '@/lib/auth/session';
+import { generateTotpSetup, generateRecoveryCodes } from '@/lib/auth/totp';
 import { logAuditEvent } from '@/lib/auth/audit';
 
 const LoginSchema = z.object({
@@ -114,48 +116,96 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const requires2Fa = Boolean(admin.twoFactorEnabled);
+    const has2FaConfigured = Boolean(admin.twoFactorEnabled && admin.twoFactorSecret);
 
-    // Create session (twoFactorVerified = true if 2FA not required)
-    const { token, csrfToken } = await createAdminSession({
-      adminId: admin.id,
-      ipAddress: ip,
-      userAgent,
-      twoFactorVerified: !requires2Fa,
-    });
+    if (has2FaConfigured) {
+      // 2FA is active: create step-1 temporary session (twoFactorVerified: false)
+      const { token, csrfToken } = await createAdminSession({
+        adminId: admin.id,
+        ipAddress: ip,
+        userAgent,
+        twoFactorVerified: false,
+      });
 
-    await ensureMinResponseTime();
+      await ensureMinResponseTime();
 
-    const response = NextResponse.json({
-      requires2Fa,
-      email: admin.email,
-      message: requires2Fa
-        ? 'Password verified. Enter your two-factor authenticator code.'
-        : 'Logged in successfully.',
-    });
+      const response = NextResponse.json({
+        requires2Fa: true,
+        email: admin.email,
+        message: 'Password verified. Enter your 6-digit authenticator code.',
+      });
 
-    // Set temporary step-1 session cookie
-    response.cookies.set({
-      name: SESSION_COOKIE_NAME,
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 60 * 15, // 15 mins to complete 2FA
-    });
+      // Set temporary step-1 session cookie (10 minutes)
+      response.cookies.set({
+        name: SESSION_COOKIE_NAME,
+        value: token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 60 * 10,
+      });
 
-    response.cookies.set({
-      name: 'admin_csrf',
-      value: csrfToken,
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 60 * 15,
-    });
+      response.cookies.set({
+        name: 'admin_csrf',
+        value: csrfToken,
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 60 * 10,
+      });
 
-    return response;
+      return response;
+    } else {
+      // 2FA not yet configured: Log in directly to allow configuration in Security Settings
+      const { token, csrfToken } = await createAdminSession({
+        adminId: admin.id,
+        ipAddress: ip,
+        userAgent,
+        twoFactorVerified: true,
+      });
+
+      await recordLoginAttempt(email, ip, true, 'password_only');
+      await logAuditEvent({
+        adminId: admin.id,
+        action: 'LOGIN_SUCCESS',
+        resource: email,
+        ipAddress: ip,
+        userAgent,
+      });
+
+      await ensureMinResponseTime();
+
+      const response = NextResponse.json({
+        success: true,
+        requires2Fa: false,
+        email: admin.email,
+        message: 'Login successful.',
+      });
+
+      response.cookies.set({
+        name: SESSION_COOKIE_NAME,
+        value: token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      });
+
+      response.cookies.set({
+        name: 'admin_csrf',
+        value: csrfToken,
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      });
+
+      return response;
+    }
   } catch (err) {
     console.error('Admin login error:', err);
     await ensureMinResponseTime();

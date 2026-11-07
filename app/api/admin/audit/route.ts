@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAdminSession } from '@/lib/auth/session';
+import { resolveAdminPermissions, hasPermission } from '@/lib/auth/permissions';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import { auditLogs } from '@/lib/db/schema';
 import { desc } from 'drizzle-orm';
@@ -7,8 +8,13 @@ import { desc } from 'drizzle-orm';
 export async function GET(req: NextRequest) {
   try {
     const sessionRes = await validateAdminSession();
-    if (!sessionRes.valid) {
+    if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const perms = await resolveAdminPermissions(sessionRes.admin.id);
+    if (!hasPermission(perms, 'audit:view')) {
+      return NextResponse.json({ error: 'Forbidden: Insufficient permissions to view audit log' }, { status: 403 });
     }
 
     await ensureDatabaseReady();

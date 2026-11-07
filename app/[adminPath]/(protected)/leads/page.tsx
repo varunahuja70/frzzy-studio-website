@@ -23,8 +23,14 @@ import {
   AlertCircle,
   RefreshCw,
   ExternalLink,
+  Plus,
+  UserCheck,
+  Lock,
+  User,
 } from 'lucide-react';
 import { ReauthModal } from '@/components/admin/reauth-modal';
+import { LeadExportModal } from '@/components/admin/lead-export-modal';
+import { getCachedData, setCachedData } from '@/lib/client-cache';
 
 interface LeadItem {
   id: string;
@@ -34,15 +40,25 @@ interface LeadItem {
   category: string;
   message: string;
   status: 'new' | 'contacted' | 'in_progress' | 'won' | 'lost' | 'spam';
+  assignedTo?: string | null;
+  assignedToName?: string | null;
   sourcePage?: string;
   deviceType?: string;
   browser?: string;
   os?: string;
   country?: string;
   ipMasked?: string;
+  isMasked?: boolean;
   createdAt: number;
   updatedAt: number;
   notes: Array<{ id: string; content: string; createdAt: number }>;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
 }
 
 export default function AdminLeadsPage(props: {
@@ -51,25 +67,52 @@ export default function AdminLeadsPage(props: {
   const { adminPath } = use(props.params);
   const router = useRouter();
 
-  const [leadsList, setLeadsList] = useState<LeadItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedLeads = typeof window !== 'undefined' ? getCachedData<LeadItem[]>('leads_list') : null;
+  const [leadsList, setLeadsList] = useState<LeadItem[]>(cachedLeads || []);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(!cachedLeads);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
 
+  // Export Modal state
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+
+  // Manual New Lead Modal state
+  const [newLeadModalOpen, setNewLeadModalOpen] = useState(false);
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newLastName, setNewLastName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newCategory, setNewCategory] = useState('Full Production');
+  const [newMessage, setNewMessage] = useState('');
+  const [creatingLead, setCreatingLead] = useState(false);
+
   // New note input
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
 
+  // Assigning state
+  const [assigningLead, setAssigningLead] = useState(false);
+
   // Reauth modal state
   const [reauthOpen, setReauthOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'export' | 'delete' | null>(null);
   const [leadToDeleteId, setLeadToDeleteId] = useState<string | null>(null);
 
-  const fetchLeads = useCallback(async () => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (newLeadModalOpen) setNewLeadModalOpen(false);
+        if (selectedLead) setSelectedLead(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [newLeadModalOpen, selectedLead]);
+
+  const fetchLeads = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent && !cachedLeads) setLoading(true);
       setErrorMessage(null);
       const params = new URLSearchParams();
       if (searchQuery) params.set('q', searchQuery);
@@ -77,7 +120,6 @@ export default function AdminLeadsPage(props: {
 
       const res = await fetch(`/api/admin/leads?${params.toString()}`);
       if (res.status === 401) {
-        // Redirect to login if unauthenticated
         router.push(`/${adminPath}/login`);
         return;
       }
@@ -85,7 +127,11 @@ export default function AdminLeadsPage(props: {
         throw new Error('Unable to fetch customer submissions');
       }
       const data = await res.json();
-      setLeadsList(data.leads || []);
+      const list = data.leads || [];
+      setLeadsList(list);
+      if (!searchQuery && statusFilter === 'all') {
+        setCachedData('leads_list', list);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to fetch leads';
       console.warn('Leads fetch notice:', msg);
@@ -95,48 +141,102 @@ export default function AdminLeadsPage(props: {
     }
   }, [adminPath, router, searchQuery, statusFilter]);
 
+  // Load team members for assignee dropdown
+  useEffect(() => {
+    fetch('/api/admin/users')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.users) {
+          setTeamMembers(
+            d.users.map((u: any) => ({
+              id: u.id,
+              name: u.name || u.email.split('@')[0],
+              email: u.email,
+              role: u.role,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(fetchLeads, 200);
     return () => clearTimeout(timer);
   }, [fetchLeads]);
 
   // Handle status update
-  const handleUpdateStatus = async (leadId: string, newStatus: LeadItem['status']) => {
-    // Optimistic UI update
-    setLeadsList((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l))
-    );
-    if (selectedLead && selectedLead.id === leadId) {
-      setSelectedLead((prev) => (prev ? { ...prev, status: newStatus } : null));
-    }
-
+  const handleUpdateStatus = async (leadId: string, nextStatus: LeadItem['status']) => {
     try {
+      setLeadsList((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, status: nextStatus } : l))
+      );
+      if (selectedLead?.id === leadId) {
+        setSelectedLead((prev) => (prev ? { ...prev, status: nextStatus } : null));
+      }
+
       await fetch('/api/admin/leads', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: leadId, status: newStatus }),
+        body: JSON.stringify({ id: leadId, status: nextStatus }),
       });
     } catch (err) {
-      console.error('Failed to update status:', err);
+      console.error('Failed to update lead status:', err);
     }
   };
 
-  // Add internal note
+  // Handle lead assignment
+  const handleAssignLead = async (leadId: string, assignedToId: string | null) => {
+    try {
+      setAssigningLead(true);
+      const assignedUser = teamMembers.find((m) => m.id === assignedToId);
+      const assignedToName = assignedUser ? assignedUser.name : null;
+
+      setLeadsList((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, assignedTo: assignedToId, assignedToName }
+            : l
+        )
+      );
+
+      if (selectedLead?.id === leadId) {
+        setSelectedLead((prev) =>
+          prev ? { ...prev, assignedTo: assignedToId, assignedToName } : null
+        );
+      }
+
+      await fetch('/api/admin/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, assignedTo: assignedToId }),
+      });
+    } catch (err) {
+      console.error('Failed to assign lead:', err);
+    } finally {
+      setAssigningLead(false);
+    }
+  };
+
+  // Add note to lead
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead || !newNote.trim()) return;
 
-    setAddingNote(true);
     try {
+      setAddingNote(true);
       const res = await fetch('/api/admin/leads', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedLead.id, note: newNote.trim() }),
+        body: JSON.stringify({
+          id: selectedLead.id,
+          note: newNote.trim(),
+        }),
       });
 
       if (res.ok) {
         const addedNoteItem = {
-          id: `note-${Date.now()}`,
+          id: 'temp-' + Date.now(),
           content: newNote.trim(),
           createdAt: Date.now(),
         };
@@ -160,25 +260,54 @@ export default function AdminLeadsPage(props: {
     }
   };
 
+  // Create Manual Lead
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFirstName.trim() || !newEmail.trim() || !newMessage.trim()) return;
+
+    try {
+      setCreatingLead(true);
+      const res = await fetch('/api/admin/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: newFirstName.trim(),
+          lastName: newLastName.trim() || 'Client',
+          email: newEmail.trim(),
+          category: newCategory,
+          message: newMessage.trim(),
+          status: 'new',
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create inquiry');
+      }
+
+      setNewLeadModalOpen(false);
+      setNewFirstName('');
+      setNewLastName('');
+      setNewEmail('');
+      setNewMessage('');
+      fetchLeads();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error creating lead';
+      alert(msg);
+    } finally {
+      setCreatingLead(false);
+    }
+  };
+
   // Trigger high-privilege delete
   const triggerDelete = (leadId: string) => {
     setLeadToDeleteId(leadId);
-    setPendingAction('delete');
-    setReauthOpen(true);
-  };
-
-  // Trigger high-privilege CSV export
-  const triggerExport = () => {
-    setPendingAction('export');
     setReauthOpen(true);
   };
 
   const handleReauthSuccess = async () => {
     setReauthOpen(false);
-
-    if (pendingAction === 'export') {
-      window.location.href = '/api/admin/leads/export';
-    } else if (pendingAction === 'delete' && leadToDeleteId) {
+    if (leadToDeleteId) {
       try {
         const res = await fetch(`/api/admin/leads?id=${leadToDeleteId}`, {
           method: 'DELETE',
@@ -195,7 +324,6 @@ export default function AdminLeadsPage(props: {
         setLeadToDeleteId(null);
       }
     }
-    setPendingAction(null);
   };
 
   const statusOptions: Array<{ id: string; label: string }> = [
@@ -214,19 +342,17 @@ export default function AdminLeadsPage(props: {
         isOpen={reauthOpen}
         onClose={() => {
           setReauthOpen(false);
-          setPendingAction(null);
+          setLeadToDeleteId(null);
         }}
         onSuccess={handleReauthSuccess}
-        title={
-          pendingAction === 'export'
-            ? 'Confirm Vault Password to Export Inquiries'
-            : 'Confirm Vault Password to Delete Client Record'
-        }
-        description={
-          pendingAction === 'export'
-            ? 'Exporting full customer submissions requires re-authentication to satisfy GDPR/privacy compliance.'
-            : 'Deleting client lead history is permanent and removes all encrypted records and notes.'
-        }
+        title="Confirm Vault Password to Delete Client Record"
+        description="Deleting client lead history is permanent and removes all encrypted records and notes."
+      />
+
+      <LeadExportModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        adminPath={adminPath}
       />
 
       {/* Header Bar */}
@@ -236,14 +362,14 @@ export default function AdminLeadsPage(props: {
             Customer Inquiries Hub
           </h1>
           <p className="text-xs sm:text-[13px] text-[#5a6265] dark:text-[#a09d93] mt-0.5">
-            Decrypted client briefs, team collaboration notes, and response workflows.
+            Decrypted client briefs, team collaboration notes, assignment routing, and response workflows.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             type="button"
-            onClick={fetchLeads}
+            onClick={() => fetchLeads()}
             disabled={loading}
             className="h-9 px-3.5 rounded-[12px] bg-white dark:bg-[#1a1914] border border-black/[0.08] dark:border-white/[0.08] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
@@ -253,11 +379,20 @@ export default function AdminLeadsPage(props: {
 
           <button
             type="button"
-            onClick={triggerExport}
+            onClick={() => setNewLeadModalOpen(true)}
+            className="h-9 px-3.5 rounded-[12px] bg-white dark:bg-[#1a1914] border border-black/[0.08] dark:border-white/[0.08] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5 text-[#ff4f31]" />
+            <span>New Inquiry</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setExportModalOpen(true)}
             className="h-9 px-4 rounded-[12px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
           >
             <Download className="h-3.5 w-3.5" />
-            <span>Export CSV</span>
+            <span>Export Leads</span>
           </button>
         </div>
       </div>
@@ -304,7 +439,7 @@ export default function AdminLeadsPage(props: {
           </div>
           <button
             type="button"
-            onClick={fetchLeads}
+            onClick={() => fetchLeads()}
             className="px-3 py-1 rounded bg-rose-500 text-white font-semibold hover:bg-rose-600 transition-colors cursor-pointer"
           >
             Retry
@@ -312,7 +447,7 @@ export default function AdminLeadsPage(props: {
         </div>
       )}
 
-      {/* Leads Table / Responsive Cards */}
+      {/* Leads Table */}
       <div className="rounded-[18px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.07] shadow-xs overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-xs text-[#5a6265] dark:text-[#a09d93] flex flex-col items-center justify-center gap-3">
@@ -338,6 +473,7 @@ export default function AdminLeadsPage(props: {
                 <tr>
                   <th className="py-3 px-4">Contact</th>
                   <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Assigned To</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Action</th>
@@ -359,15 +495,33 @@ export default function AdminLeadsPage(props: {
                           <span className="font-semibold text-[13px] text-[#12110b] dark:text-[#f4efea]">
                             {lead.firstName} {lead.lastName}
                           </span>
-                          <span className="text-[11px] text-[#5a6265] dark:text-[#a09d93] font-mono">
-                            {lead.email}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-[#5a6265] dark:text-[#a09d93] font-mono">
+                              {lead.email}
+                            </span>
+                            {lead.isMasked && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-500 font-medium">
+                                <Lock className="h-2.5 w-2.5" /> Masked
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
 
                     <td className="py-3.5 px-4 font-medium text-[12px]">
                       {lead.category || 'Full Production'}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-[#5a6265] dark:text-[#a09d93]">
+                      {lead.assignedToName ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 font-medium text-[11px]">
+                          <User className="h-3 w-3 text-[#ff4f31]" />
+                          <span>{lead.assignedToName}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[#a09d93]/60 italic text-[11px]">Unassigned</span>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4 text-[#5a6265] dark:text-[#a09d93]">
@@ -422,6 +576,130 @@ export default function AdminLeadsPage(props: {
         )}
       </div>
 
+      {/* Manual New Inquiry Modal */}
+      {newLeadModalOpen && (
+        <div
+          onClick={() => setNewLeadModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-[20px] bg-[#12110b] border border-white/[0.1] p-6 shadow-2xl text-[#f4efea] space-y-4"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Plus className="h-4 w-4 text-[#ff4f31]" />
+                <span>Create New Client Inquiry</span>
+              </h3>
+              <button
+                type="button"
+                aria-label="Close modal"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setNewLeadModalOpen(false);
+                }}
+                className="h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-all cursor-pointer z-30"
+              >
+                <X className="h-4 w-4 pointer-events-none" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLead} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-[#a09d93] mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                    placeholder="e.g. Liam"
+                    className="w-full h-9 px-3 rounded-[8px] bg-white/[0.04] border border-white/10 text-white outline-none focus:border-[#ff4f31]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-[#a09d93] mb-1">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                    placeholder="e.g. Vance"
+                    className="w-full h-9 px-3 rounded-[8px] bg-white/[0.04] border border-white/10 text-white outline-none focus:border-[#ff4f31]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-[#a09d93] mb-1">
+                  Client Email Address *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="client@company.com"
+                  className="w-full h-9 px-3 rounded-[8px] bg-white/[0.04] border border-white/10 text-white outline-none focus:border-[#ff4f31]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-[#a09d93] mb-1">
+                  Requested Service
+                </label>
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  className="w-full h-9 px-3 rounded-[8px] bg-[#181712] border border-white/10 text-white outline-none focus:border-[#ff4f31]"
+                >
+                  <option value="Web Design & Dev">Web Design & Dev</option>
+                  <option value="Brand Identity">Brand Identity</option>
+                  <option value="3D & Motion">3D & Motion</option>
+                  <option value="Creative Direction">Creative Direction</option>
+                  <option value="Full Production">Full Production</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-[#a09d93] mb-1">
+                  Project Brief / Message *
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Client requirements, scope, timeline, deliverables..."
+                  className="w-full p-3 rounded-[8px] bg-white/[0.04] border border-white/10 text-white outline-none focus:border-[#ff4f31] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setNewLeadModalOpen(false)}
+                  className="h-8 px-3.5 rounded-[8px] bg-white/[0.05] text-white text-xs font-semibold hover:bg-white/[0.1] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingLead}
+                  className="h-8 px-4 rounded-[8px] bg-[#ff4f31] text-white text-xs font-bold hover:bg-[#ff4f31]/90 disabled:opacity-50 cursor-pointer"
+                >
+                  {creatingLead ? 'Saving...' : 'Add Inquiry'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Slide-over Detail Drawer */}
       <AnimatePresence>
         {selectedLead && (
@@ -459,10 +737,15 @@ export default function AdminLeadsPage(props: {
 
                   <button
                     type="button"
-                    onClick={() => setSelectedLead(null)}
-                    className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                    aria-label="Close details"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSelectedLead(null);
+                    }}
+                    className="h-9 w-9 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-all cursor-pointer z-30"
                   >
-                    <X className="h-5 w-5" />
+                    <X className="h-4 w-4 pointer-events-none" />
                   </button>
                 </div>
 
@@ -472,13 +755,42 @@ export default function AdminLeadsPage(props: {
                     <label className="text-[11px] font-semibold text-[#5a6265] dark:text-[#a09d93] uppercase tracking-wider block mb-1">
                       Direct Email Contact
                     </label>
-                    <a
-                      href={`mailto:${selectedLead.email}?subject=Regarding%20your%20FRXCX%20Studio%20Inquiry`}
-                      className="font-mono text-sm text-[#ff4f31] font-semibold hover:underline inline-flex items-center gap-1.5"
+                    {selectedLead.isMasked ? (
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm text-[#a09d93]">{selectedLead.email}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-500 font-semibold border border-amber-500/20">
+                          Field Masked
+                        </span>
+                      </div>
+                    ) : (
+                      <a
+                        href={`mailto:${selectedLead.email}?subject=Regarding%20your%20FRXCX%20Studio%20Inquiry`}
+                        className="font-mono text-sm text-[#ff4f31] font-semibold hover:underline inline-flex items-center gap-1.5"
+                      >
+                        <span>{selectedLead.email}</span>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Assignee Selection */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-[#5a6265] dark:text-[#a09d93] uppercase tracking-wider block mb-1">
+                      Assigned Specialist
+                    </label>
+                    <select
+                      value={selectedLead.assignedTo || ''}
+                      onChange={(e) => handleAssignLead(selectedLead.id, e.target.value || null)}
+                      disabled={assigningLead}
+                      className="w-full h-9 px-3 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-xs text-[#12110b] dark:text-white outline-none focus:border-[#ff4f31]"
                     >
-                      <span>{selectedLead.email}</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
+                      <option value="">-- Unassigned --</option>
+                      {teamMembers.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.role})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -507,7 +819,7 @@ export default function AdminLeadsPage(props: {
                     </div>
                     <div>
                       <span className="block font-semibold">Country</span>
-                      <span>{selectedLead.country || 'Global (NL / US)'}</span>
+                      <span>{selectedLead.country || 'Global'}</span>
                     </div>
                     <div>
                       <span className="block font-semibold">Browser</span>
@@ -560,23 +872,46 @@ export default function AdminLeadsPage(props: {
               </div>
 
               {/* Drawer Footer Actions */}
-              <div className="pt-4 border-t border-black/[0.06] dark:border-white/[0.07] flex items-center justify-between">
+              <div className="pt-4 border-t border-black/[0.06] dark:border-white/[0.07] flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => triggerDelete(selectedLead.id)}
                   className="h-9 px-3 rounded-[10px] text-rose-500 hover:bg-rose-500/10 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  <span>Delete Record</span>
+                  <span>Delete</span>
                 </button>
 
-                <a
-                  href={`mailto:${selectedLead.email}?subject=Regarding%20your%20FRXCX%20Studio%20Inquiry`}
-                  className="h-9 px-4 rounded-[10px] bg-[#ff4f31] text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-[#ff4f31]/90 shadow-xs cursor-pointer"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  <span>Reply via Email</span>
-                </a>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const params = new URLSearchParams({
+                        clientName: `${selectedLead.firstName} ${selectedLead.lastName}`.trim(),
+                        clientEmail: selectedLead.isMasked ? '' : selectedLead.email,
+                        title: `${selectedLead.firstName}'s ${selectedLead.category} Project`,
+                        category: selectedLead.category || 'Web Design & Dev',
+                        description: selectedLead.message || '',
+                        source: 'Website Lead',
+                      });
+                      router.push(`/${adminPath}/intake?${params.toString()}`);
+                    }}
+                    className="h-9 px-3.5 rounded-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Convert to Task</span>
+                  </button>
+
+                  {!selectedLead.isMasked && (
+                    <a
+                      href={`mailto:${selectedLead.email}?subject=Regarding%20your%20FRXCX%20Studio%20Inquiry`}
+                      className="h-9 px-3.5 rounded-[10px] bg-[#ff4f31] text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-[#ff4f31]/90 shadow-xs cursor-pointer"
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      <span>Reply</span>
+                    </a>
+                  )}
+                </div>
               </div>
             </motion.aside>
           </>

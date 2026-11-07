@@ -1,6 +1,6 @@
 import { db, ensureDatabaseReady } from '../db';
 import { analyticsEvents, leads } from '../db/schema';
-import { gte, lte, and, sql, desc, eq } from 'drizzle-orm';
+import { gte, lte, and, sql, desc, eq, SQL } from 'drizzle-orm';
 
 export interface DashboardTimeRange {
   range: 'today' | '7d' | '30d' | '90d' | 'custom';
@@ -64,7 +64,8 @@ export interface DashboardMetrics {
 }
 
 export async function getDashboardData(
-  timeRange: DashboardTimeRange
+  timeRange: DashboardTimeRange,
+  scopeConditions: SQL[] = []
 ): Promise<DashboardMetrics> {
   await ensureDatabaseReady();
 
@@ -110,16 +111,16 @@ export async function getDashboardData(
     .from(analyticsEvents)
     .where(and(gte(analyticsEvents.createdAt, prevStartMs), lte(analyticsEvents.createdAt, prevEndMs)));
 
-  // 3. Leads Queries
+  // 3. Leads Queries (Scoped to user permissions)
   const currentLeads = await db
     .select()
     .from(leads)
-    .where(and(gte(leads.createdAt, startMs), lte(leads.createdAt, now)));
+    .where(and(gte(leads.createdAt, startMs), lte(leads.createdAt, now), ...scopeConditions));
 
   const previousLeads = await db
     .select()
     .from(leads)
-    .where(and(gte(leads.createdAt, prevStartMs), lte(leads.createdAt, prevEndMs)));
+    .where(and(gte(leads.createdAt, prevStartMs), lte(leads.createdAt, prevEndMs), ...scopeConditions));
 
   // Compute Current KPIs
   const currentVisitorsSet = new Set(currentEvents.map((e) => e.visitorHash));
@@ -264,7 +265,7 @@ export async function getDashboardData(
 
   const activeVisitorsLast5Min = new Set(liveEvents.map((e) => e.visitorHash)).size;
 
-  // Recent Leads Preview
+  // Recent Leads Preview (Scoped to user permissions)
   const recentLeadsRows = await db
     .select({
       id: leads.id,
@@ -275,6 +276,7 @@ export async function getDashboardData(
       createdAt: leads.createdAt,
     })
     .from(leads)
+    .where(scopeConditions.length > 0 ? and(...scopeConditions) : undefined)
     .orderBy(desc(leads.createdAt))
     .limit(5);
 

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { generateSecret, generateURI, verifySync } from 'otplib';
+import { generateSecret, generateURI, verifySync, generateSync } from 'otplib';
 import QRCode from 'qrcode';
 
 export interface TotpSetupResult {
@@ -50,6 +50,13 @@ export function verifyTotpToken(token: string, secret: string): boolean {
 }
 
 /**
+ * Generates current 6-digit TOTP token for testing or programmatic verification.
+ */
+export function generateTotpToken(secret: string): string {
+  return generateSync({ secret });
+}
+
+/**
  * Generates 10 secure single-use recovery codes formatted as 'XXXX-XXXX-XXXX'.
  */
 export function generateRecoveryCodes(count = 10): { plaintextCodes: string[]; hashedCodes: string[] } {
@@ -66,6 +73,14 @@ export function generateRecoveryCodes(count = 10): { plaintextCodes: string[]; h
   }
 
   return { plaintextCodes, hashedCodes };
+}
+
+/**
+ * Hashes a recovery code using SHA-256 for secure storage at rest.
+ */
+export function hashRecoveryCode(code: string): string {
+  const cleaned = code.trim().toUpperCase().replace(/[^A-F0-9-]/g, '');
+  return crypto.createHash('sha256').update(cleaned).digest('hex');
 }
 
 /**

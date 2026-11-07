@@ -110,6 +110,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // If user was completing mandatory 2FA enrollment, mark completed
+    if (admin.mustSetup2Fa) {
+      await db
+        .update(admins)
+        .set({ mustSetup2Fa: false, twoFactorEnabled: true, updatedAt: Date.now() })
+        .where(eq(admins.id, admin.id));
+    }
+
     // Rotate session to prevent session fixation attack!
     await db.delete(sessions).where(eq(sessions.id, session.id));
 
