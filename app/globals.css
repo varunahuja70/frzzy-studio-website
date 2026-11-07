@@ -311,7 +311,8 @@ header.site {
   }
 }
 
-/* Hero */
+/* Hero stacking: strands canvas (0) in the background, FRZZY wordmark (1) in front of it, UI (2) on top.
+   The wordmark is pointer-events:none and the strand listeners sit on .hero, so interaction is unaffected. */
 .hero {
   position: relative;
   height: clamp(620px, 92vh, 960px);
@@ -328,7 +329,7 @@ header.site {
   transform: translateY(-50%);
   display: flex;
   justify-content: center;
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
 }
 #hero-fx {
@@ -336,7 +337,7 @@ header.site {
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 1;
+  z-index: 0;
   display: block;
   touch-action: pan-y;
 }

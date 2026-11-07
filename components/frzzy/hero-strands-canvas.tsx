@@ -24,9 +24,25 @@ interface Arc {
   max: number;
 }
 
-export function HeroStrandsCanvas({ onZap }: { onZap?: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+interface HeroStrandsCanvasProps {
+  /** The `.sc` wordmark element. On zap its `zap` class is restarted directly on the DOM node
+   *  (no React state), so clicking never re-renders the page or rebuilds the strands. */
+  scRef?: React.RefObject<HTMLElement | null>;
+  /** Optional side-effect hook fired on every zap. Read through a ref, so passing a new
+   *  function each render does NOT re-initialise the simulation. */
+  onZap?: () => void;
+}
 
+export function HeroStrandsCanvas({ scRef, onZap }: HeroStrandsCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const onZapRef = useRef(onZap);
+
+  useEffect(() => {
+    onZapRef.current = onZap;
+  }, [onZap]);
+
+  // Runs once per mount. It must not depend on anything that changes between renders:
+  // re-running it calls build(true), which resets every strand to the frizzed intro pose.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -50,7 +66,8 @@ export function HeroStrandsCanvas({ onZap }: { onZap?: () => void }) {
     let running = false;
     let idleFrames = 0;
     let last = 0;
-    let animId: number;
+    let dead = false;
+    let animId = 0;
 
     function build(intro: boolean) {
       if (!canvas || !ctx) return;
@@ -289,12 +306,19 @@ export function HeroStrandsCanvas({ onZap }: { onZap?: () => void }) {
         arcs.push({ pts: bolt(x, y, hits[h][1], hits[h][2]), life, max: life });
       }
 
-      if (onZap) {
-        onZap();
+      // Glitch the wordmark: remove, force a reflow, re-add, so rapid clicks restart the animation.
+      const sc = scRef?.current;
+      if (sc && !reduce) {
+        sc.classList.remove('zap');
+        void sc.offsetWidth;
+        sc.classList.add('zap');
       }
+
+      onZapRef.current?.();
     }
 
     function frame(now: number) {
+      if (dead) return;
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
       step(dt / 2);
@@ -322,7 +346,7 @@ export function HeroStrandsCanvas({ onZap }: { onZap?: () => void }) {
     }
 
     function kick() {
-      if (!running && !reduce) {
+      if (!running && !reduce && !dead) {
         running = true;
         idleFrames = 0;
         last = performance.now();
@@ -331,9 +355,23 @@ export function HeroStrandsCanvas({ onZap }: { onZap?: () => void }) {
     }
 
     build(!reduce);
-    if (reduce) {
+    draw();
+
+    // Only rebuild when the canvas really changes size. window 'resize' also fires when the
+    // mobile address bar shows/hides, which used to wipe the strands mid-interaction.
+    const ro = new ResizeObserver(() => {
+      if (!canvas || (canvas.clientWidth === W && canvas.clientHeight === H)) return;
+      build(false);
       draw();
-      return;
+      kick();
+    });
+    ro.observe(canvas);
+
+    if (reduce) {
+      return () => {
+        dead = true;
+        ro.disconnect();
+      };
     }
 
     kick();
@@ -362,27 +400,28 @@ export function HeroStrandsCanvas({ onZap }: { onZap?: () => void }) {
       kick();
     };
 
-    const onResize = () => {
-      build(false);
-      draw();
-      kick();
+    // The loop parks itself when the tab is hidden; resume it when the tab comes back.
+    const onVisibility = () => {
+      if (!document.hidden) kick();
     };
 
     heroEl.addEventListener('pointermove', onPointerMove, { passive: true });
     heroEl.addEventListener('pointerdown', onPointerDown, { passive: true });
     heroEl.addEventListener('pointerleave', onPointerLeave);
     heroEl.addEventListener('pointercancel', onPointerLeave);
-    window.addEventListener('resize', onResize);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
+      dead = true;
+      cancelAnimationFrame(animId);
+      ro.disconnect();
       heroEl.removeEventListener('pointermove', onPointerMove);
       heroEl.removeEventListener('pointerdown', onPointerDown);
       heroEl.removeEventListener('pointerleave', onPointerLeave);
       heroEl.removeEventListener('pointercancel', onPointerLeave);
-      window.removeEventListener('resize', onResize);
-      cancelAnimationFrame(animId);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [onZap]);
+  }, [scRef]);
 
   return <canvas id="hero-fx" ref={canvasRef} aria-hidden="true" />;
 }

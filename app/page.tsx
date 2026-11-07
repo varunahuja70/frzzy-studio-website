@@ -30,8 +30,9 @@ export default function FrzzyStudioPage() {
   const [copyStatus, setCopyStatus] = useState('');
   const [emailCopyStatus, setEmailCopyStatus] = useState('');
 
-  // Hero glitch state
-  const [scZap, setScZap] = useState(false);
+  // Hero wordmark. The strands canvas restarts its `zap` glitch class directly on this node,
+  // so a click never re-renders the page (a re-render used to rebuild the strands from scratch).
+  const scRef = useRef<HTMLSpanElement>(null);
 
   // Reel tilt ref
   const reelFrameRef = useRef<HTMLDivElement>(null);
@@ -158,14 +159,6 @@ export default function FrzzyStudioPage() {
       cleanups.forEach((c) => c());
     };
   }, [currentView]);
-
-  // Trigger zap glitch animation on Short Circuit wordmark
-  const handleHeroZap = () => {
-    setScZap(true);
-    setTimeout(() => {
-      setScZap(false);
-    }, 400);
-  };
 
   // Contact form submission -> saves lead to DB and builds instant brief
   const handleBriefSubmit = async (e: React.FormEvent) => {
@@ -355,7 +348,7 @@ export default function FrzzyStudioPage() {
             {/* Hero */}
             <section className="hero" id="top">
               <div className="hero-word" aria-hidden="true">
-                <span className={`sc ${scZap ? 'zap' : ''}`}>
+                <span className="sc" ref={scRef}>
                   <span className="base">FRZZY</span>
                   <span className="s s1">FRZZY</span>
                   <span className="s s2">FRZZY</span>
@@ -363,7 +356,7 @@ export default function FrzzyStudioPage() {
                 </span>
               </div>
 
-              <HeroStrandsCanvas onZap={handleHeroZap} />
+              <HeroStrandsCanvas scRef={scRef} />
 
               <div className="hero-ui wrap">
                 <div className="hero-top">
