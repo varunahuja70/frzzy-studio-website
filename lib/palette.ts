@@ -47,6 +47,9 @@ export const PALETTES: Palette[] = [
     bg: '#15171C', surface: '#21252C', text: '#E8EBF0', muted: '#A3A9B5', stone: '#737A87', line: '#2D323A', accent: '#B9C6DD', onAccent: '#15171C' },
   { id: 'marigold', name: 'Marigold', mode: 'dark', note: 'Warm black, sun yellow (after Buck)',
     bg: '#141311', surface: '#221F1B', text: '#F7F3EA', muted: '#B3AC9F', stone: '#827B6F', line: '#2E2A24', accent: '#F4C054', onAccent: '#141311' },
+  // Custom: Deep Charcoal / Slate Blue-Grey / Mist Grey / Soft White / Electric Lime
+  { id: 'lime-slate', name: 'Lime Slate', mode: 'dark', note: 'Deep charcoal, slate, electric lime',
+    bg: '#17191D', surface: '#252A31', text: '#F2F1ED', muted: '#D5D9DC', stone: '#687582', line: '#2D323A', accent: '#C7F464', onAccent: '#17191D' },
   // ---------- Light ----------
   { id: 'silver', name: 'Silver', mode: 'light', note: 'macOS light: silver, Apple blue',
     bg: '#F5F5F7', surface: '#FFFFFF', text: '#1D1D1F', muted: '#6E6E73', stone: '#86868B', line: '#D2D2D7', accent: '#0066CC', onAccent: '#FFFFFF' },
