@@ -22,8 +22,19 @@ import {
   Sparkles,
   Upload,
   X,
+  Pencil,
+  FileText,
+  Mail,
+  Phone,
+  Building,
+  Plus,
+  Send,
+  Check,
+  ExternalLink,
+  Copy,
 } from 'lucide-react';
 import { getCachedData, setCachedData } from '@/lib/client-cache';
+import { EditWorkItemModal } from '@/components/admin/edit-work-item-modal';
 
 interface TaskItem {
   id: string;
@@ -45,10 +56,24 @@ interface TaskItem {
   assignedAt?: number | null;
   assignmentInstructions?: string | null;
   tags?: string[] | null;
-  links?: Array<{ id: string; label: string; url: string }> | null;
+  links?: Array<{ id?: string; label: string; url: string }> | null;
   createdAt: number;
   updatedAt: number;
   version: number;
+}
+
+interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+interface CommentItem {
+  id: string;
+  adminName: string;
+  adminRole: string;
+  content: string;
+  createdAt: number;
 }
 
 export default function MyTasksPage(props: { params: Promise<{ adminPath: string }> }) {
@@ -62,18 +87,93 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [updating, setUpdating] = useState(false);
-  const [messageText, setMessageText] = useState('');
+
+  // Current User Session
+  const [currentUser, setCurrentUser] = useState<{ isSuperAdmin: boolean; permissions: string[] } | null>(null);
+
+  // Edit Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
+  // Rich Task Details state
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailedTask, setDetailedTask] = useState<TaskItem | null>(null);
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [comments, setComments] = useState<CommentItem[]>([]);
+  const [canEditItem, setCanEditItem] = useState(false);
+
+  // New subtask / comment inputs
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [subtaskSubmitting, setSubtaskSubmitting] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  // Fetch current user permissions
+  useEffect(() => {
+    fetch('/api/admin/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setCurrentUser({
+            isSuperAdmin: Boolean(data.isSuperAdmin),
+            permissions: data.permissions || [],
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch full task details whenever a task is selected
+  useEffect(() => {
+    if (!selectedTask) {
+      setDetailedTask(null);
+      setSubtasks([]);
+      setAttachments([]);
+      setComments([]);
+      return;
+    }
+
+    let isMounted = true;
+    const loadDetails = async () => {
+      try {
+        setDetailLoading(true);
+        const res = await fetch(`/api/admin/work-items/${selectedTask.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            if (data.workItem) {
+              setDetailedTask(data.workItem);
+            }
+            setSubtasks(data.subtasks || []);
+            setAttachments(data.attachments || []);
+            setComments(data.comments || []);
+            setCanEditItem(Boolean(data.canEdit || data.isSuperAdmin));
+          }
+        }
+      } catch {
+        // Fallback to selectedTask
+      } finally {
+        if (isMounted) setDetailLoading(false);
+      }
+    };
+
+    loadDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedTask?.id]);
 
   useEffect(() => {
-    if (!selectedTask) return;
+    if (!selectedTask && !editModalOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !editModalOpen) {
         setSelectedTask(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTask]);
+  }, [selectedTask, editModalOpen]);
 
   const fetchTasks = async (silent = false) => {
     try {
@@ -84,6 +184,12 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
         const items = data.workItems || [];
         setTasks(items);
         setCachedData('tasks_assigned_to_me', items);
+
+        // Update selected task reference if open
+        if (selectedTask) {
+          const updated = items.find((t: TaskItem) => t.id === selectedTask.id);
+          if (updated) setSelectedTask(updated);
+        }
       }
     } catch {
       // Ignored
@@ -116,6 +222,9 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
           setSelectedTask((prev) =>
             prev ? { ...prev, status: newStatus, progressPercent: forcedProgress ?? prev.progressPercent } : null
           );
+          setDetailedTask((prev) =>
+            prev ? { ...prev, status: newStatus, progressPercent: forcedProgress ?? prev.progressPercent } : null
+          );
         }
       } else {
         const err = await res.json();
@@ -143,11 +252,107 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
         );
         if (selectedTask && selectedTask.id === taskId) {
           setSelectedTask((prev) => (prev ? { ...prev, progressPercent: newProgress } : null));
+          setDetailedTask((prev) => (prev ? { ...prev, progressPercent: newProgress } : null));
         }
       }
     } catch {
       // Ignored
     }
+  };
+
+  // Toggle Subtask
+  const handleToggleSubtask = async (subtaskId: string, currentCompleted: boolean) => {
+    if (!selectedTask) return;
+    try {
+      const nextCompleted = !currentCompleted;
+      setSubtasks((prev) =>
+        prev.map((s) => (s.id === subtaskId ? { ...s, completed: nextCompleted } : s))
+      );
+
+      const res = await fetch(`/api/admin/work-items/${selectedTask.id}/subtasks`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtaskId, completed: nextCompleted }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.progressPercent !== undefined && data.progressPercent !== null) {
+          handleProgressChange(selectedTask.id, data.progressPercent);
+        }
+        if (data.subtasks) setSubtasks(data.subtasks);
+      }
+    } catch {
+      // Revert on error
+    }
+  };
+
+  // Add Subtask
+  const handleAddSubtask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubtaskTitle.trim() || !selectedTask) return;
+
+    try {
+      setSubtaskSubmitting(true);
+      const res = await fetch(`/api/admin/work-items/${selectedTask.id}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newSubtaskTitle.trim() }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.subtask) {
+          setSubtasks((prev) => [...prev, data.subtask]);
+        }
+        setNewSubtaskTitle('');
+      }
+    } catch {
+      // Ignored
+    } finally {
+      setSubtaskSubmitting(false);
+    }
+  };
+
+  // Add Comment
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentText.trim() || !selectedTask) return;
+
+    try {
+      setCommentSubmitting(true);
+      const res = await fetch(`/api/admin/work-items/${selectedTask.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: commentText.trim() }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.comment) {
+          setComments((prev) => [...prev, data.comment]);
+        }
+        setCommentText('');
+      }
+    } catch {
+      // Ignored
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
+  // Callback when Super Admin edits work item
+  const handleWorkItemUpdated = (updatedItem: any) => {
+    setSelectedTask(updatedItem);
+    setDetailedTask(updatedItem);
+    setTasks((prev) => prev.map((t) => (t.id === updatedItem.id ? { ...t, ...updatedItem } : t)));
+    fetchTasks(true);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedLink(text);
+    setTimeout(() => setCopiedLink(null), 2000);
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -157,6 +362,12 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
       task.itemNumber.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
+
+  const activeTask = detailedTask || selectedTask;
+  const isSuperAdminOrEditor =
+    canEditItem ||
+    currentUser?.isSuperAdmin ||
+    currentUser?.permissions.includes('work_items:edit');
 
   return (
     <div className="p-6 lg:p-8 max-w-[1440px] mx-auto w-full flex flex-col gap-6">
@@ -168,7 +379,7 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
             My Assigned Tasks
           </h1>
           <p className="text-xs text-[#5a6265] dark:text-[#a09d93] mt-1">
-            Personal production queue and assigned briefs with zero financial leakage.
+            Personal production queue, active briefs, and shared client deliverables.
           </p>
         </div>
 
@@ -276,8 +487,21 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
                     {task.status.replace('_', ' ')}
                   </span>
                   {task.priority && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500">
-                      [{task.priority}]
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                        task.priority === 'urgent'
+                          ? 'bg-rose-500/15 text-rose-500'
+                          : task.priority === 'high'
+                          ? 'bg-amber-500/15 text-amber-500'
+                          : 'bg-white/5 text-[#a09d93]'
+                      }`}
+                    >
+                      {task.priority}
+                    </span>
+                  )}
+                  {task.category && (
+                    <span className="text-[10px] font-medium text-[#5a6265] dark:text-[#a09d93] bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-full">
+                      {task.category}
                     </span>
                   )}
                 </div>
@@ -287,8 +511,9 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
                     Assigned by: <strong>{task.assignedByName || 'Studio'}</strong> ({task.assignedByRole || 'Admin'})
                   </span>
                   {task.dueDate && (
-                    <span>
-                      Due: <strong>{new Date(task.dueDate).toLocaleDateString()}</strong>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-[#ff4f31]" />
+                      <span>Due: <strong>{new Date(task.dueDate).toLocaleDateString()}</strong></span>
                     </span>
                   )}
                 </div>
@@ -336,7 +561,12 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
                       onClick={() => setSelectedTask(task)}
                       className="p-3.5 rounded-[14px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.08] shadow-xs hover:border-[#ff4f31] transition-all cursor-pointer flex flex-col gap-2"
                     >
-                      <span className="font-mono text-[10px] font-semibold text-[#ff4f31]">{task.itemNumber}</span>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-semibold text-[#ff4f31]">{task.itemNumber}</span>
+                        {task.priority && (
+                          <span className="text-[9px] font-bold uppercase text-[#a09d93]">{task.priority}</span>
+                        )}
+                      </div>
                       <h4 className="text-xs font-semibold leading-tight">{task.title}</h4>
                       <div className="flex items-center justify-between text-[11px] text-[#5a6265] dark:text-[#a09d93] pt-1">
                         <span>{task.progressPercent}%</span>
@@ -353,86 +583,131 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
 
       {/* Task Detail Modal */}
       <AnimatePresence>
-        {selectedTask && (
+        {selectedTask && activeTask && (
           <div
             onClick={() => setSelectedTask(null)}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              exit={{ opacity: 0, scale: 0.96 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-[#181712] border border-white/10 p-6 sm:p-8 shadow-2xl flex flex-col gap-5 text-[#f4efea]"
+              className="w-full max-w-3xl my-auto max-h-[92vh] overflow-y-auto rounded-[28px] bg-[#14130e] border border-white/10 p-6 sm:p-8 shadow-2xl flex flex-col gap-6 text-[#f4efea]"
             >
-              <div className="flex items-start justify-between pb-3 border-b border-white/[0.08]">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[#ff4f31]">{selectedTask.itemNumber}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ff4f31]/10 text-[#ff4f31] uppercase">
-                      {selectedTask.status.replace('_', ' ')}
+              {/* Modal Header */}
+              <div className="flex items-start justify-between pb-4 border-b border-white/[0.08]">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-[#ff4f31]">{activeTask.itemNumber}</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#ff4f31]/15 text-[#ff4f31] uppercase">
+                      {activeTask.status.replace('_', ' ')}
                     </span>
+                    {activeTask.priority && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          activeTask.priority === 'urgent'
+                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            : activeTask.priority === 'high'
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            : 'bg-white/5 text-[#a09d93] border border-white/10'
+                        }`}
+                      >
+                        {activeTask.priority}
+                      </span>
+                    )}
+                    {activeTask.category && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-[#f4efea]">
+                        {activeTask.category}
+                      </span>
+                    )}
                   </div>
-                  <h2 className="text-lg font-bold tracking-tight text-white">{selectedTask.title}</h2>
-                  <p className="text-xs text-[#a09d93]">
-                    Assigned by: <strong className="text-white">{selectedTask.assignedByName || 'Studio'}</strong> ({selectedTask.assignedByRole || 'Admin'})
-                  </p>
+
+                  <h2 className="text-xl font-bold tracking-tight text-white mt-1">{activeTask.title}</h2>
+
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-[#a09d93]">
+                    <span>
+                      Assigned by: <strong className="text-white">{activeTask.assignedByName || 'Studio'}</strong> (
+                      {activeTask.assignedByRole || 'Admin'})
+                    </span>
+                    {activeTask.dueDate && (
+                      <span className="flex items-center gap-1.5 text-amber-400 font-medium bg-amber-400/10 px-2 py-0.5 rounded-md">
+                        <Calendar className="h-3 w-3" />
+                        <span>Deadline: {new Date(activeTask.dueDate).toLocaleDateString()}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  aria-label="Close task details"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedTask(null);
-                  }}
-                  className="h-9 w-9 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-all cursor-pointer z-30"
-                >
-                  <X className="h-4 w-4 pointer-events-none" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Super Admin / Manager Edit Button */}
+                  {isSuperAdminOrEditor && (
+                    <button
+                      type="button"
+                      onClick={() => setEditModalOpen(true)}
+                      className="px-3.5 py-1.5 rounded-full bg-[#ff4f31]/15 hover:bg-[#ff4f31] text-[#ff4f31] hover:text-white border border-[#ff4f31]/30 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      title="Edit all fields as Super Admin"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      <span>Edit Task</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    aria-label="Close task details"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSelectedTask(null);
+                    }}
+                    className="h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-colors cursor-pointer z-30"
+                  >
+                    <X className="h-4 w-4 pointer-events-none" />
+                  </button>
+                </div>
               </div>
 
-              {/* Status Actions */}
-              <div className="p-4 rounded-[16px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold">Change Status:</span>
-                  {selectedTask.status === 'assigned' && (
+              {/* Status Actions & Progress Controls */}
+              <div className="p-4 rounded-[18px] bg-white/[0.02] border border-white/[0.06] flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-[#a09d93]">Action:</span>
+                  {activeTask.status === 'assigned' && (
                     <button
                       type="button"
                       disabled={updating}
-                      onClick={() => handleStatusChange(selectedTask.id, 'accepted')}
-                      className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-500 text-xs font-semibold hover:bg-blue-500/20 cursor-pointer"
+                      onClick={() => handleStatusChange(activeTask.id, 'accepted')}
+                      className="px-3.5 py-1.5 rounded-full bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white text-xs font-semibold transition-all cursor-pointer"
                     >
                       Accept Task
                     </button>
                   )}
-                  {selectedTask.status === 'accepted' && (
+                  {activeTask.status === 'accepted' && (
                     <button
                       type="button"
                       disabled={updating}
-                      onClick={() => handleStatusChange(selectedTask.id, 'in_progress')}
-                      className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-xs font-semibold hover:bg-amber-500/20 cursor-pointer"
+                      onClick={() => handleStatusChange(activeTask.id, 'in_progress')}
+                      className="px-3.5 py-1.5 rounded-full bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white text-xs font-semibold transition-all cursor-pointer"
                     >
                       Start Work
                     </button>
                   )}
-                  {selectedTask.status === 'in_progress' && (
+                  {activeTask.status === 'in_progress' && (
                     <button
                       type="button"
                       disabled={updating}
-                      onClick={() => handleStatusChange(selectedTask.id, 'in_review')}
-                      className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-500 text-xs font-semibold hover:bg-purple-500/20 cursor-pointer"
+                      onClick={() => handleStatusChange(activeTask.id, 'in_review')}
+                      className="px-3.5 py-1.5 rounded-full bg-purple-500/15 text-purple-400 hover:bg-purple-500 hover:text-white text-xs font-semibold transition-all cursor-pointer"
                     >
                       Submit for Review
                     </button>
                   )}
-                  {selectedTask.status === 'in_review' && (
+                  {activeTask.status === 'in_review' && (
                     <button
                       type="button"
                       disabled={updating}
-                      onClick={() => handleStatusChange(selectedTask.id, 'completed', 100)}
-                      className="px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 cursor-pointer"
+                      onClick={() => handleStatusChange(activeTask.id, 'completed', 100)}
+                      className="px-3.5 py-1.5 rounded-full bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-all cursor-pointer"
                     >
                       Mark Completed (100%)
                     </button>
@@ -441,67 +716,316 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
 
                 {/* Progress bar slider */}
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold">Progress:</span>
+                  <span className="text-xs font-semibold text-[#a09d93]">Progress:</span>
                   <input
                     type="range"
                     min="0"
                     max="100"
-                    value={selectedTask.progressPercent}
-                    onChange={(e) => handleProgressChange(selectedTask.id, parseInt(e.target.value, 10))}
-                    className="w-24 accent-[#ff4f31]"
+                    value={activeTask.progressPercent}
+                    onChange={(e) => handleProgressChange(activeTask.id, parseInt(e.target.value, 10))}
+                    className="w-28 accent-[#ff4f31] cursor-pointer"
                   />
-                  <span className="text-xs font-mono font-bold w-8">{selectedTask.progressPercent}%</span>
+                  <span className="text-xs font-mono font-bold w-10 text-white">{activeTask.progressPercent}%</span>
                 </div>
               </div>
 
-              {/* Instructions */}
-              {selectedTask.assignmentInstructions && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-[#5a6265] dark:text-[#a09d93]">ASSIGNMENT BRIEF</span>
-                  <div className="p-3.5 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] text-xs leading-relaxed">
-                    {selectedTask.assignmentInstructions}
+              {/* PROJECT SCOPE / BRIEF (Crucial: Rendered when description was ticked!) */}
+              {activeTask.description ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#a09d93]">
+                    <FileText className="h-4 w-4 text-[#ff4f31]" />
+                    <span>Project Brief & Requirements</span>
+                  </div>
+                  <div className="p-4 rounded-[16px] bg-black/30 border border-white/[0.08] text-xs text-[#f4efea] leading-relaxed whitespace-pre-wrap font-sans">
+                    {activeTask.description}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* ASSIGNMENT INSTRUCTIONS */}
+              {activeTask.assignmentInstructions ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#a09d93]">
+                    <Sparkles className="h-4 w-4 text-amber-400" />
+                    <span>Special Instructions from Assigner</span>
+                  </div>
+                  <div className="p-4 rounded-[16px] bg-amber-400/[0.04] border border-amber-400/20 text-xs text-amber-100 leading-relaxed whitespace-pre-wrap">
+                    {activeTask.assignmentInstructions}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* SHARED CLIENT CONTEXT (If ticked / shared or Super Admin) */}
+              {(activeTask.clientName || activeTask.clientCompany || activeTask.clientEmail || activeTask.clientPhone) && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#a09d93]">
+                    <Shield className="h-4 w-4 text-[#ff4f31]" />
+                    <span>Shared Client Information</span>
+                  </div>
+                  <div className="p-4 rounded-[16px] bg-white/[0.02] border border-white/[0.06] grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {activeTask.clientName && (
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-full bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center font-bold text-xs shrink-0">
+                          {activeTask.clientName[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#a09d93] block">Client Name</span>
+                          <strong className="text-white">{activeTask.clientName}</strong>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTask.clientCompany && (
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-full bg-white/5 text-[#a09d93] flex items-center justify-center shrink-0">
+                          <Building className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#a09d93] block">Company / Brand</span>
+                          <strong className="text-white">{activeTask.clientCompany}</strong>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTask.clientEmail && (
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-black/20 border border-white/[0.04]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Mail className="h-3.5 w-3.5 text-[#a09d93] shrink-0" />
+                          <a
+                            href={`mailto:${activeTask.clientEmail}`}
+                            className="text-white hover:text-[#ff4f31] transition-colors truncate"
+                          >
+                            {activeTask.clientEmail}
+                          </a>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(activeTask.clientEmail!)}
+                          className="h-6 w-6 rounded flex items-center justify-center bg-white/5 hover:bg-white/10 text-[#a09d93] hover:text-white transition-colors cursor-pointer shrink-0"
+                          title="Copy Email"
+                        >
+                          {copiedLink === activeTask.clientEmail ? (
+                            <Check className="h-3 w-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {activeTask.clientPhone && (
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-black/20 border border-white/[0.04]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Phone className="h-3.5 w-3.5 text-[#a09d93] shrink-0" />
+                          <a
+                            href={`tel:${activeTask.clientPhone}`}
+                            className="text-white hover:text-[#ff4f31] transition-colors truncate"
+                          >
+                            {activeTask.clientPhone}
+                          </a>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(activeTask.clientPhone!)}
+                          className="h-6 w-6 rounded flex items-center justify-center bg-white/5 hover:bg-white/10 text-[#a09d93] hover:text-white transition-colors cursor-pointer shrink-0"
+                          title="Copy Phone"
+                        >
+                          {copiedLink === activeTask.clientPhone ? (
+                            <Check className="h-3 w-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Shared Client Details (Only if shared) */}
-              {(selectedTask.clientName || selectedTask.clientEmail || selectedTask.clientPhone) && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-bold text-[#5a6265] dark:text-[#a09d93]">SHARED CLIENT CONTEXT</span>
-                  <div className="p-3.5 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] grid grid-cols-2 gap-2 text-xs">
-                    {selectedTask.clientName && <div>Client: <strong>{selectedTask.clientName}</strong></div>}
-                    {selectedTask.clientCompany && <div>Company: <strong>{selectedTask.clientCompany}</strong></div>}
-                    {selectedTask.clientEmail && <div>Email: <strong>{selectedTask.clientEmail}</strong></div>}
-                    {selectedTask.clientPhone && <div>Phone: <strong>{selectedTask.clientPhone}</strong></div>}
+              {/* CHECKLIST & SUBTASKS (Interactive Checklist!) */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#a09d93]">
+                    <CheckSquare className="h-4 w-4 text-[#ff4f31]" />
+                    <span>Checklist & Subtasks</span>
+                    {subtasks.length > 0 && (
+                      <span className="text-[10px] text-[#ff4f31] bg-[#ff4f31]/10 px-2 py-0.5 rounded-full font-mono">
+                        {subtasks.filter((s) => s.completed).length} / {subtasks.length}
+                      </span>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {/* Shared Links */}
-              {selectedTask.links && selectedTask.links.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-bold text-[#5a6265] dark:text-[#a09d93]">RESOURCE LINKS</span>
+                <div className="p-4 rounded-[16px] bg-white/[0.02] border border-white/[0.06] flex flex-col gap-3">
+                  {subtasks.length === 0 ? (
+                    <p className="text-xs text-[#a09d93] italic">No checklist items created yet.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {subtasks.map((st) => (
+                        <div
+                          key={st.id}
+                          onClick={() => handleToggleSubtask(st.id, st.completed)}
+                          className={`flex items-center gap-3 p-2.5 rounded-[12px] border transition-all cursor-pointer ${
+                            st.completed
+                              ? 'bg-emerald-500/[0.06] border-emerald-500/20 text-[#a09d93] line-through'
+                              : 'bg-black/30 border-white/[0.06] text-white hover:border-[#ff4f31]/30'
+                          }`}
+                        >
+                          <div
+                            className={`h-4 w-4 rounded-[6px] border flex items-center justify-center transition-colors shrink-0 ${
+                              st.completed
+                                ? 'bg-emerald-500 border-emerald-500 text-black'
+                                : 'border-white/20 bg-white/5'
+                            }`}
+                          >
+                            {st.completed && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                          <span className="text-xs font-medium flex-1">{st.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Subtask Input */}
+                  <form onSubmit={handleAddSubtask} className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
+                    <input
+                      type="text"
+                      placeholder="Add a checklist item (e.g. Color grade sequence, Export rough cut)..."
+                      value={newSubtaskTitle}
+                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                      className="flex-1 h-9 px-3 rounded-[10px] bg-black/40 border border-white/10 text-xs text-white outline-none focus:border-[#ff4f31]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={subtaskSubmitting || !newSubtaskTitle.trim()}
+                      className="h-9 px-3.5 rounded-[10px] bg-white/5 hover:bg-[#ff4f31] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add</span>
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* RESOURCE LINKS */}
+              {activeTask.links && activeTask.links.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#a09d93]">
+                    <Paperclip className="h-4 w-4 text-[#ff4f31]" />
+                    <span>Project Assets & Cloud Storage Links</span>
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {selectedTask.links.map((link, idx) => (
-                      <a
+                    {activeTask.links.map((link, idx) => (
+                      <div
                         key={idx}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-black/5 dark:bg-white/10 text-xs font-medium hover:text-[#ff4f31] transition-colors"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-[12px] bg-black/30 border border-white/[0.08] text-xs font-medium"
                       >
-                        <Paperclip className="h-3 w-3" />
-                        <span>{link.label || 'Drive Link'}</span>
-                        <ArrowUpRight className="h-3 w-3" />
-                      </a>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-[#ff4f31] text-white transition-colors flex items-center gap-1.5"
+                        >
+                          <span>{link.label || 'Project Link'}</span>
+                          <ExternalLink className="h-3 w-3 text-[#a09d93]" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(link.url)}
+                          className="h-6 w-6 rounded flex items-center justify-center bg-white/5 hover:bg-white/10 text-[#a09d93] hover:text-white transition-colors cursor-pointer"
+                          title="Copy Link URL"
+                        >
+                          {copiedLink === link.url ? (
+                            <Check className="h-3 w-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* PROJECT TAGS */}
+              {activeTask.tags && activeTask.tags.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#a09d93]">
+                    <Layers className="h-4 w-4 text-[#ff4f31]" />
+                    <span>Tags</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeTask.tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-[#a09d93] font-medium"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* DISCUSSION / NOTES BOX */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-white/[0.08]">
+                <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#a09d93]">
+                  <MessageSquare className="h-4 w-4 text-[#ff4f31]" />
+                  <span>Internal Discussion & Production Notes</span>
+                </div>
+
+                <div className="p-4 rounded-[16px] bg-white/[0.02] border border-white/[0.06] flex flex-col gap-3">
+                  {comments.length === 0 ? (
+                    <p className="text-xs text-[#a09d93] italic">No discussion notes yet. Send a quick update below.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1">
+                      {comments.map((c) => (
+                        <div key={c.id} className="p-2.5 rounded-[12px] bg-black/30 border border-white/[0.04] text-xs">
+                          <div className="flex items-center justify-between text-[10px] text-[#a09d93] mb-1">
+                            <span className="font-bold text-white">
+                              {c.adminName} ({c.adminRole})
+                            </span>
+                            <span>{new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="text-[#f4efea] leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleAddComment} className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
+                    <input
+                      type="text"
+                      placeholder="Write an internal update or question..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      className="flex-1 h-9 px-3 rounded-[10px] bg-black/40 border border-white/10 text-xs text-white outline-none focus:border-[#ff4f31]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={commentSubmitting || !commentText.trim()}
+                      className="h-9 px-4 rounded-[10px] bg-[#ff4f31] hover:bg-[#e03d21] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40"
+                    >
+                      <Send className="h-3 w-3" />
+                      <span>Post</span>
+                    </button>
+                  </form>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* Super Admin Edit Work Item Modal */}
+      {selectedTask && (
+        <EditWorkItemModal
+          workItemId={selectedTask.id}
+          isOpen={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          onUpdated={handleWorkItemUpdated}
+        />
+      )}
     </div>
   );
 }

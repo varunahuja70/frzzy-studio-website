@@ -20,7 +20,9 @@ import {
 } from 'lucide-react';
 import { AssignWorkModal } from '@/components/admin/assign-work-modal';
 import { DeliverWorkModal } from '@/components/admin/deliver-work-modal';
+import { EditWorkItemModal } from '@/components/admin/edit-work-item-modal';
 import { getCachedData, setCachedData } from '@/lib/client-cache';
+import { Pencil } from 'lucide-react';
 
 interface WorkItem {
   id: string;
@@ -60,6 +62,7 @@ export default function WorkItemsPage(props: { params: Promise<{ adminPath: stri
   // Modals state
   const [assignModalItem, setAssignModalItem] = useState<WorkItem | null>(null);
   const [deliverModalItem, setDeliverModalItem] = useState<WorkItem | null>(null);
+  const [editModalItem, setEditModalItem] = useState<WorkItem | null>(null);
 
   const fetchItems = async (silent = false) => {
     try {
@@ -232,6 +235,15 @@ export default function WorkItemsPage(props: { params: Promise<{ adminPath: stri
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditModalItem(item)}
+                          title="Edit Work Item"
+                          className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-[#ff4f31] hover:text-white text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          <span>Edit</span>
+                        </button>
                         {item.status !== 'delivered' && (
                           <>
                             <button
@@ -296,6 +308,19 @@ export default function WorkItemsPage(props: { params: Promise<{ adminPath: stri
           onDelivered={() => {
             fetchItems();
             setDeliverModalItem(null);
+          }}
+        />
+      )}
+
+      {/* Super Admin Edit Work Item Modal */}
+      {editModalItem && (
+        <EditWorkItemModal
+          workItemId={editModalItem.id}
+          isOpen={!!editModalItem}
+          onClose={() => setEditModalItem(null)}
+          onUpdated={() => {
+            fetchItems();
+            setEditModalItem(null);
           }}
         />
       )}

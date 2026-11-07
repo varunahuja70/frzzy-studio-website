@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import {
@@ -7,6 +8,8 @@ import {
   workItemSubtasks,
   workItemAttachments,
   workItemComments,
+  workItemAssignments,
+  admins,
   notifications,
 } from '@/lib/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
@@ -16,6 +19,12 @@ import { projectWorkItem } from '@/lib/work-items/field-projection';
 import { validateStatusTransition, WorkItemStatus } from '@/lib/work-items/state-machine';
 
 const UpdateWorkItemSchema = z.object({
+  title: z.string().trim().min(2).max(180).optional(),
+  description: z.string().trim().min(1).max(10000).optional(),
+  category: z.string().trim().min(2).max(80).optional(),
+  source: z.string().trim().max(80).optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  dueDate: z.number().int().positive().nullable().optional(),
   status: z.enum([
     'assigned',
     'accepted',
@@ -27,8 +36,21 @@ const UpdateWorkItemSchema = z.object({
     'cancelled',
   ]).optional(),
   progressPercent: z.number().int().min(0).max(100).optional(),
-  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
-  dueDate: z.number().int().positive().nullable().optional(),
+  clientName: z.string().trim().max(120).optional(),
+  clientEmail: z.string().trim().email().optional().or(z.literal('')).nullable().optional(),
+  clientPhone: z.string().trim().max(40).optional().or(z.literal('')).nullable().optional(),
+  clientCompany: z.string().trim().max(120).optional().or(z.literal('')).nullable().optional(),
+  assignedTo: z.string().nullable().optional(),
+  sharedFields: z.array(z.string()).optional(),
+  assignmentInstructions: z.string().trim().max(5000).nullable().optional(),
+  quotedPrice: z.number().int().min(0).optional(),
+  finalPrice: z.number().int().min(0).optional(),
+  discount: z.number().int().min(0).optional(),
+  taxPercent: z.number().int().min(0).max(100).optional(),
+  currency: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  links: z.array(z.object({ url: z.string(), label: z.string().optional(), id: z.string().optional() })).optional(),
   version: z.number().int().optional(),
 });
 
@@ -117,6 +139,8 @@ export async function GET(
       attachments,
       comments: visibleComments,
       timeline,
+      canEdit: perms.isSuperAdmin || perms.permissions.has('work_items:edit') || isOwner,
+      isSuperAdmin: perms.isSuperAdmin,
     });
   } catch (err) {
     console.error('Get work item error:', err);
@@ -143,7 +167,7 @@ export async function PATCH(
     const json = await req.json();
     const result = UpdateWorkItemSchema.safeParse(json);
     if (!result.success) {
-      return NextResponse.json({ error: 'Invalid update payload' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid update payload', details: result.error.flatten() }, { status: 400 });
     }
 
     await ensureDatabaseReady();
@@ -162,7 +186,7 @@ export async function PATCH(
     const isOwner = item.createdBy === perms.adminId;
     const canEdit = perms.isSuperAdmin || perms.permissions.has('work_items:edit') || isOwner;
 
-    // Optimistic concurrency control check
+    // Optimistic concurrency control check (if provided and different)
     if (result.data.version !== undefined && result.data.version !== item.version) {
       return NextResponse.json(
         {
@@ -173,8 +197,9 @@ export async function PATCH(
       );
     }
 
+    const now = Date.now();
     const updates: Partial<typeof workItems.$inferInsert> = {
-      updatedAt: Date.now(),
+      updatedAt: now,
       version: item.version + 1,
     };
 
@@ -198,7 +223,7 @@ export async function PATCH(
         updates.progressPercent = transition.forcedProgressPercent;
       }
       if (result.data.status === 'completed') {
-        updates.completedAt = Date.now();
+        updates.completedAt = now;
       }
 
       // Record timeline entry
@@ -207,10 +232,10 @@ export async function PATCH(
         workItemId: id,
         actorId: perms.adminId,
         actorName: perms.name || perms.email,
-        actorRole: perms.roleName,
+        actorRole: perms.roleName || (perms.isSuperAdmin ? 'Super Admin' : 'Admin'),
         action: 'status_changed',
         details: JSON.stringify({ from: item.status, to: result.data.status }),
-        createdAt: Date.now(),
+        createdAt: now,
       });
 
       // Notify assigner or assignee
@@ -226,7 +251,7 @@ export async function PATCH(
           message: `${perms.name || perms.email} changed status to "${result.data.status}".`,
           resourceType: 'work_item',
           resourceId: item.id,
-          createdAt: Date.now(),
+          createdAt: now,
         });
       }
     }
@@ -239,7 +264,7 @@ export async function PATCH(
       updates.progressPercent = result.data.progressPercent;
     }
 
-    // 3. Priority and Due Date updates (Assigner / Manager only)
+    // 3. Priority and Due Date updates
     if (result.data.priority !== undefined && (canEdit || perms.permissions.has('work_items:assign'))) {
       updates.priority = result.data.priority;
     }
@@ -247,11 +272,147 @@ export async function PATCH(
       updates.dueDate = result.data.dueDate;
     }
 
+    // 4. Super Admin & Edit Authority updates
+    if (canEdit) {
+      if (result.data.title !== undefined) updates.title = result.data.title;
+      if (result.data.description !== undefined) updates.description = result.data.description;
+      if (result.data.category !== undefined) updates.category = result.data.category;
+      if (result.data.source !== undefined) updates.source = result.data.source;
+      if (result.data.clientName !== undefined) updates.clientName = result.data.clientName;
+      if (result.data.clientEmail !== undefined) updates.clientEmail = result.data.clientEmail || null;
+      if (result.data.clientPhone !== undefined) updates.clientPhone = result.data.clientPhone || null;
+      if (result.data.clientCompany !== undefined) updates.clientCompany = result.data.clientCompany || null;
+      if (result.data.assignmentInstructions !== undefined) {
+        updates.assignmentInstructions = result.data.assignmentInstructions || null;
+      }
+
+      // Shared fields tick list
+      if (result.data.sharedFields !== undefined) {
+        updates.sharedFields = JSON.stringify(result.data.sharedFields);
+      }
+
+      // Tags & Links
+      if (result.data.tags !== undefined) {
+        updates.tags = JSON.stringify(result.data.tags);
+      }
+      if (result.data.links !== undefined) {
+        updates.links = JSON.stringify(result.data.links);
+      }
+
+      // Financial fields (Super Admin or Financials manager)
+      if (perms.isSuperAdmin || perms.permissions.has('financials:view_quote')) {
+        if (result.data.quotedPrice !== undefined) updates.quotedPrice = result.data.quotedPrice;
+        if (result.data.currency !== undefined) updates.currency = result.data.currency;
+      }
+      if (perms.isSuperAdmin || perms.permissions.has('financials:view_delivered')) {
+        if (result.data.finalPrice !== undefined) updates.finalPrice = result.data.finalPrice;
+        if (result.data.discount !== undefined) updates.discount = result.data.discount;
+        if (result.data.taxPercent !== undefined) updates.taxPercent = result.data.taxPercent;
+        if (result.data.paymentStatus !== undefined) updates.paymentStatus = result.data.paymentStatus;
+      }
+
+      // Assignee modification / Reassignment / Unassignment
+      if (result.data.assignedTo !== undefined && result.data.assignedTo !== item.assignedTo) {
+        if (result.data.assignedTo && result.data.assignedTo.trim() !== '') {
+          const [targetAdmin] = await db
+            .select()
+            .from(admins)
+            .where(and(eq(admins.id, result.data.assignedTo), isNull(admins.deletedAt)))
+            .limit(1);
+
+          if (!targetAdmin || targetAdmin.status !== 'active') {
+            return NextResponse.json({ error: 'Target assignee not found or inactive' }, { status: 400 });
+          }
+
+          const assignerRoleName = perms.roleName || (perms.isSuperAdmin ? 'Super Admin' : 'Admin');
+          updates.assignedTo = targetAdmin.id;
+          updates.assignedByName = perms.name || perms.email;
+          updates.assignedByRole = assignerRoleName;
+          updates.assignedAt = now;
+
+          // Record in assignment history
+          await db.insert(workItemAssignments).values({
+            id: crypto.randomUUID(),
+            workItemId: id,
+            assignedTo: targetAdmin.id,
+            assignedBy: perms.adminId,
+            assignedByName: perms.name || perms.email,
+            assignedByRole: assignerRoleName,
+            sharedFields: updates.sharedFields || item.sharedFields || '[]',
+            instructions: updates.assignmentInstructions || item.assignmentInstructions || null,
+            priority: updates.priority || item.priority,
+            dueDate: updates.dueDate || item.dueDate,
+            createdAt: now,
+          });
+
+          // Timeline entry
+          await db.insert(workItemTimeline).values({
+            id: crypto.randomUUID(),
+            workItemId: id,
+            actorId: perms.adminId,
+            actorName: perms.name || perms.email,
+            actorRole: assignerRoleName,
+            action: 'reassigned',
+            details: JSON.stringify({ assignedTo: targetAdmin.name || targetAdmin.email }),
+            createdAt: now,
+          });
+
+          // Notification
+          if (targetAdmin.id !== perms.adminId) {
+            await db.insert(notifications).values({
+              id: crypto.randomUUID(),
+              recipientId: targetAdmin.id,
+              actorId: perms.adminId,
+              actorName: perms.name || perms.email,
+              type: 'assignment',
+              title: `Task Assigned: ${item.itemNumber}`,
+              message: `${perms.name || perms.email} assigned you "${updates.title || item.title}".`,
+              resourceType: 'work_item',
+              resourceId: id,
+              createdAt: now,
+            });
+          }
+        } else {
+          // Unassign
+          updates.assignedTo = null;
+          updates.assignedByName = null;
+          updates.assignedByRole = null;
+          updates.assignedAt = null;
+
+          await db.insert(workItemTimeline).values({
+            id: crypto.randomUUID(),
+            workItemId: id,
+            actorId: perms.adminId,
+            actorName: perms.name || perms.email,
+            actorRole: perms.roleName || (perms.isSuperAdmin ? 'Super Admin' : 'Admin'),
+            action: 'unassigned',
+            details: JSON.stringify({ unassignedBy: perms.name || perms.email }),
+            createdAt: now,
+          });
+        }
+      }
+    }
+
+    // Save updates
     await db.update(workItems).set(updates).where(eq(workItems.id, id));
+
+    // Fetch updated row
+    const [updatedRow] = await db
+      .select()
+      .from(workItems)
+      .where(eq(workItems.id, id))
+      .limit(1);
+
+    const projected = projectWorkItem(updatedRow, {
+      adminId: perms.adminId,
+      isSuperAdmin: perms.isSuperAdmin,
+      permissions: perms.permissions,
+    });
 
     return NextResponse.json({
       success: true,
       version: updates.version,
+      workItem: projected,
       message: 'Work item updated successfully.',
     });
   } catch (err) {
