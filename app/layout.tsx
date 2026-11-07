@@ -30,20 +30,20 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'FRZZY Studio — Motion, 3D & Visuals with Static Energy',
+  title: 'FRXCX Studio — Think. Shoot. Design.',
   description:
-    'FRZZY Studio makes motion design, 3D and branding with static energy. Stay FRZZY.',
+    'Pixel-perfect interactive editorial hero experience with Weichie navigation, staggered bottom-up reveal animations, and hover-triggered inline video cards.',
   openGraph: {
-    title: 'FRZZY Studio — Motion, 3D & Visuals with Static Energy',
+    title: 'FRXCX Studio — Think. Shoot. Design.',
     description:
-      'FRZZY Studio makes motion design, 3D and branding with static energy. Stay FRZZY.',
+      'Pixel-perfect interactive editorial hero experience with Weichie navigation, staggered bottom-up reveal animations, and hover-triggered inline video cards.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'FRZZY Studio — Motion, 3D & Visuals with Static Energy',
+    title: 'FRXCX Studio — Think. Shoot. Design.',
     description:
-      'FRZZY Studio makes motion design, 3D and branding with static energy. Stay FRZZY.',
+      'Pixel-perfect interactive editorial hero experience with Weichie navigation, staggered bottom-up reveal animations, and hover-triggered inline video cards.',
   },
 };
 
@@ -60,7 +60,7 @@ export default function RootLayout({
     >
       <body
         suppressHydrationWarning
-        className="bg-[#080808] text-[#F3EFE7] antialiased selection:bg-[#C6FF00] selection:text-[#080808] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 overflow-x-hidden"
+        className="bg-[#ecf5f4] text-[#12110b] dark:bg-[#12110b] dark:text-[#f4efea] antialiased selection:bg-[#ff4f31] selection:text-white transition-colors duration-500 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 overflow-x-hidden"
       >
         <AnalyticsTracker />
         {children}
