@@ -63,7 +63,7 @@ export const PALETTES: Palette[] = [
 
 /** Fallback palette when no admin choice is stored yet. The live choice is made in
  *  Studio Vault → Site Appearance (stored in the `settings` table, see lib/site-appearance.ts). */
-export const DEFAULT_PALETTE = 'cobalt';
+export const DEFAULT_PALETTE = 'volt';
 
 /** Fired on window when appearance attributes change; canvas/3D effects recolour on it. */
 export const PALETTE_EVENT = 'frzzy:palette';

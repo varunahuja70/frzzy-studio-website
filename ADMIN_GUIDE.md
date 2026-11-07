@@ -134,12 +134,12 @@ Consistent with the studio's luxury aesthetic:
 | Look | Mac (rounded, glassy) · Studio (original hard-edged FRZZY) |
 | Scroll | Stack (sections slide over each other) · Normal |
 | Hero strands | Off · On |
-| Colour palette | 11 complete themes (8 dark, 3 light), all contrast-checked |
+| Colour palette | 12 complete themes (9 dark, 3 light), all contrast-checked |
 
 - **Permissions**: `settings:view` opens the page (read-only); `settings:edit` is required to save.
 - **Live preview**: shows the real site with your selection (desktop or mobile) before anything is saved. Previews are not counted in analytics.
 - **Save & publish**: stored in the `settings` table (key `site_appearance`) and live within ~10 seconds; every change is written to the audit log as `SETTINGS_UPDATED` with before/after values.
-- **Defaults** (used until something is saved, or via *Reset to defaults*): Cobalt · Mac · Stack · Strands off — defined in `lib/palette.ts`, where new palettes can also be added.
+- **Defaults** (used until something is saved, or via *Reset to defaults*): Volt · Mac · Stack · Strands off — defined in `lib/palette.ts`, where new palettes can also be added.
 - **Preview links**: any page URL accepts `?palette=…&look=…&scroll=…&strands=…` for a one-off preview; it is never saved and visitors cannot change the live appearance.
 
 ---

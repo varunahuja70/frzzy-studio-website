@@ -2905,3 +2905,16 @@ a.card:hover .card-tags li:not(.is-featured) {
 :root[data-strands="off"] .hero .hint .hint-zap {
   display: inline;
 }
+
+/* Header logo: small "Studio" after the FRZZY wordmark */
+.brand .brand-sub {
+  margin-left: .38em;
+  font-size: .5em;
+  font-weight: 500;
+  letter-spacing: .01em;
+  color: var(--muted);
+  transition: color .2s ease;
+}
+.brand:hover .brand-sub {
+  color: var(--ivory);
+}

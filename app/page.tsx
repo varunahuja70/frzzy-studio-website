@@ -322,6 +322,7 @@ export default function FrzzyStudioPage() {
               <use href="#z" />
             </svg>
             <span aria-hidden="true">Y</span>
+            <span className="brand-sub" aria-hidden="true">Studio</span>
           </a>
 
           <button
