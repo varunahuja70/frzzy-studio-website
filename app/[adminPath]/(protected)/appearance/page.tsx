@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
+  Droplets,
   ExternalLink,
   Layers,
   Monitor,
@@ -18,7 +19,8 @@ import type { Palette, SiteAppearance } from '@/lib/palette';
 
 /**
  * Studio Vault → Site Appearance.
- * Chooses how the PUBLIC website looks for every visitor: palette, look, scroll mode, hero strands.
+ * Chooses how the PUBLIC website looks for every visitor: palette, look, scroll mode, hero strands, effects,
+ * liquid-metal ZZ.
  * Saved to the `settings` table via /api/admin/appearance (settings:edit, audit-logged).
  * The preview shows the real site with ?palette=…&look=… overrides (nothing is saved until Save).
  */
@@ -33,7 +35,7 @@ interface AppearanceResponse {
   updatedAt: number | null;
   defaults: SiteAppearance;
   canEdit: boolean;
-  options: { palettes: Palette[]; looks: Option[]; scrolls: Option[]; strands: Option[] };
+  options: { palettes: Palette[]; looks: Option[]; scrolls: Option[]; strands: Option[]; fxs?: Option[]; metals?: Option[] };
 }
 
 const card =
@@ -98,6 +100,64 @@ function StrandsArt({ id }: { id: string }) {
       <text x="32" y="30" textAnchor="middle" fontSize="11" fontWeight="900" className="fill-[#12110b] dark:fill-[#f4efea]">
         FRZZY
       </text>
+    </svg>
+  );
+}
+
+function FxArt({ id }: { id: string }) {
+  const liquid = id === 'liquid';
+  return (
+    <svg viewBox="0 0 64 40" className="w-full h-full" aria-hidden="true">
+      <defs>
+        <linearGradient id="fx-art-flow" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="#ff4f31" stopOpacity="0.15" />
+          <stop offset="0.55" stopColor="#ff4f31" stopOpacity="0.85" />
+          <stop offset="1" stopColor="#ffb39f" stopOpacity="0.5" />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="60" height="36" rx="4" className="fill-black/[0.06] dark:fill-white/[0.06]" />
+      {liquid ? (
+        <>
+          <path d="M2 30 C 16 18, 26 34, 40 20 S 58 12, 62 16 L 62 38 L 2 38 Z" fill="url(#fx-art-flow)" />
+          <rect x="8" y="7" width="22" height="7" rx="3.5" className="fill-white/70 stroke-black/20 dark:fill-white/20 dark:stroke-white/40" strokeWidth="0.6" />
+          <polyline points="40,6 52,6 45,13 49,13 41,21 52,21" fill="none" strokeWidth="2.6" strokeLinejoin="miter" className="stroke-[#12110b] dark:stroke-[#f4efea]" />
+        </>
+      ) : (
+        <>
+          <rect x="2" y="26" width="60" height="12" className="fill-[#ff4f31]" />
+          <rect x="8" y="8" width="22" height="5" className="fill-[#12110b] dark:fill-[#f4efea]" />
+          <polyline points="40,6 52,6 45,13 49,13 41,21 52,21" fill="none" strokeWidth="2.6" strokeLinejoin="miter" className="stroke-black/40 dark:stroke-white/40" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function MetalArt({ id }: { id: string }) {
+  const on = id === 'on';
+  return (
+    <svg viewBox="0 0 64 40" className="w-full h-full" aria-hidden="true">
+      <defs>
+        <linearGradient id="metal-art-chrome" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="0.45" stopColor="#9aa0a6" />
+          <stop offset="0.5" stopColor="#2b2d30" />
+          <stop offset="0.75" stopColor="#c9ccd0" />
+          <stop offset="1" stopColor="#ffb39f" />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="60" height="36" rx="4" className="fill-black/[0.06] dark:fill-white/[0.06]" />
+      {[14, 34].map((x, i) => (
+        <polyline
+          key={x}
+          points={`${x},9 ${x + 14},9 ${x + 5},20 ${x + 10},20 ${x},31 ${x + 14},31`}
+          fill="none"
+          strokeWidth="3.4"
+          strokeLinejoin="miter"
+          stroke={on ? 'url(#metal-art-chrome)' : undefined}
+          className={on ? undefined : i ? 'stroke-[#ff4f31]' : 'stroke-[#12110b] dark:stroke-[#f4efea]'}
+        />
+      ))}
     </svg>
   );
 }
@@ -209,7 +269,7 @@ function LivePreview({ appearance }: { appearance: SiteAppearance }) {
   }, []);
 
   // Debounced so clicking through options doesn't reload the preview on every click
-  const query = `preview=1&palette=${appearance.palette}&look=${appearance.look}&scroll=${appearance.scroll}&strands=${appearance.strands}`;
+  const query = `preview=1&palette=${appearance.palette}&look=${appearance.look}&scroll=${appearance.scroll}&strands=${appearance.strands}&fx=${appearance.fx}&metal=${appearance.metal}`;
   useEffect(() => {
     const t = setTimeout(() => setSrc(`/?${query}#home`), 250);
     return () => clearTimeout(t);
@@ -449,6 +509,34 @@ export default function SiteAppearancePage() {
             disabled={readOnly}
             art={StrandsArt}
           />
+          {data.options.fxs && (
+            <OptionGroup
+              icon={Droplets}
+              heading="Effects"
+              description="Liquid adds flowing gradients, glass bolts and a glass dock in the home hero, gradients on page tops and glass navigation. Still frames for reduced-motion visitors."
+              options={data.options.fxs}
+              value={draft.fx}
+              onChange={(id) => set({ fx: id as SiteAppearance['fx'] })}
+              disabled={readOnly}
+              art={FxArt}
+            />
+          )}
+          {data.options.metals && (
+            <OptionGroup
+              icon={Sparkles}
+              heading="Liquid-metal ZZ"
+              description={
+                draft.fx === 'liquid'
+                  ? 'Turns the ZZ in the footer wordmark and in “Why FRZZY” into flowing chrome.'
+                  : 'Turns the ZZ in the footer and “Why FRZZY” into flowing chrome. Only shows when Effects is Liquid.'
+              }
+              options={data.options.metals}
+              value={draft.metal}
+              onChange={(id) => set({ metal: id as SiteAppearance['metal'] })}
+              disabled={readOnly}
+              art={MetalArt}
+            />
+          )}
 
           <section className={card}>
             <div className="flex items-center gap-2 mb-1 text-[#ff4f31]">

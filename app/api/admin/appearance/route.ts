@@ -3,11 +3,11 @@ import { z } from 'zod';
 import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions, hasPermission } from '@/lib/auth/permissions';
 import { logAuditEvent } from '@/lib/auth/audit';
-import { DEFAULT_APPEARANCE, LOOKS, normalizeAppearance, PALETTES, SCROLLS, STRANDS } from '@/lib/palette';
+import { DEFAULT_APPEARANCE, FXS, LOOKS, METALS, normalizeAppearance, PALETTES, SCROLLS, STRANDS } from '@/lib/palette';
 import { getSiteAppearance, saveSiteAppearance } from '@/lib/site-appearance';
 
 /**
- * Public site appearance (palette, look, scroll mode, hero strands).
+ * Public site appearance (palette, look, scroll mode, hero strands, effects, liquid-metal ZZ).
  *   GET  → current settings + all options      (needs settings:view)
  *   PUT  → save new settings, audit-logged      (needs settings:edit)
  */
@@ -20,6 +20,9 @@ const AppearanceSchema = z
     look: z.enum(ids(LOOKS)),
     scroll: z.enum(ids(SCROLLS)),
     strands: z.enum(ids(STRANDS)),
+    // optional so a vault tab opened before these existed can still save without resetting them
+    fx: z.enum(ids(FXS)).optional(),
+    metal: z.enum(ids(METALS)).optional(),
   })
   .strict();
 
@@ -55,7 +58,7 @@ export async function GET() {
       updatedAt,
       defaults: DEFAULT_APPEARANCE,
       canEdit: hasPermission(perms, 'settings:edit'),
-      options: { palettes: PALETTES, looks: LOOKS, scrolls: SCROLLS, strands: STRANDS },
+      options: { palettes: PALETTES, looks: LOOKS, scrolls: SCROLLS, strands: STRANDS, fxs: FXS, metals: METALS },
     });
   } catch (err) {
     console.error('Fetch appearance error:', err);
@@ -83,7 +86,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const before = (await getSiteAppearance()).value;
-    const saved = await saveSiteAppearance(normalizeAppearance(parsed.data));
+    const saved = await saveSiteAppearance(normalizeAppearance({ fx: before.fx, metal: before.metal, ...parsed.data }));
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,

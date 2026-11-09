@@ -100,7 +100,7 @@ export function Viewport3D() {
     renderer.toneMappingExposure = 1.05;
     renderer.setClearColor(0x000000, 0);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoft was removed in three r18x (it fell back to this anyway)
 
     const pal = readLivePalette();
     ACCENT = pal.accentHex;

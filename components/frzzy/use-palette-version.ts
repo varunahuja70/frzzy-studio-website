@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DEFAULT_LOOK, DEFAULT_PALETTE, DEFAULT_SCROLL, DEFAULT_STRANDS, PALETTE_EVENT } from '@/lib/palette';
+import { DEFAULT_FX, DEFAULT_LOOK, DEFAULT_METAL, DEFAULT_PALETTE, DEFAULT_SCROLL, DEFAULT_STRANDS, PALETTE_EVENT } from '@/lib/palette';
 
 /**
  * Increments every time the palette is switched live. Use it as a React `key` on canvas / WebGL
@@ -29,6 +29,14 @@ export function usePaletteVersion(): number {
     }
     if (!root.getAttribute('data-strands')) {
       root.setAttribute('data-strands', DEFAULT_STRANDS);
+      healed = true;
+    }
+    if (!root.getAttribute('data-fx')) {
+      root.setAttribute('data-fx', DEFAULT_FX);
+      healed = true;
+    }
+    if (!root.getAttribute('data-metal')) {
+      root.setAttribute('data-metal', DEFAULT_METAL);
       healed = true;
     }
     const bump = () => setVersion((n) => n + 1);

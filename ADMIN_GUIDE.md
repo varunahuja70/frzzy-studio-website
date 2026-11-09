@@ -134,13 +134,32 @@ Consistent with the studio's luxury aesthetic:
 | Look | Mac (rounded, glassy) · Studio (original hard-edged FRZZY) |
 | Scroll | Stack (sections slide over each other) · Normal |
 | Hero strands | Off · On |
-| Colour palette | 12 complete themes (9 dark, 3 light), all contrast-checked |
+| Effects | Liquid (glass hero, flowing gradients, glass navigation) · Classic (flat original surfaces) |
+| Liquid-metal ZZ | Off · On (chrome ZZ in the footer and *Why FRZZY*; only with Effects: Liquid) |
+| Colour palette | 12 complete themes (8 dark, 4 light), all contrast-checked |
 
 - **Permissions**: `settings:view` opens the page (read-only); `settings:edit` is required to save.
 - **Live preview**: shows the real site with your selection (desktop or mobile) before anything is saved. Previews are not counted in analytics.
 - **Save & publish**: stored in the `settings` table (key `site_appearance`) and live within ~10 seconds; every change is written to the audit log as `SETTINGS_UPDATED` with before/after values.
-- **Defaults** (used until something is saved, or via *Reset to defaults*): Volt · Mac · Stack · Strands off — defined in `lib/palette.ts`, where new palettes can also be added.
-- **Preview links**: any page URL accepts `?palette=…&look=…&scroll=…&strands=…` for a one-off preview; it is never saved and visitors cannot change the live appearance.
+- **Defaults** (used until something is saved, or via *Reset to defaults*): Volt · Mac · Stack · Strands off · Liquid · Liquid-metal off — defined in `lib/palette.ts`, where new palettes can also be added.
+- **Preview links**: any page URL accepts `?palette=…&look=…&scroll=…&strands=…&fx=…&metal=…` for a one-off preview; it is never saved and visitors cannot change the live appearance.
+
+#### Liquid effects (Effects: Liquid)
+
+Code in `components/liquid/`. Every effect takes its colours from the active palette and follows palette changes live.
+
+| Effect | Where | Notes |
+|---|---|---|
+| Liquid hero | Home page hero | The flowing gradient fills the hero, gathered behind the FRZZY wordmark. The 3D bolts are refractive glass: they bend the gradient behind them, catch light on their edges and melt into it with distance. The headline and copy sit on a glass dock, the three labels on glass pills. Moving the cursor tilts the scene; clicking (the "zap") spins the bolts and sends a ripple through the gradient from the clicked point. |
+| Liquid gradient | Behind the title on Work, Services, About, Contact, Book a call and case pages; the *Got a brief?* band | A flowing, lit "silk" surface with film grain (inspired by shadergradient). The shader keeps the text over it readable: 4.5:1 contrast for body text, 3:1 for titles, on every palette (checked in `tests/liquid-fx.test.ts`); the same applies in the home hero. |
+| Section glow | Every content section on every page (*What we make*, *How we work*, *Why FRZZY*, the Work grid, About, Contact, Book, FAQ, reviews…) | A faint, slow corner of the same gradient near each section's heading, alternating sides down the page. Dimmed so that body, muted and accent-coloured text in the section all keep 4.5:1 on every palette (so it is a whisper on the light palettes). One shared renderer serves all sections, drawing only while one is on screen. |
+| Liquid-metal ZZ | The footer wordmark and *Why FRZZY* — only with **Liquid-metal ZZ: On** | The two Zs become flowing chrome with fine colour fringes (inspired by liquid-logo). Off by default, since it's louder than the rest of the theme. |
+| Glass lens | Main navigation (Mac look, screens wider than 880 px) | A glass lens glides to the hovered link and rests on the current page (inspired by liquid-glass-js). Real refraction in Chrome and Edge; a glass pill in Safari and Firefox. |
+| Glass chips | Work page filter buttons (Mac look) | Frosted chips over the gradient. |
+
+- **Performance**: effects only animate while on screen (and pause while a stacked section covers them), add about 6 kB to the first page load (compressed), plus 5–7 kB per effect, downloaded only when it appears, and are skipped on devices without hardware graphics acceleration.
+- **Accessibility**: visitors who prefer reduced motion see still frames; the effects are decorative and hidden from screen readers.
+- **Classic** removes all of them and brings back the original home hero (glossy 3D bolts, no dock); nothing else about the site changes.
 
 ### Client Reviews (home page "What clients say")
 

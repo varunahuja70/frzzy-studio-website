@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import type { PublicReview, ReviewPlatform } from '@/lib/reviews-shared';
+import { Ambient } from '@/components/liquid';
 
 /**
  * Client reviews section (home page).
@@ -126,6 +127,7 @@ export function StudioReviews({ onStartProject }: { onStartProject: () => void }
 
   return (
     <section className="section reviews" id="reviews" aria-labelledby="reviews-title">
+      <Ambient at="tc" seed={1} />
       <div className="wrap">
         <div className="reviews-head">
           <p className="reviews-badge">

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Ambient } from '@/components/liquid';
 
 /**
  * Numbered FAQ for the Contact page.
@@ -35,6 +36,7 @@ export const STUDIO_FAQ: { q: string; a: string }[] = [
 export function StudioFaq({ onBookCall }: { onBookCall: () => void }) {
   return (
     <section className="section faq" aria-labelledby="faq-title">
+      <Ambient at="tr" seed={2} />
       <div className="wrap faq-grid">
         <div className="faq-head">
           <p className="mono index-label">

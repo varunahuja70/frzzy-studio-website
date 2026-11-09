@@ -14,12 +14,12 @@ import { StudioFaq } from '@/components/frzzy/studio-faq';
 import { ProcessSteps } from '@/components/frzzy/process-steps';
 import { usePaletteVersion } from '@/components/frzzy/use-palette-version';
 import { ImageBand } from '@/components/frzzy/image-band';
-import { Hero3DBackdrop } from '@/components/frzzy/hero-3d-backdrop';
 import { RevealOnScroll } from '@/components/frzzy/reveal-on-scroll';
 import { StackScroll } from '@/components/frzzy/stack-scroll';
 import { StudioReviews } from '@/components/frzzy/studio-reviews';
 import { CookieConsent } from '@/components/cookie-consent';
 import { OPEN_COOKIE_SETTINGS_EVENT } from '@/lib/analytics/consent';
+import { Ambient, GlassRefraction, HeroBackdrop, LiquidGradient, LiquidZZ, NavLens } from '@/components/liquid';
 
 // The wide card at the top of the Work page. Change the slug to feature a different project.
 const FEATURED_SLUG = 'short-circuit';
@@ -339,6 +339,7 @@ export default function FrzzyStudioPage() {
           </button>
 
           <ul className={`nav-links ${mobileMenuOpen ? 'open' : ''}`} id="nav-links">
+            <NavLens />
             <li>
               <a
                 onClick={() => {
@@ -418,8 +419,9 @@ export default function FrzzyStudioPage() {
           <div className="view enter" data-view="home">
             {/* Hero */}
             <section className="hero" id="top">
-              {/* Back layer: live 3D bolts behind the strands and the FRZZY wordmark */}
-              <Hero3DBackdrop />
+              {/* Back layer behind the strands and the FRZZY wordmark: the liquid gradient with glass
+                  bolts (Effects: Liquid), or the classic glossy 3D bolts */}
+              <HeroBackdrop />
               <div className="hero-word" aria-hidden="true">
                 <span className="sc" ref={scRef}>
                   <span className="base">FRZZY</span>
@@ -445,6 +447,7 @@ export default function FrzzyStudioPage() {
                 <h1 className="sr-only">FRZZY Studio: motion design, 3D and branding</h1>
 
                 <div className="hero-bottom">
+                  <GlassRefraction />
                   <p className="thesis">
                     Visuals with <em>static energy.</em>
                   </p>
@@ -531,6 +534,7 @@ export default function FrzzyStudioPage() {
 
             {/* Featured Work Experiments */}
             <section className="section" id="featured">
+              <Ambient at="tr" seed={0} />
               <div className="wrap">
                 <div className="sec-head">
                   <p className="mono muted">01 / Work</p>
@@ -572,6 +576,7 @@ export default function FrzzyStudioPage() {
 
             {/* Services Teaser */}
             <section className="section" id="home-services">
+              <Ambient at="tl" seed={1} />
               <div className="wrap">
                 <div className="sec-head">
                   <p className="mono muted">02 / Services</p>
@@ -621,6 +626,7 @@ export default function FrzzyStudioPage() {
 
             {/* The Name Section */}
             <section className="section" id="name">
+              <Ambient at="tl" seed={2} />
               <div className="wrap">
                 <div className="sec-head">
                   <p className="mono muted">04 / The name</p>
@@ -643,6 +649,7 @@ export default function FrzzyStudioPage() {
                         <span className="big wm" aria-hidden="true">
                           <svg className="z"><use href="#z" /></svg>
                           <svg className="z z2"><use href="#z" /></svg>
+                          <LiquidZZ variant="inline" />
                         </span>
                         <p>
                           <span className="sr-only">ZZ: </span>The buzz.
@@ -665,6 +672,7 @@ export default function FrzzyStudioPage() {
             <StudioReviews onStartProject={() => navigateTo('#contact')} />
 
             <section className="cta-band">
+              <LiquidGradient preset="cta" />
               <div className="wrap">
                 <h2>Got a brief?<br />Let’s make it FRZZY.</h2>
                 <div className="ctas">
@@ -686,6 +694,7 @@ export default function FrzzyStudioPage() {
         {currentView === 'work' && (
           <div className="view enter" data-view="work">
             <section className="page-hero">
+              <LiquidGradient preset="hero" />
               <div className="wrap">
                 <p className="mono muted crumb">
                   <a onClick={() => navigateTo('#home')}>FRZZY</a>
@@ -721,6 +730,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             <section className="section">
+              <Ambient at="tl" seed={3} />
               <div className="wrap">
                 {(() => {
                   const visible = CASE_ORDER.filter(
@@ -778,6 +788,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             <section className="cta-band">
+              <LiquidGradient preset="cta" />
               <div className="wrap">
                 <h2>Got a brief?<br />Let’s make it FRZZY.</h2>
                 <div className="ctas">
@@ -799,6 +810,7 @@ export default function FrzzyStudioPage() {
         {currentView === 'case' && (
           <div className="view enter" data-view="case">
             <section className="page-hero">
+              <LiquidGradient preset="hero" />
               <div className="wrap">
                 <p className="mono muted crumb">
                   <a onClick={() => navigateTo('#work')}>Work</a>
@@ -833,6 +845,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             <section className="section">
+              <Ambient at="tr" seed={1} />
               <div className="wrap case-body">
                 <div>
                   <p className="mono muted">The idea</p>
@@ -879,6 +892,7 @@ export default function FrzzyStudioPage() {
         {currentView === 'services' && (
           <div className="view enter" data-view="services">
             <section className="page-hero">
+              <LiquidGradient preset="hero" />
               <div className="wrap">
                 <p className="mono muted crumb">
                   <a onClick={() => navigateTo('#home')}>FRZZY</a>
@@ -895,6 +909,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             <section className="section">
+              <Ambient at="tl" seed={2} />
               <div className="wrap">
                 <div className="svc-grid">
                   {[
@@ -936,6 +951,7 @@ export default function FrzzyStudioPage() {
             <ProcessSteps eyebrow="Process" />
 
             <section className="cta-band">
+              <LiquidGradient preset="cta" />
               <div className="wrap">
                 <h2>Got a brief?<br />Let’s make it FRZZY.</h2>
                 <div className="ctas">
@@ -957,6 +973,7 @@ export default function FrzzyStudioPage() {
         {currentView === 'about' && (
           <div className="view enter" data-view="about">
             <section className="page-hero">
+              <LiquidGradient preset="hero" />
               <div className="wrap">
                 <p className="mono muted crumb">
                   <a onClick={() => navigateTo('#home')}>FRZZY</a>
@@ -983,6 +1000,7 @@ export default function FrzzyStudioPage() {
 
             {/* The Name with Viewport 3D */}
             <section className="section">
+              <Ambient at="tr" seed={0} />
               <div className="wrap">
                 <div className="sec-head">
                   <p className="mono muted">The name</p>
@@ -1005,6 +1023,7 @@ export default function FrzzyStudioPage() {
                         <span className="big wm" aria-hidden="true">
                           <svg className="z"><use href="#z" /></svg>
                           <svg className="z z2"><use href="#z" /></svg>
+                          <LiquidZZ variant="inline" />
                         </span>
                         <p>
                           <span className="sr-only">ZZ: </span>The buzz.
@@ -1024,6 +1043,7 @@ export default function FrzzyStudioPage() {
 
             {/* What We Believe */}
             <section className="section">
+              <Ambient at="tl" seed={3} />
               <div className="wrap">
                 <div className="sec-head">
                   <p className="mono muted">What we believe</p>
@@ -1054,6 +1074,7 @@ export default function FrzzyStudioPage() {
 
             {/* The Studio Founders */}
             <section className="section">
+              <Ambient at="tr" seed={1} />
               <div className="wrap">
                 <div className="sec-head">
                   <p className="mono muted">The studio</p>
@@ -1083,6 +1104,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             <section className="cta-band">
+              <LiquidGradient preset="cta" />
               <div className="wrap">
                 <h2>Got a brief?<br />Let’s make it FRZZY.</h2>
                 <div className="ctas">
@@ -1104,6 +1126,7 @@ export default function FrzzyStudioPage() {
         {currentView === 'contact' && (
           <div className="view enter" data-view="contact">
             <section className="page-hero">
+              <LiquidGradient preset="hero" />
               <div className="wrap">
                 <p className="mono muted crumb">
                   <a onClick={() => navigateTo('#home')}>FRZZY</a>
@@ -1120,6 +1143,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             <section className="section" id="contact-main">
+              <Ambient at="tl" seed={0} />
               <div className="wrap">
                 <div className="contact-grid">
                   <div className="reach">
@@ -1308,6 +1332,7 @@ export default function FrzzyStudioPage() {
         {currentView === 'book' && (
           <div className="view enter" data-view="book">
             <section className="page-hero">
+              <LiquidGradient preset="hero" />
               <div className="wrap">
                 <p className="mono muted crumb">
                   <a onClick={() => navigateTo('#home')}>FRZZY</a>
@@ -1326,6 +1351,7 @@ export default function FrzzyStudioPage() {
             </section>
 
             <section className="section" id="book-main">
+              <Ambient at="tr" seed={2} />
               <div className="wrap">
                 <div className="book-grid">
                   <aside className="book-how" aria-label="How booking works">
@@ -1387,6 +1413,7 @@ export default function FrzzyStudioPage() {
                 <svg className="z"><use href="#z" /></svg>
                 <svg className="z z2"><use href="#z" /></svg>
                 <span>Y</span>
+                <LiquidZZ variant="footer" />
               </span>
             </div>
           </div>

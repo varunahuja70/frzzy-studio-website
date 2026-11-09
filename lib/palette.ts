@@ -5,7 +5,7 @@
  * ✏️ Add a palette: copy an entry in PALETTES and change the colours. The CSS, the vault picker and
  *    the canvas/3D effects all pick it up automatically. Every palette passes WCAG contrast checks
  *    (text ≥ 7:1, secondary text / accent ≥ 4.5:1, button borders ≥ 3:1); keep that when editing.
- * Preview without saving: ?palette=<id>&look=<id>&scroll=<id>&strands=<id> in any URL.
+ * Preview without saving: ?palette=<id>&look=<id>&scroll=<id>&strands=<id>&fx=<id>&metal=<id> in any URL.
  *
  * Token meaning (CSS names kept from the original brand so no styles had to be renamed):
  *   bg → --black (page background)        surface → --charcoal (cards, panels)
@@ -127,12 +127,40 @@ export const STRANDS = [
 export type StrandsId = (typeof STRANDS)[number]['id'];
 export const DEFAULT_STRANDS: StrandsId = 'off';
 
+/**
+ * Effects (components/liquid/): the WebGL and glass layer on top of the base design.
+ *   liquid  → the home hero's flowing gradient with glass bolts and a glass dock, flowing
+ *             gradients on page heroes and CTA bands, a glass lens in the navigation, glass chips
+ *   classic → the flat original surfaces, no extra effects
+ * Reduced-motion visitors get still frames either way.
+ */
+export const FXS = [
+  { id: 'liquid', name: 'Liquid', note: 'Flowing gradients, glass hero and navigation' },
+  { id: 'classic', name: 'Classic', note: 'Flat surfaces, no extra effects' },
+] as const;
+export type FxId = (typeof FXS)[number]['id'];
+export const DEFAULT_FX: FxId = 'liquid';
+
+/**
+ * Liquid-metal ZZ: the ZZ in the footer wordmark and in "Why FRZZY" as flowing chrome.
+ * Separate from Effects (and off by default) because it's louder than the rest of the theme;
+ * it only shows when Effects is Liquid.
+ */
+export const METALS = [
+  { id: 'off', name: 'Off', note: 'Flat ZZ, as in the logo' },
+  { id: 'on', name: 'On', note: 'Flowing chrome ZZ in the footer and "Why FRZZY"' },
+] as const;
+export type MetalId = (typeof METALS)[number]['id'];
+export const DEFAULT_METAL: MetalId = 'off';
+
 /** The whole site appearance, as chosen by an admin in Studio Vault → Site Appearance. */
 export interface SiteAppearance {
   palette: string;
   look: LookId;
   scroll: ScrollId;
   strands: StrandsId;
+  fx: FxId;
+  metal: MetalId;
 }
 
 export const DEFAULT_APPEARANCE: SiteAppearance = {
@@ -140,6 +168,8 @@ export const DEFAULT_APPEARANCE: SiteAppearance = {
   look: DEFAULT_LOOK,
   scroll: DEFAULT_SCROLL,
   strands: DEFAULT_STRANDS,
+  fx: DEFAULT_FX,
+  metal: DEFAULT_METAL,
 };
 
 const pickId = <T extends string>(value: unknown, ids: readonly T[], fallback: T): T =>
@@ -153,18 +183,20 @@ export function normalizeAppearance(raw: unknown): SiteAppearance {
     look: pickId(r.look, LOOKS.map((l) => l.id), DEFAULT_LOOK),
     scroll: pickId(r.scroll, SCROLLS.map((m) => m.id), DEFAULT_SCROLL),
     strands: pickId(r.strands, STRANDS.map((m) => m.id), DEFAULT_STRANDS),
+    fx: pickId(r.fx, FXS.map((m) => m.id), DEFAULT_FX),
+    metal: pickId(r.metal, METALS.map((m) => m.id), DEFAULT_METAL),
   };
 }
 
 /**
  * Inline <head> script. The admin's choice is server-rendered onto <html> by app/layout.tsx;
- * this only applies one-off PREVIEW overrides from the URL (?palette=&look=&scroll=&strands=,
+ * this only applies one-off PREVIEW overrides from the URL (?palette=&look=&scroll=&strands=&fx=&metal=,
  * used by the vault's live preview; nothing is saved), and clears per-browser choices left
  * behind by the old on-page switcher so they can never override the admin's settings.
  */
 export const appearanceBootScript = `(function(){try{
 var q=new URLSearchParams(location.search),r=document.documentElement;
-var m={palette:${JSON.stringify(PALETTES.map((p) => p.id))},look:${JSON.stringify(LOOKS.map((l) => l.id))},scroll:${JSON.stringify(SCROLLS.map((x) => x.id))},strands:${JSON.stringify(STRANDS.map((x) => x.id))}};
+var m={palette:${JSON.stringify(PALETTES.map((p) => p.id))},look:${JSON.stringify(LOOKS.map((l) => l.id))},scroll:${JSON.stringify(SCROLLS.map((x) => x.id))},strands:${JSON.stringify(STRANDS.map((x) => x.id))},fx:${JSON.stringify(FXS.map((x) => x.id))},metal:${JSON.stringify(METALS.map((x) => x.id))}};
 for(var k in m){var v=q.get(k);if(v&&m[k].indexOf(v)>-1)r.setAttribute('data-'+k,v);}
 ['frzzy-palette','frzzy-look','frzzy-scroll','frzzy-strands'].forEach(function(x){localStorage.removeItem(x);});
 }catch(e){}})();`;

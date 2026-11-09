@@ -67,6 +67,8 @@ export default async function RootLayout({
       data-look={appearance.look}
       data-scroll={appearance.scroll}
       data-strands={appearance.strands}
+      data-fx={appearance.fx}
+      data-metal={appearance.metal}
       className={`${geistSans.variable} ${geistMono.variable} ${interTight.variable} ${plusJakarta.variable} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden overflow-x-clip`}
     >
       <head>

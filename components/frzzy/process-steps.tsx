@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { Ambient } from '@/components/liquid';
 
 /**
  * "Our process" section, shared by Home and Services.
@@ -133,6 +134,7 @@ export function ProcessSteps({ eyebrow, id }: { eyebrow: string; id?: string }) 
 
   return (
     <section className="section" id={id}>
+      <Ambient at="tr" seed={3} />
       <div className="wrap">
         <div className="sec-head">
           <p className="mono muted">{eyebrow}</p>

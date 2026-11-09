@@ -3252,3 +3252,248 @@ a.review-platform:hover {
   font-weight: 600;
   letter-spacing: -.035em;
 }
+
+/* ===================================================================================
+   LIQUID EFFECTS  (<html data-fx="liquid">, Studio Vault → Site Appearance → Effects)
+   Components in components/liquid/. With Effects: Classic none of these elements render,
+   so the original design is untouched.
+   =================================================================================== */
+
+/* Shader gradients: page heroes and CTA bands (liquid-gradient.tsx) */
+.liquid-gradient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.4s var(--ease);
+}
+.liquid-gradient.is-ready {
+  opacity: 1;
+}
+.liquid-gradient > canvas,
+.hero-liquid > canvas,
+.ambient > canvas,
+.lz-layer > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+:is(.page-hero, .cta-band):has(> .liquid-gradient) {
+  position: relative; /* stack scroll's sticky positioning still wins; it also contains the layer */
+  isolation: isolate;
+  overflow: hidden;
+}
+:is(.page-hero, .cta-band) > .liquid-gradient ~ .wrap {
+  position: relative;
+  z-index: 1;
+}
+/* page heroes melt into the page at the bottom edge */
+.liquid-gradient.lg-hero {
+  -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 40%, transparent 100%);
+}
+
+/* Home hero (liquid-hero.tsx): the flowing gradient with glass bolts, behind strands (0),
+   wordmark (1) and UI (2). Replaces the classic .hero-3d layer. */
+.hero-liquid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.4s var(--ease);
+}
+.hero-liquid.is-ready {
+  opacity: 1;
+}
+/* the headline and copy sit on a glass dock... */
+:root[data-fx="liquid"] .hero-bottom {
+  position: relative;
+  border-top: 0;
+  padding: clamp(18px, 2.4vw, 34px) clamp(20px, 2.8vw, 40px);
+  background:
+    linear-gradient(180deg, rgba(var(--ivory-rgb), .08), rgba(var(--ivory-rgb), .02) 60%),
+    rgba(var(--black-rgb), .3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .22),
+    inset 0 0 0 1px rgba(var(--ivory-rgb), .1),
+    inset 0 -18px 40px -30px rgba(255, 255, 255, .08),
+    0 40px 90px -40px rgba(0, 0, 0, .75);
+}
+:root[data-fx="liquid"][data-look="mac"] .hero-bottom {
+  border-radius: var(--r-lg);
+}
+/* ...whose rim refracts the gradient in Chromium (GlassRefraction sets --glass-filter) */
+:root[data-fx="liquid"][data-glass="refract"] .hero-bottom {
+  -webkit-backdrop-filter: var(--glass-filter, blur(20px) saturate(1.6));
+  backdrop-filter: var(--glass-filter, blur(20px) saturate(1.6));
+}
+/* ...and the three labels at the top become glass pills */
+:root[data-fx="liquid"] .hero-top > p {
+  padding: 7px 13px;
+  background: rgba(var(--ivory-rgb), .05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 0 1px rgba(var(--ivory-rgb), .1);
+}
+:root[data-fx="liquid"][data-look="mac"] .hero-top > p {
+  border-radius: 980px;
+}
+
+/* Ambient glow in content sections (ambient-glow.tsx): a faint, slow corner of liquid gradient
+   behind the content, dim enough that all text in the section keeps 4.5:1 contrast. The section
+   becomes its own stacking context so the glow sits above its background but under its content
+   (stack scroll's sticky positioning still applies). */
+.section:has(> .ambient) {
+  position: relative;
+  isolation: isolate;
+}
+.ambient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.8s var(--ease);
+}
+.ambient.is-ready {
+  opacity: 1;
+}
+.ambient[data-at="tr"] {
+  -webkit-mask-image: radial-gradient(78% 88% at 88% 6%, #000 0%, rgba(0, 0, 0, .55) 45%, transparent 80%);
+  mask-image: radial-gradient(78% 88% at 88% 6%, #000 0%, rgba(0, 0, 0, .55) 45%, transparent 80%);
+}
+.ambient[data-at="tl"] {
+  -webkit-mask-image: radial-gradient(78% 88% at 12% 6%, #000 0%, rgba(0, 0, 0, .55) 45%, transparent 80%);
+  mask-image: radial-gradient(78% 88% at 12% 6%, #000 0%, rgba(0, 0, 0, .55) 45%, transparent 80%);
+}
+.ambient[data-at="br"] {
+  -webkit-mask-image: radial-gradient(70% 80% at 88% 96%, #000 0%, rgba(0, 0, 0, .5) 42%, transparent 76%);
+  mask-image: radial-gradient(70% 80% at 88% 96%, #000 0%, rgba(0, 0, 0, .5) 42%, transparent 76%);
+}
+.ambient[data-at="bl"] {
+  -webkit-mask-image: radial-gradient(70% 80% at 10% 96%, #000 0%, rgba(0, 0, 0, .5) 42%, transparent 76%);
+  mask-image: radial-gradient(70% 80% at 10% 96%, #000 0%, rgba(0, 0, 0, .5) 42%, transparent 76%);
+}
+.ambient[data-at="tc"] {
+  -webkit-mask-image: radial-gradient(60% 70% at 50% 4%, #000 0%, rgba(0, 0, 0, .5) 40%, transparent 74%);
+  mask-image: radial-gradient(60% 70% at 50% 4%, #000 0%, rgba(0, 0, 0, .5) 40%, transparent 74%);
+}
+
+/* Liquid-metal ZZ (liquid-metal.tsx): a canvas laid over the two SVG Zs, which fade out under it */
+.wm:has(> .lz-layer) {
+  position: relative;
+}
+.wm > svg.z {
+  transition: opacity .7s var(--ease);
+}
+.wm[data-lz="on"] > svg.z {
+  opacity: 0;
+}
+.lz-layer {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .7s var(--ease);
+}
+.lz-layer.is-ready {
+  opacity: 1;
+}
+
+/* Glass lens in the navigation (liquid-glass.tsx). Mac look only: Studio keeps its underline. */
+.nav-lens {
+  display: none;
+}
+.glass-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+:root[data-fx="liquid"][data-look="mac"] .nav-links[data-lens="on"] {
+  position: relative;
+}
+:root[data-fx="liquid"][data-look="mac"] [data-lens="on"] > .nav-lens {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 980px;
+  opacity: 0;
+  background: rgba(var(--ivory-rgb), .045);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .32),
+    inset 0 -1px 0 rgba(255, 255, 255, .08),
+    inset 0 0 0 .5px rgba(var(--ivory-rgb), .24),
+    inset 0 0 14px rgba(var(--ivory-rgb), .07),
+    0 6px 16px -8px rgba(0, 0, 0, .55);
+  -webkit-backdrop-filter: blur(2px) saturate(1.7) brightness(1.08);
+  backdrop-filter: blur(2px) saturate(1.7) brightness(1.08);
+  transition:
+    transform .52s cubic-bezier(.3, 1.3, .4, 1),
+    width .52s cubic-bezier(.3, 1.3, .4, 1),
+    height .3s var(--ease),
+    opacity .25s var(--ease);
+}
+/* Without SVG backdrop filters the lens is a glass pill behind the link text, which stays crisp */
+:root[data-fx="liquid"][data-look="mac"]:not([data-glass="refract"]) .nav-links[data-lens="on"] > li > a {
+  position: relative;
+  z-index: 2;
+}
+/* Chromium: the lens sits over the link and refracts it through the generated displacement map */
+:root[data-fx="liquid"][data-look="mac"][data-glass="refract"] [data-lens="on"] > .nav-lens {
+  -webkit-backdrop-filter: var(--lens-filter);
+  backdrop-filter: var(--lens-filter);
+}
+[data-lens="on"] > .nav-lens.no-anim {
+  transition: none;
+}
+[data-lens="on"] > .nav-lens.is-moving {
+  animation: lens-squish .48s var(--ease);
+}
+@keyframes lens-squish {
+  0% { scale: 1 1; }
+  35% { scale: 1.1 .84; }
+  70% { scale: .97 1.05; }
+  100% { scale: 1 1; }
+}
+/* the lens replaces the static pill highlight (not in the collapsed mobile menu, where it's hidden) */
+@media (min-width: 881px) {
+  :root[data-fx="liquid"][data-look="mac"] .nav-links[data-lens="on"] a:not(.btn):hover,
+  :root[data-fx="liquid"][data-look="mac"] .nav-links[data-lens="on"] a[aria-current="page"]:not(.btn) {
+    background: transparent;
+  }
+}
+
+/* Glass filter chips over the Work page gradient (borders keep their 3:1 contrast) */
+:root[data-fx="liquid"][data-look="mac"] .page-hero .filter:not([aria-pressed="true"]) {
+  background: rgba(var(--ivory-rgb), .05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liquid-gradient,
+  .hero-liquid,
+  .ambient,
+  .lz-layer,
+  .wm > svg.z {
+    transition: none;
+  }
+  :root[data-fx="liquid"][data-look="mac"] [data-lens="on"] > .nav-lens {
+    transition: opacity .2s;
+  }
+  [data-lens="on"] > .nav-lens.is-moving {
+    animation: none;
+  }
+}
