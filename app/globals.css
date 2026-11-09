@@ -591,18 +591,20 @@ header.site {
 .reel-frame {
   position: relative;
   aspect-ratio: 16/9;
-  background: #0d0d0f;
+  background: #000;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: none !important;
+  outline: none !important;
   /* corners come from the look: square in Studio, rounded in Mac (see "Rounded, softly lifted media") */
   transform: rotateX(var(--tilt, 0deg)) scale(var(--sc, 1));
   transform-origin: center bottom;
-  box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.75);
-  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+  box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.9);
+  transition: box-shadow 0.35s ease;
 }
 .reel-frame:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 35px 90px -15px rgba(0, 0, 0, 0.85);
+  border: none !important;
+  outline: none !important;
+  box-shadow: 0 50px 120px -20px rgba(0, 0, 0, 0.95);
 }
 :root[data-look="mac"] .reel-frame::before {
   display: none !important;

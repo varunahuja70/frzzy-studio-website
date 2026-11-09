@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, X } from 'lucide-react';
 
 /**
- * Home page showreel: a dark "screen" playing the reel muted behind the FRZZY wordmark.
- * Clicking it (or Enter / Space on it) opens the reel in a full-screen player.
+ * Home page showreel: the reel loops edge to edge behind the FRZZY wordmark; clicking it (or
+ * Enter / Space on it) opens the reel in a full-screen player.
  *
  * - The full-screen player is a native <dialog> opened with showModal(). That puts it in the
  *   browser's top layer, so the tilting .reel-frame around this component (a CSS transform with
@@ -13,8 +13,9 @@ import { Play, Pause, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
  *   goes back to the reel afterwards.
  * - The screen is always dark, so accents use --image-accent (the palette accent on dark
  *   palettes, white on light ones; see lib/palette.ts) instead of --volt.
- * - The running timecode is written straight into the page (no re-render every frame) and, like
- *   the background video, stops while the reel is off-screen or the visitor prefers reduced motion.
+ * - The background loop keeps playing whenever the reel can be seen; it pauses while the reel is
+ *   off-screen or the tab is hidden, while the full-screen player is open, and for visitors who
+ *   prefer reduced motion.
  * - The length on the "Watch reel" button is read from the video file.
  */
 
@@ -31,9 +32,7 @@ const mmss = (s: number) => (Number.isFinite(s) ? `${pad(s / 60)}:${pad(s % 60)}
 export function ShowreelPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const bgVideoRef = useRef<HTMLVideoElement>(null);
-  const timecodeRef = useRef<HTMLSpanElement>(null);
   const lengthRef = useRef<HTMLSpanElement>(null);
-  const timecodeStart = useRef<number | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const modalBoxRef = useRef<HTMLDivElement>(null);
   const modalVideoRef = useRef<HTMLVideoElement>(null);
@@ -48,46 +47,30 @@ export function ShowreelPlayer() {
 
   const activeVideo = REEL_VIDEOS[activeVideoIdx];
 
-  // Background video + timecode: they run only while the reel is on screen, motion is allowed
-  // and the full-screen player is closed.
+  // Background loop: plays continuously whenever the reel is on screen (and starts again when
+  // the tab comes back), pauses otherwise.
   useEffect(() => {
     const screen = containerRef.current;
-    const bg = bgVideoRef.current;
-    if (!screen || !bg) return;
+    const vid = bgVideoRef.current;
+    if (!screen || !vid) return;
+    vid.muted = true; // React leaves `muted` out of the server HTML, and autoplay needs it
+    vid.loop = true;
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const start = (timecodeStart.current ??= performance.now());
-    let visible = false;
-    let raf = 0;
-    let shownFrame = -1;
+    let onScreen = false;
 
-    const tick = (now: number) => {
-      const t = (now - start) / 1000 + 69.4;
-      const frame = Math.floor(t * 25); // 25 fps timecode: only touch the page when it changes
-      const text = timecodeRef.current?.firstChild; // edit the text in place (no new nodes)
-      if (frame !== shownFrame && text) {
-        shownFrame = frame;
-        text.nodeValue = `${pad(t / 3600)}:${pad((t / 60) % 60)}:${pad(t % 60)}:${pad(frame % 25)}`;
-      }
-      raf = requestAnimationFrame(tick);
-    };
     const sync = () => {
-      cancelAnimationFrame(raf);
-      if (visible && !still && !isModalOpen) {
-        raf = requestAnimationFrame(tick);
-        bg.play().catch(() => {});
-      } else {
-        bg.pause();
-      }
+      if (onScreen && !document.hidden && !still && !isModalOpen) vid.play().catch(() => {});
+      else vid.pause();
     };
-
     const io = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
+      onScreen = entry.isIntersecting;
       sync();
     });
     io.observe(screen);
+    document.addEventListener('visibilitychange', sync);
     return () => {
       io.disconnect();
-      cancelAnimationFrame(raf);
+      document.removeEventListener('visibilitychange', sync);
     };
   }, [isModalOpen]);
 
@@ -173,32 +156,12 @@ export function ShowreelPlayer() {
             openModal();
           }
         }}
-        className="group/reel relative w-full h-full flex flex-col justify-between overflow-hidden bg-[#0d0d0f] select-none cursor-pointer transition-transform duration-500 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--image-accent)]"
+        className="group/reel relative w-full h-full flex items-center justify-center overflow-hidden bg-black select-none cursor-pointer border-0 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--image-accent)]"
       >
         {/* =========================================================
-            1. MINIMAL MAC OS GLASS TITLEBAR (Clean & Refined)
+            CONTINUOUS LOOPING STUDIO VIDEO (Full Card, Edge-to-Edge)
         ========================================================= */}
-        <div className="relative z-30 h-8 sm:h-10 w-full px-3 sm:px-4 flex items-center justify-between border-b border-white/[0.06] bg-black/40 backdrop-blur-md">
-          {/* Subtle Window Dots */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-[#ff5f56]/90" />
-            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-[#ffbd2e]/90" />
-            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-[#27c93f]/90" />
-          </div>
-
-          {/* Simple Studio Status */}
-          <div className="text-[10px] sm:text-[11px] font-mono text-white/40 tracking-wider">FRZZY // REEL 2026</div>
-
-          {/* Quick Expand Icon (the whole screen is the button) */}
-          <div className="flex items-center text-white/30 group-hover/reel:text-white/70 transition-colors">
-            <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
-          </div>
-        </div>
-
-        {/* =========================================================
-            2. VIDEO LAYER (Dark, Subtle, Cinematic)
-        ========================================================= */}
-        <div className="absolute inset-x-0 bottom-0 top-8 sm:top-10 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
           <video
             ref={bgVideoRef}
             src={activeVideo.src}
@@ -207,81 +170,65 @@ export function ShowreelPlayer() {
             muted
             playsInline
             aria-hidden="true"
-            className="w-full h-full object-cover object-center opacity-40 scale-[1.01] transition-all duration-700 ease-out group-hover/reel:opacity-60 group-hover/reel:scale-105"
+            className="w-full h-full object-cover object-center opacity-75 group-hover/reel:opacity-90 scale-[1.01] group-hover/reel:scale-105 transition-all duration-700 ease-out"
           />
 
-          {/* Clean Vignette & Minimal Dark Gradients */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0f] via-transparent to-[#0d0d0f]/60" />
-          <div className="absolute inset-0 bg-black/35" />
+          {/* Clean Subtle Radial Vignette for Typography Contrast */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/60 pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.65)_100%)] pointer-events-none" />
         </div>
 
         {/* =========================================================
-            3. MINIMAL CORNER METADATA
+            CENTERPIECE: PURE MINIMAL LUXURY TYPOGRAPHY & PLAY TRIGGER
+            (smaller on phones so it fits the smaller frame)
         ========================================================= */}
-        {/* Top-Right: Clean ZZ glyphs */}
-        <div className="absolute top-11 right-3 sm:top-14 sm:right-6 pointer-events-none z-10 flex items-center gap-1 text-[var(--image-accent)]">
-          <svg className="w-3 h-4 sm:w-3.5 sm:h-4.5" viewBox="0 0 34 44" fill="none" aria-hidden="true">
-            <polyline points="4,5 30,5 14,22 22,22 5,39 30,39" stroke="currentColor" strokeWidth="6" strokeLinejoin="miter" strokeLinecap="square" />
-          </svg>
-          <svg className="w-3 h-4 sm:w-3.5 sm:h-4.5 -ml-1" viewBox="0 0 34 44" fill="none" aria-hidden="true">
-            <polyline points="4,5 30,5 14,22 22,22 5,39 30,39" stroke="currentColor" strokeWidth="6" strokeLinejoin="miter" strokeLinecap="square" />
-          </svg>
-        </div>
-
-        {/* Bottom Bar: Clean REC & Running Timecode */}
-        <div className="absolute bottom-2.5 sm:bottom-4 inset-x-3 sm:inset-x-6 pointer-events-none z-10 flex items-center justify-between text-[10px] sm:text-[11px] font-mono tracking-widest text-white/40">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[var(--image-accent)] motion-safe:animate-pulse" />
-            <span className="text-white/60 font-semibold tracking-widest text-[9px] sm:text-[10px]">REC</span>
-          </div>
-
-          <span ref={timecodeRef} className="font-mono text-white/50 tracking-wider tabular-nums">
-            00:01:09:10
-          </span>
-        </div>
-
-        {/* =========================================================
-            4. CENTERPIECE: MINIMAL, CONFIDENT, PREMIUM TYPOGRAPHY
-            (bottom padding on phones keeps it clear of the REC / timecode bar)
-        ========================================================= */}
-        <div className="relative z-20 flex-1 flex flex-col items-center justify-center px-3 pt-2 pb-8 sm:p-6 text-center">
+        <div className="relative z-20 flex flex-col items-center justify-center p-3 sm:p-6 text-center">
           {/* FRZZY Wordmark */}
           <div className="flex items-center justify-center select-none mb-1.5 sm:mb-3 transition-transform duration-500 ease-out group-hover/reel:scale-[1.03]">
             <span
-              className="wm font-extrabold tracking-tight text-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.8)]"
-              style={{ fontSize: 'clamp(30px, 8.5vw, 110px)' }}
+              className="wm font-extrabold tracking-tight text-white drop-shadow-[0_12px_40px_rgba(0,0,0,0.95)]"
+              style={{ fontSize: 'clamp(40px, 9vw, 120px)' }}
             >
               <span>FR</span>
               <svg className="z" style={{ color: '#ffffff' }}>
                 <use href="#z" />
               </svg>
-              <svg className="z z2" style={{ color: 'var(--image-accent)' }}>
+              <svg
+                className="z z2"
+                style={{
+                  color: 'var(--image-accent)',
+                  filter: 'drop-shadow(0 0 24px color-mix(in srgb, var(--image-accent) 75%, transparent))',
+                }}
+              >
                 <use href="#z" />
               </svg>
               <span>Y</span>
             </span>
           </div>
 
-          {/* Understated Minimal Subtitle */}
-          <p className="text-[11px] sm:text-[13px] font-mono tracking-[0.18em] sm:tracking-[0.22em] uppercase text-white/60 mb-3 sm:mb-6 transition-colors duration-300 group-hover/reel:text-white/80">
+          {/* Clean Understated Subtitle */}
+          <p className="text-[11px] sm:text-[13px] font-mono tracking-[0.2em] sm:tracking-[0.25em] uppercase text-white/70 mb-3 sm:mb-6 drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)] transition-colors duration-300 group-hover/reel:text-white">
             Showreel 2026
           </p>
 
-          {/* Sleek, Minimal Glass Play Pill */}
-          <div className="flex items-center gap-2 sm:gap-2.5 px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] hover:border-[var(--image-accent)]/60 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover/reel:scale-105">
-            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[var(--image-accent)] flex items-center justify-center text-black">
-              <Play className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-black translate-x-px sm:translate-x-0.5" />
+          {/* Minimalist Tactile Glass Play Button */}
+          <div className="flex items-center gap-2 sm:gap-2.5 px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-full bg-black/50 hover:bg-black/75 border border-white/20 hover:border-[var(--image-accent)]/80 backdrop-blur-xl shadow-[0_16px_36px_rgba(0,0,0,0.6)] transition-all duration-300 group-hover/reel:scale-105">
+            <div
+              className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[var(--image-accent)] flex items-center justify-center text-black"
+              style={{ boxShadow: '0 0 14px color-mix(in srgb, var(--image-accent) 60%, transparent)' }}
+            >
+              <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-black translate-x-px sm:translate-x-0.5" />
             </div>
-            <span className="text-[11px] sm:text-[12px] font-sans font-semibold tracking-wider uppercase text-white/90">
+            <span className="text-[11px] sm:text-[12px] font-sans font-semibold tracking-wider uppercase text-white">
               Watch Reel
             </span>
-            <span ref={lengthRef} hidden className="text-[10px] font-mono text-white/40 ml-0.5 tabular-nums" />
+            <span ref={lengthRef} hidden className="text-[10px] font-mono text-white/50 ml-0.5 tabular-nums" />
           </div>
         </div>
       </div>
 
       {/* =========================================================
-          5. CLEAN MINIMAL FULLSCREEN CINEMA MODAL (a native dialog, see the note at the top)
+          FULLSCREEN CINEMA LIGHTBOX MODAL (a native dialog, see the note at the top)
       ========================================================= */}
       {isModalOpen && (
         <dialog
