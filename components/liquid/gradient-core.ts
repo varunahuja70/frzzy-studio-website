@@ -370,11 +370,14 @@ export function startRipple(m: THREE.ShaderMaterial | null, x: number, y: number
  */
 export const HEADER_SLOT = 8;
 
-/** The header's logo and links over the gradient, relative to `wrap` (skipped once they're off it). */
+/**
+ * The header's logo and links (or, on phones, its menu button) over the gradient, relative to `wrap`;
+ * skipped when hidden or off it, so there are never more than the two header slots.
+ */
 export function headerZones(wrap: HTMLElement): Zone[] {
   const base = wrap.getBoundingClientRect();
   const zones: Zone[] = [];
-  for (const el of document.querySelectorAll('header.site .brand, header.site .nav-links')) {
+  for (const el of document.querySelectorAll('header.site .brand, header.site .nav-links, header.site .menu-btn')) {
     const r = el.getBoundingClientRect();
     if (!r.width || r.bottom < base.top || r.top > base.bottom) continue;
     const pad = 8;

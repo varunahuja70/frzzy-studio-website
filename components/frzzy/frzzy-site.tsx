@@ -25,6 +25,7 @@ import { ImageBand } from '@/components/frzzy/image-band';
 import { RevealOnScroll } from '@/components/frzzy/reveal-on-scroll';
 import { StackScroll } from '@/components/frzzy/stack-scroll';
 import { StudioReviews } from '@/components/frzzy/studio-reviews';
+import { MenuButton, MobileMenu } from '@/components/frzzy/mobile-menu';
 import { CookieConsent } from '@/components/cookie-consent';
 import { OPEN_COOKIE_SETTINGS_EVENT } from '@/lib/analytics/consent';
 import { Ambient, GlassRefraction, HeroBackdrop, LiquidGradient, LiquidZZ, NavLens } from '@/components/liquid';
@@ -55,6 +56,8 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
   const [currentCaseSlug, setCurrentCaseSlug] = useState<string>(initialSlug ?? 'grid-runner');
   const [workFilter, setWorkFilter] = useState<string>('all');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const toggleMenu = useCallback(() => setMobileMenuOpen((open) => !open), []);
+  const closeMenu = useCallback(() => setMobileMenuOpen(false), []);
   // Bumps on a live palette switch; keys the canvas/3D effects below so they redraw in the new colours.
   const paletteVersion = usePaletteVersion();
   const [isWiping, setIsWiping] = useState<'idle' | 'cover' | 'leave'>('idle');
@@ -84,6 +87,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
   // address bar gets the page's clean address (/work, /work/…), keeping any ?query (vault previews).
   const navigateTo = useCallback((id: string) => {
     const route = routeFromId(id) ?? { view: 'home' as ViewRoute };
+    setMobileMenuOpen(false);
     const show = () => {
       if (route.slug) setCurrentCaseSlug(route.slug);
       setCurrentView(route.view);
@@ -122,6 +126,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
       queueMicrotask(() => show(legacy));
     }
     const onPopState = () => {
+      setMobileMenuOpen(false);
       show(routeFromPath(window.location.pathname));
       window.scrollTo(0, 0);
     };
@@ -333,17 +338,9 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
             <span className="brand-sub" aria-hidden="true">Studio</span>
           </a>
 
-          <button
-            className="menu-btn"
-            type="button"
-            aria-expanded={mobileMenuOpen}
-            aria-controls="nav-links"
-            onClick={() => setMobileMenuOpen((open) => !open)}
-          >
-            {mobileMenuOpen ? 'CLOSE' : 'MENU'}
-          </button>
+          <MenuButton open={mobileMenuOpen} onToggle={toggleMenu} />
 
-          <ul className={`nav-links ${mobileMenuOpen ? 'open' : ''}`} id="nav-links">
+          <ul className="nav-links" id="nav-links">
             <NavLens />
             <li>
               <a
@@ -416,7 +413,10 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
         </nav>
       </header>
 
-      <main>
+      <MobileMenu open={mobileMenuOpen} current={currentView} onNavigate={navigateTo} onClose={closeMenu} />
+
+      {/* while the phone menu is open, the page behind it can't be focused or tapped */}
+      <main inert={mobileMenuOpen}>
         {/* ======================================================== */}
         {/*                         HOME VIEW                        */}
         {/* ======================================================== */}
@@ -1405,7 +1405,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
       </main>
 
       {/* Site Footer */}
-      <footer className="site-foot">
+      <footer className="site-foot" inert={mobileMenuOpen}>
         <div className="wrap">
           <div className="foot-band">
             <div className="ib-media" aria-hidden="true">

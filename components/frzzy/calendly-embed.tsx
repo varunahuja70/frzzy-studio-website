@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { readLivePalette } from '@/lib/palette';
 
 /**
@@ -41,6 +41,10 @@ function buildEmbedUrl(raw: string, prefill: { name?: string; email?: string }):
   return url.toString();
 }
 
+const noSubscribe = () => () => {};
+const inBrowser = () => true;
+const onServer = () => false;
+
 interface CalendlyEmbedProps {
   /** Pre-fills the Calendly form if the visitor already typed these on the contact page. */
   prefillName?: string;
@@ -54,10 +58,11 @@ export function CalendlyEmbed({ prefillName, prefillEmail, studioEmail }: Calend
   const [loaded, setLoaded] = useState(false);
   const [booked, setBooked] = useState(false);
 
-  // The page's hash router only mounts this view on the client, so window is available here.
   // Prefill is captured once when the page opens; later edits shouldn't reload the scheduler mid-booking.
   const [initialPrefill] = useState({ name: prefillName, email: prefillEmail });
-  const ready = typeof window !== 'undefined';
+  // The scheduler address needs this site's hostname, so it is built in the browser: the server
+  // (/book is server-rendered) and the hydrating render show the skeleton, then the browser fills in.
+  const ready = useSyncExternalStore(noSubscribe, inBrowser, onServer);
   const src = useMemo(
     () => (ready && rawUrl ? buildEmbedUrl(rawUrl, initialPrefill) : null),
     [ready, rawUrl, initialPrefill]
