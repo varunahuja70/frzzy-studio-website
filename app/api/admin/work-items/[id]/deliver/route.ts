@@ -1,3 +1,5 @@
+import { isHiddenPersonalItem } from '@/lib/work-items/access';
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -59,7 +61,7 @@ export async function POST(
       .where(and(eq(workItems.id, id), isNull(workItems.deletedAt)))
       .limit(1);
 
-    if (!item) {
+    if (!item || isHiddenPersonalItem(item, perms)) {
       return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
     }
 
@@ -112,7 +114,7 @@ export async function POST(
         paymentStatus: data.paymentStatus,
         invoiceReference,
       },
-      ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+      ipAddress: getClientIp(req),
       userAgent: req.headers.get('user-agent') || 'Admin Vault',
     });
 

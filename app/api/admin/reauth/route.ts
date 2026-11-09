@@ -1,3 +1,5 @@
+import { isOverLimit } from '@/lib/request-limit';
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -10,7 +12,7 @@ import { logAuditEvent } from '@/lib/auth/audit';
 import { createReauthGrant } from '@/lib/auth/reauth';
 
 const ReauthSchema = z.object({
-  password: z.string().min(1),
+  password: z.string().min(1).max(256),
 });
 
 export async function POST(req: NextRequest) {
@@ -18,6 +20,10 @@ export async function POST(req: NextRequest) {
     const sessionRes = await validateAdminSession();
     if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (isOverLimit('reauth', sessionRes.admin.id, 20, 15 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many attempts. Please wait and try again.' }, { status: 429 });
     }
 
     const json = await req.json();
@@ -39,10 +45,7 @@ export async function POST(req: NextRequest) {
     const admin = adminRows[0];
     const passwordValid = await verifyPassword(parsed.data.password, admin.passwordHash, admin.salt);
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     if (!passwordValid) {
       await logAuditEvent({

@@ -1,6 +1,6 @@
 import { db, ensureDatabaseReady } from '../db';
 import { loginAttempts } from '../db/schema';
-import { eq, and, gt, desc } from 'drizzle-orm';
+import { eq, and, gt, desc, or } from 'drizzle-orm';
 import crypto from 'crypto';
 
 export interface LockoutStatus {
@@ -28,15 +28,16 @@ export async function checkLoginLockout(
     .where(
       and(
         gt(loginAttempts.createdAt, since),
-        eq(loginAttempts.success, false)
+        eq(loginAttempts.success, false),
+        // Matched in the query: filtered afterwards, a flood of failures for other accounts
+        // would push this account's failures out of the window and lift its lockout.
+        or(eq(loginAttempts.email, email.toLowerCase().trim()), eq(loginAttempts.ipAddress, ipAddress))
       )
     )
     .orderBy(desc(loginAttempts.createdAt))
     .limit(20);
 
-  const matchingFailures = attempts.filter(
-    (a) => a.email.toLowerCase() === email.toLowerCase() || a.ipAddress === ipAddress
-  );
+  const matchingFailures = attempts;
 
   const failureCount = matchingFailures.length;
   if (failureCount < 5) {

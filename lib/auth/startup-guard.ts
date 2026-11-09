@@ -1,3 +1,5 @@
+import { REQUIRED_SECRETS, secretProblem } from './secrets';
+import { ADMIN_PATH } from './config';
 import { db, ensureDatabaseReady } from '../db';
 import { admins } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -24,16 +26,18 @@ export async function runStartupSecurityGuard(): Promise<StartupSecurityAuditRes
   const violations: string[] = [];
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // 1. Verify Server-Side Pepper Configuration
+  // 1. Verify every server-side secret is set and isn't one of the public values
   const pepper = process.env.ADMIN_PASSWORD_PEPPER;
   if (isProduction) {
-    if (!pepper || pepper.length < 32) {
-      violations.push('CRITICAL: ADMIN_PASSWORD_PEPPER is missing or shorter than 32 characters in production.');
-    } else {
-      const lower = pepper.toLowerCase();
-      if (FORBIDDEN_PEPPER_SUBSTRINGS.some((sub) => lower.includes(sub))) {
-        violations.push('CRITICAL: ADMIN_PASSWORD_PEPPER contains an insecure default or predictable substring.');
-      }
+    for (const name of REQUIRED_SECRETS) {
+      const problem = secretProblem(name);
+      if (problem) violations.push(`CRITICAL: ${problem}`);
+    }
+    if (pepper && FORBIDDEN_PEPPER_SUBSTRINGS.some((sub) => pepper.toLowerCase().includes(sub))) {
+      violations.push('CRITICAL: ADMIN_PASSWORD_PEPPER contains an insecure default or predictable substring.');
+    }
+    if (ADMIN_PATH === 'studio-vault') {
+      console.warn('SECURITY: ADMIN_PATH is still the public default. Set a private value.');
     }
   }
 

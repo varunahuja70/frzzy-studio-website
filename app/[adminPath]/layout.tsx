@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { ADMIN_PATH } from '@/lib/auth/config';
 
 export const metadata = {
@@ -20,9 +21,13 @@ export default async function AdminRootLayout(props: {
     notFound();
   }
 
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
+
   return (
     <div className="min-h-screen w-full bg-[#12110b] text-[#f4efea] dark">
       <script
+        nonce={nonce}
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{
           __html: "document.documentElement.classList.add('dark');",
         }}

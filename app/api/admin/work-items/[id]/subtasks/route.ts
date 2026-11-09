@@ -1,3 +1,4 @@
+import { canViewWorkItem, canWorkOnWorkItem } from '@/lib/work-items/access';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -28,7 +29,26 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const perms = await resolveAdminPermissions(sessionRes.admin.id);
+    if (!perms) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await ensureDatabaseReady();
+
+    const [item] = await db
+      .select()
+      .from(workItems)
+      .where(and(eq(workItems.id, id), isNull(workItems.deletedAt)))
+      .limit(1);
+
+    if (!item) {
+      return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+    if (!canViewWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
+    }
+
     const subtasks = await db
       .select()
       .from(workItemSubtasks)
@@ -74,6 +94,9 @@ export async function POST(
 
     if (!item) {
       return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+    if (!canWorkOnWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
     }
 
     const existing = await db
@@ -124,6 +147,19 @@ export async function PATCH(
     }
 
     await ensureDatabaseReady();
+
+    const [item] = await db
+      .select()
+      .from(workItems)
+      .where(and(eq(workItems.id, id), isNull(workItems.deletedAt)))
+      .limit(1);
+
+    if (!item) {
+      return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+    if (!canWorkOnWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
+    }
 
     const { subtaskId, completed, title } = result.data;
     const now = Date.now();
@@ -193,7 +229,26 @@ export async function DELETE(
       return NextResponse.json({ error: 'subtaskId is required' }, { status: 400 });
     }
 
+    const perms = await resolveAdminPermissions(sessionRes.admin.id);
+    if (!perms) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await ensureDatabaseReady();
+
+    const [item] = await db
+      .select()
+      .from(workItems)
+      .where(and(eq(workItems.id, id), isNull(workItems.deletedAt)))
+      .limit(1);
+
+    if (!item) {
+      return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+    if (!canWorkOnWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
+    }
+
     await db
       .delete(workItemSubtasks)
       .where(and(eq(workItemSubtasks.id, subtaskId), eq(workItemSubtasks.workItemId, id)));

@@ -10,6 +10,11 @@ const dbDir = path.resolve(process.cwd(), 'data');
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
+try {
+  fs.chmodSync(dbDir, 0o700); // the database and uploads are readable by this server's user only
+} catch {
+  // some hosts' mounted volumes don't allow chmod
+}
 
 const dbPath = path.resolve(dbDir, 'frxcx.db');
 const dbUrl = process.env.DATABASE_URL || `file:${dbPath}`;

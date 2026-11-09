@@ -1,3 +1,4 @@
+import { isHiddenPersonalItem } from '@/lib/work-items/access';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -46,7 +47,7 @@ export async function POST(
       .where(and(eq(workItems.id, id), isNull(workItems.deletedAt)))
       .limit(1);
 
-    if (!item) {
+    if (!item || isHiddenPersonalItem(item, perms)) {
       return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
     }
 

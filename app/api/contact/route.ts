@@ -1,3 +1,5 @@
+import { isOverLimit } from '@/lib/request-limit';
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -44,20 +46,6 @@ const ContactFormSchema = z.object({
   companyWebsite: z.string().max(0, 'Spam detected').optional().or(z.literal('')),
 });
 
-// In-memory sliding rate-limiter: max 5 form submissions per IP per 10 minutes
-const submissionCounts = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = submissionCounts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    submissionCounts.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > 5;
-}
-
 function maskIp(ip: string): string {
   if (ip.includes('.')) {
     const parts = ip.split('.');
@@ -72,12 +60,9 @@ function maskIp(ip: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
-    if (isRateLimited(ip)) {
+    if (isOverLimit('contact', ip, 5, 10 * 60 * 1000)) {
       return NextResponse.json(
         {
           success: false,

@@ -11,7 +11,7 @@ const securityHeaders = [
   },
   {
     key: 'X-XSS-Protection',
-    value: '1; mode=block',
+    value: '0', // the old browser filter caused bugs of its own; the CSP in middleware.ts replaces it
   },
   {
     key: 'X-Frame-Options',
@@ -33,23 +33,6 @@ const securityHeaders = [
     key: 'Cross-Origin-Opener-Policy',
     value: 'same-origin-allow-popups',
   },
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://calendly.com https://*.calendly.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https: https://picsum.photos https://*.calendly.com",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      "media-src 'self' blob: data:",
-      "connect-src 'self' https: wss:",
-      "frame-src 'self' https://calendly.com https://*.calendly.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'self'",
-    ].join('; '),
-  },
 ];
 
 const nextConfig: NextConfig = {
@@ -69,17 +52,11 @@ const nextConfig: NextConfig = {
         source: '/:path*',
         headers: securityHeaders,
       },
-    ];
-  },
-  images: {
-    remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
+        source: '/api/admin/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
-    ],
+    ];
   },
   output: 'standalone',
   transpilePackages: ['motion'],

@@ -1,10 +1,11 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import { admins, recoveryCodes } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyPassword } from '@/lib/auth/password';
+import { verifyPassword, checkPassword, hashPassword } from '@/lib/auth/password';
 import { checkLoginLockout, recordLoginAttempt } from '@/lib/auth/rate-limit';
 import { createAdminSession, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import { generateTotpSetup, generateRecoveryCodes } from '@/lib/auth/totp';
@@ -30,10 +31,7 @@ export async function POST(req: NextRequest) {
   };
 
   try {
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
     const userAgent = req.headers.get('user-agent') || 'Unknown';
 
     const json = await req.json();
@@ -95,13 +93,7 @@ export async function POST(req: NextRequest) {
 
     const admin = existingAdmins[0];
 
-    if (admin.status !== 'active') {
-      await recordLoginAttempt(email, ip, false, 'account_disabled');
-      await ensureMinResponseTime();
-      return NextResponse.json({ error: 'Account disabled. Contact engineering.' }, { status: 403 });
-    }
-
-    const passwordValid = await verifyPassword(password, admin.passwordHash, admin.salt);
+    const { valid: passwordValid, needsRehash } = await checkPassword(password, admin.passwordHash, admin.salt);
 
     if (!passwordValid) {
       await recordLoginAttempt(email, ip, false, 'invalid_password');
@@ -114,6 +106,21 @@ export async function POST(req: NextRequest) {
       });
       await ensureMinResponseTime();
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    // Only after the password check, so a wrong password can't reveal that an account is disabled
+    if (admin.status !== 'active') {
+      await recordLoginAttempt(email, ip, false, 'account_disabled');
+      await ensureMinResponseTime();
+      return NextResponse.json({ error: 'Account disabled. Contact engineering.' }, { status: 403 });
+    }
+
+    if (needsRehash) {
+      const upgraded = await hashPassword(password);
+      await db
+        .update(admins)
+        .set({ passwordHash: upgraded.hash, salt: upgraded.salt, updatedAt: Date.now() })
+        .where(eq(admins.id, admin.id));
     }
 
     const has2FaConfigured = Boolean(admin.twoFactorEnabled && admin.twoFactorSecret);

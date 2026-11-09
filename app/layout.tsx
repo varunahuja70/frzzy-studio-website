@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter_Tight, Plus_Jakarta_Sans } from 'next/font/goo
 import './globals.css';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
 import { connection } from 'next/server';
+import { headers } from 'next/headers';
 import { appearanceBootScript, paletteCss } from '@/lib/palette';
 import { getSiteAppearance } from '@/lib/site-appearance';
 
@@ -58,6 +59,7 @@ export default async function RootLayout({
   // Render per request so a change saved in Studio Vault → Site Appearance shows up immediately.
   await connection();
   const { value: appearance } = await getSiteAppearance();
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
 
   return (
     <html
@@ -74,7 +76,7 @@ export default async function RootLayout({
       <head suppressHydrationWarning>
         {/* Appearance is server-rendered on <html> above (set in the vault); this script only applies
             one-off ?palette=&look=… preview overrides, e.g. for the vault's live preview. */}
-        <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
         {/* Colour tokens for every palette, generated from lib/palette.ts. */}
         <style
           id="palette-tokens"

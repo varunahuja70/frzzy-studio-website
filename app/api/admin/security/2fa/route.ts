@@ -1,3 +1,7 @@
+import { encryptPii } from '@/lib/auth/encryption';
+import { verifyReauthGrant } from '@/lib/auth/reauth';
+import { isOverLimit } from '@/lib/request-limit';
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -46,8 +50,8 @@ const SetupActionSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('confirm'),
     code: z.string().trim().min(6).max(10),
-    secret: z.string().trim().min(16),
-    recoveryCodes: z.array(z.string()).min(1),
+    secret: z.string().trim().min(16).max(128),
+    recoveryCodes: z.array(z.string().regex(/^[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}$/)).length(10),
   }),
 ]);
 
@@ -56,6 +60,10 @@ export async function POST(req: NextRequest) {
     const sessionRes = await validateAdminSession(req);
     if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (isOverLimit('2fa-setup', sessionRes.admin.id, 30, 15 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many attempts. Please wait and try again.' }, { status: 429 });
     }
 
     await ensureDatabaseReady();
@@ -93,6 +101,14 @@ export async function POST(req: NextRequest) {
     if (parsed.data.action === 'confirm') {
       const { code, secret, recoveryCodes: rawRecoveryCodes } = parsed.data;
 
+      // A hijacked session must not be able to swap out an existing authenticator
+      if (admin.twoFactorSecret && !verifyReauthGrant(req.cookies.get('admin_reauth_grant')?.value, admin.id)) {
+        return NextResponse.json(
+          { error: 'Sensitive action: re-authentication required', requiresReauth: true },
+          { status: 403 }
+        );
+      }
+
       // Verify that the code is valid for this secret
       const isValid = verifyTotpToken(code, secret);
       if (!isValid) {
@@ -106,7 +122,7 @@ export async function POST(req: NextRequest) {
       await db
         .update(admins)
         .set({
-          twoFactorSecret: secret,
+          twoFactorSecret: encryptPii(secret),
           twoFactorEnabled: true,
           mustSetup2Fa: false,
           updatedAt: Date.now(),
@@ -127,10 +143,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 3. Log security audit event
-      const ip =
-        req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-        req.headers.get('x-real-ip') ||
-        '127.0.0.1';
+      const ip = getClientIp(req);
       const userAgent = req.headers.get('user-agent') || 'Unknown';
 
       await logAuditEvent({

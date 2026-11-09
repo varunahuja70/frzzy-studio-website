@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -205,10 +206,7 @@ export async function POST(req: NextRequest) {
       updatedAt: now,
     });
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,
@@ -283,7 +281,7 @@ export async function PATCH(req: NextRequest) {
         action: 'LEAD_UPDATED',
         resource: id,
         details: { oldStatus: currentLead.status, newStatus: status, assignedTo },
-        ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+        ipAddress: getClientIp(req),
       });
     }
 
@@ -305,7 +303,7 @@ export async function PATCH(req: NextRequest) {
         action: 'LEAD_NOTE_ADDED',
         resource: id,
         details: { noteLength: note.length },
-        ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+        ipAddress: getClientIp(req),
       });
     }
 
@@ -363,7 +361,7 @@ export async function DELETE(req: NextRequest) {
       adminId: sessionRes.admin.id,
       action: 'LEAD_DELETED',
       resource: id,
-      ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+      ipAddress: getClientIp(req),
     });
 
     return NextResponse.json({ success: true, message: 'Lead deleted' });

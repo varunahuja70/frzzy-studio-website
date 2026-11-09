@@ -1,10 +1,9 @@
+import { getSecret } from './secrets';
 import crypto from 'crypto';
 import { argon2id } from 'hash-wasm';
 import zxcvbn from 'zxcvbn';
 
-const PEPPER =
-  process.env.ADMIN_PASSWORD_PEPPER ||
-  'frxcx-studio-argon2id-server-pepper-secret-production-hardened-2026';
+const currentPepper = () => getSecret('ADMIN_PASSWORD_PEPPER');
 
 const PREVIOUS_PEPPER = process.env.PREVIOUS_ADMIN_PASSWORD_PEPPER || null;
 
@@ -91,7 +90,7 @@ export async function validatePasswordPolicy(password: string): Promise<Password
  */
 export async function hashPassword(password: string): Promise<{ hash: string; salt: string }> {
   const salt = crypto.randomBytes(16).toString('hex');
-  const pepperedPassword = `${password}${PEPPER}`;
+  const pepperedPassword = `${password}${currentPepper()}`;
 
   const hash = await argon2id({
     password: pepperedPassword,
@@ -114,6 +113,18 @@ export async function verifyPassword(
   storedHash: string,
   salt: string
 ): Promise<boolean> {
+  return (await checkPassword(password, storedHash, salt)).valid;
+}
+
+/**
+ * Same check, and also says whether the hash still uses the previous pepper, so a successful
+ * login can quietly move it to the current one during a pepper rotation.
+ */
+export async function checkPassword(
+  password: string,
+  storedHash: string,
+  salt: string
+): Promise<{ valid: boolean; needsRehash: boolean }> {
   const tryWithPepper = async (pepperVal: string): Promise<boolean> => {
     try {
       const pepperedPassword = `${password}${pepperVal}`;
@@ -140,14 +151,13 @@ export async function verifyPassword(
     }
   };
 
-  const matchesCurrent = await tryWithPepper(PEPPER);
-  if (matchesCurrent) return true;
+  if (await tryWithPepper(currentPepper())) return { valid: true, needsRehash: false };
 
-  if (PREVIOUS_PEPPER) {
-    return await tryWithPepper(PREVIOUS_PEPPER);
+  if (PREVIOUS_PEPPER && (await tryWithPepper(PREVIOUS_PEPPER))) {
+    return { valid: true, needsRehash: true };
   }
 
-  return false;
+  return { valid: false, needsRehash: false };
 }
 
 /**

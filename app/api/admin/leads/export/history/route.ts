@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
         createdAt: exportsHistory.createdAt,
       })
       .from(exportsHistory)
+      .where(perms?.isSuperAdmin ? undefined : eq(exportsHistory.adminId, sessionRes.admin.id))
       .orderBy(desc(exportsHistory.createdAt))
       .limit(50);
 

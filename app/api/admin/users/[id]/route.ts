@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateAdminSession, destroyAllAdminSessions } from '@/lib/auth/session';
@@ -104,10 +105,7 @@ export async function PATCH(
       await destroyAllAdminSessions(targetId);
     }
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,
@@ -188,10 +186,7 @@ export async function DELETE(
     // Immediately kill all active sessions
     await destroyAllAdminSessions(targetId);
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,

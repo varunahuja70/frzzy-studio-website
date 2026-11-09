@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -7,7 +8,7 @@ import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions, hasPermission } from '@/lib/auth/permissions';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import { workItems, admins } from '@/lib/db/schema';
-import { and, eq, inArray, gte, lte, desc, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, gte, lte, desc, isNull, sql, or } from 'drizzle-orm';
 import { generateWorkItemsExcelWorkbook, WorkItemExportRow } from '@/lib/export/work-items-excel';
 import { verifyReauthGrant } from '@/lib/auth/reauth';
 import { logAuditEvent } from '@/lib/auth/audit';
@@ -70,6 +71,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Role-based scoping: non-super-admins without work_items:view_all only export their assigned items
+    if (!perms.isSuperAdmin) {
+      conditions.push(or(eq(workItems.isPersonal, false), eq(workItems.createdBy, sessionRes.admin.id))!);
+    }
     if (!perms.isSuperAdmin && !perms.permissions.has('work_items:view_all')) {
       conditions.push(eq(workItems.assignedTo, sessionRes.admin.id));
     }
@@ -170,7 +174,7 @@ export async function POST(req: NextRequest) {
         canExportFinancials,
         exportType: data.exportType,
       },
-      ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+      ipAddress: getClientIp(req),
     });
 
     return new NextResponse(buffer as any, {

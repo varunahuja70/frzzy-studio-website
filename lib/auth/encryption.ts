@@ -1,17 +1,20 @@
 import crypto from 'crypto';
 
-const MASTER_KEY_RAW =
-  process.env.LEADS_ENCRYPTION_KEY ||
-  'frxcx-studio-pii-aes-256-gcm-master-key-production-hardened-2026';
+import { getSecret } from './secrets';
 
-// Derive 32-byte key for AES-256-GCM
-const ENCRYPTION_KEY = crypto.createHash('sha256').update(MASTER_KEY_RAW).digest();
+// 32-byte AES-256-GCM key from the master key
+const encryptionKey = (raw: string) => crypto.createHash('sha256').update(raw).digest();
 
-// Derive separate 32-byte key for Blind Index HMAC
-const BLIND_INDEX_KEY = crypto
-  .createHmac('sha256', MASTER_KEY_RAW)
-  .update('frxcx-studio-blind-index-salt')
-  .digest();
+// Separate 32-byte key for the blind index HMAC
+const blindIndexKey = () =>
+  crypto.createHmac('sha256', getSecret('LEADS_ENCRYPTION_KEY')).update('frxcx-studio-blind-index-salt').digest();
+
+/** Keys to try when reading. During a rotation, data written under the old key stays readable. */
+function decryptionKeys(): Buffer[] {
+  const keys = [encryptionKey(getSecret('LEADS_ENCRYPTION_KEY'))];
+  if (process.env.PREVIOUS_LEADS_ENCRYPTION_KEY) keys.push(encryptionKey(process.env.PREVIOUS_LEADS_ENCRYPTION_KEY));
+  return keys;
+}
 
 /**
  * Encrypts sensitive text using AES-256-GCM with authentication tag and random 12-byte IV.
@@ -21,7 +24,7 @@ export function encryptPii(plainText: string): string {
   if (!plainText) return '';
 
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey(getSecret('LEADS_ENCRYPTION_KEY')), iv);
 
   const encrypted = Buffer.concat([
     cipher.update(plainText, 'utf8'),
@@ -45,24 +48,20 @@ export function decryptPii(payload: string): string {
 
   const [ivHex, authTagHex, encryptedHex] = parts;
 
-  try {
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const encrypted = Buffer.from(encryptedHex, 'hex');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const encrypted = Buffer.from(encryptedHex, 'hex');
 
-    const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-    decipher.setAuthTag(authTag);
-
-    const decrypted = Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final(),
-    ]);
-
-    return decrypted.toString('utf8');
-  } catch {
-    // If decryption fails (e.g. data corrupted or tampered), return placeholder
-    return '[Decryption Error: Integrity Check Failed]';
+  for (const key of decryptionKeys()) {
+    try {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(authTag);
+      return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+    } catch {
+      // wrong key, or corrupted or tampered data: try the next key
+    }
   }
+  return '[Decryption Error: Integrity Check Failed]';
 }
 
 /**
@@ -70,7 +69,7 @@ export function decryptPii(payload: string): string {
  */
 export function createBlindIndex(value: string): string {
   return crypto
-    .createHmac('sha256', BLIND_INDEX_KEY)
+    .createHmac('sha256', blindIndexKey())
     .update(value.toLowerCase().trim())
     .digest('hex');
 }
