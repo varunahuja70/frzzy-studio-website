@@ -12,7 +12,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CASES, CASE_ORDER, CaseStudy } from '@/components/frzzy/work-data';
 import { pathFor, routeFromId, routeFromPath, type SiteRoute, type ViewRoute } from '@/components/frzzy/site-routes';
 import { HeroStrandsCanvas } from '@/components/frzzy/hero-strands-canvas';
-import { ShowreelStaticCanvas } from '@/components/frzzy/showreel-static-canvas';
+import { ShowreelPlayer } from '@/components/frzzy/showreel-player';
 import { Viewport3D } from '@/components/frzzy/viewport-3d';
 import { WorkCardArt } from '@/components/frzzy/work-card-art';
 import { SvgSymbols } from '@/components/frzzy/svg-symbols';
@@ -511,28 +511,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
             <section className="reel" aria-label="Showreel">
               <div className="wrap">
                 <div className="reel-frame" ref={reelFrameRef} id="reel-frame">
-                  <ShowreelStaticCanvas key={`reel-${paletteVersion}`} />
-                  <div className="reel-corner" aria-hidden="true">
-                    <svg style={{ color: 'var(--ivory)' }}>
-                      <use href="#z" />
-                    </svg>
-                    <svg style={{ color: 'var(--volt)' }}>
-                      <use href="#z" />
-                    </svg>
-                  </div>
-                  <div className="reel-over">
-                    <span className="wm" aria-hidden="true">
-                      <span>FR</span>
-                      <svg className="z">
-                        <use href="#z" />
-                      </svg>
-                      <svg className="z z2">
-                        <use href="#z" />
-                      </svg>
-                      <span>Y</span>
-                    </span>
-                    <p className="mono">Showreel 2026</p>
-                  </div>
+                  <ShowreelPlayer key={`reel-${paletteVersion}`} />
                 </div>
               </div>
             </section>
