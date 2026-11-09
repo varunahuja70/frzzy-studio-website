@@ -652,12 +652,21 @@ header.site {
 .reel-frame {
   position: relative;
   aspect-ratio: 16/9;
-  background: var(--charcoal);
+  background: #0d0d0f;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
   transform: rotateX(var(--tilt, 0deg)) scale(var(--sc, 1));
   transform-origin: center bottom;
-  box-shadow: 0 40px 80px rgba(0, 0, 0, .55);
+  box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.75);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.reel-frame:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 35px 90px -15px rgba(0, 0, 0, 0.85);
+}
+:root[data-look="mac"] .reel-frame::before {
+  display: none !important;
 }
 .reel-frame canvas {
   position: absolute;
