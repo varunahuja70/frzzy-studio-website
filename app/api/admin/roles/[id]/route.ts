@@ -91,6 +91,26 @@ export async function PATCH(
 
     await db.update(roles).set(setPayload).where(eq(roles.id, roleId));
 
+    // Sync role update to Supabase public.roles
+    try {
+      const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+      const supabase = getAdminSupabaseClient();
+      const sbPayload: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (updateData.name !== undefined) sbPayload.name = updateData.name;
+      if (updateData.description !== undefined) sbPayload.description = updateData.description;
+      if (updateData.permissions !== undefined) {
+        sbPayload.permissions = updateData.permissions.filter(
+          (p) => ALL_PERMISSIONS.includes(p as any) && p !== 'users:manage'
+        );
+      }
+      if (updateData.defaultLeadScope !== undefined) sbPayload.default_lead_scope = updateData.defaultLeadScope;
+      if (updateData.sessionTimeoutMinutes !== undefined) sbPayload.session_timeout_minutes = updateData.sessionTimeoutMinutes;
+
+      await (supabase.from('roles') as any).update(sbPayload).eq('id', roleId);
+    } catch (sbErr) {
+      console.warn('Supabase role update sync error:', sbErr);
+    }
+
     const ip = getClientIp(req);
 
     await logAuditEvent({

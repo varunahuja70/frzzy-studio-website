@@ -9,6 +9,9 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { verifyReauthGrant } from '@/lib/auth/reauth';
 import { logAuditEvent } from '@/lib/auth/audit';
 import { getAdminSupabaseClient } from '@/lib/supabase/admin';
+import { purgeLocalAdmin } from '@/lib/auth/user-cleanup';
+
+const PRIMARY_OWNER_EMAIL = 'vk679028@gmail.com';
 
 const UpdateUserSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -31,7 +34,7 @@ export async function PATCH(
   try {
     const { id: targetId } = await props.params;
 
-    const sessionRes = await validateAdminSession();
+    const sessionRes = await validateAdminSession(req);
     if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -71,6 +74,22 @@ export async function PATCH(
     const current = targetRows[0];
     const updateData = parsed.data;
 
+    // PRIMARY STUDIO OWNER IMMUTABILITY GUARDS
+    if (current.email.toLowerCase() === PRIMARY_OWNER_EMAIL.toLowerCase()) {
+      if (updateData.status && updateData.status !== 'active') {
+        return NextResponse.json(
+          { error: 'Forbidden: The Primary Studio Owner account is protected and cannot be disabled.' },
+          { status: 403 }
+        );
+      }
+      if (updateData.role && updateData.role !== 'superadmin') {
+        return NextResponse.json(
+          { error: 'Forbidden: The Primary Studio Owner role is immutable and cannot be altered.' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Last Super Admin protection check
     if (
       current.role === 'superadmin' &&
@@ -108,27 +127,14 @@ export async function PATCH(
       if (updateData.role !== undefined) sbPayload.role = updateData.role;
       if (updateData.status !== undefined) sbPayload.status = updateData.status;
       if (updateData.customPermissions !== undefined) sbPayload.custom_permissions = updateData.customPermissions;
-      if (updateData.leadScope !== undefined) sbPayload.lead_scope = updateData.leadScope;
 
       await (supabase.from('profiles') as any).update(sbPayload).eq('id', targetId);
-
-      if (updateData.name || updateData.role) {
-        await supabase.auth.admin.updateUserById(targetId, {
-          user_metadata: {
-            ...(updateData.name ? { name: updateData.name } : {}),
-            ...(updateData.role ? { role: updateData.role } : {}),
-          },
-        });
-      }
-    } catch (e) {
-      console.warn('Supabase PATCH sync error:', e);
+    } catch (sbErr) {
+      console.warn('Supabase profile update sync error:', sbErr);
     }
 
-    // If disabled or role changed, invalidate target user's active sessions immediately
-    if (
-      (updateData.status && updateData.status === 'disabled') ||
-      (updateData.role && updateData.role !== current.role)
-    ) {
+    // Terminate sessions if disabled
+    if (updateData.status === 'disabled') {
       await destroyAllAdminSessions(targetId);
     }
 
@@ -138,11 +144,7 @@ export async function PATCH(
       adminId: sessionRes.admin.id,
       action: 'USER_UPDATED',
       resource: current.email,
-      details: {
-        targetId,
-        before: { role: current.role, status: current.status },
-        after: { role: updateData.role ?? current.role, status: updateData.status ?? current.status },
-      },
+      details: { targetId, updates: updateData },
       ipAddress: ip,
       userAgent: req.headers.get('user-agent') || undefined,
     });
@@ -161,7 +163,7 @@ export async function DELETE(
   try {
     const { id: targetId } = await props.params;
 
-    const sessionRes = await validateAdminSession();
+    const sessionRes = await validateAdminSession(req);
     if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -194,6 +196,14 @@ export async function DELETE(
 
     const target = targetRows[0];
 
+    // PRIMARY STUDIO OWNER IMMUTABILITY GUARD
+    if (target.email.toLowerCase() === PRIMARY_OWNER_EMAIL.toLowerCase()) {
+      return NextResponse.json(
+        { error: 'Forbidden: The Primary Studio Owner account is protected and cannot be deleted from the Vault.' },
+        { status: 403 }
+      );
+    }
+
     // Protect last active Super Admin
     if (target.role === 'superadmin') {
       await ensureNotLastSuperAdmin(targetId);
@@ -214,8 +224,7 @@ export async function DELETE(
     }
 
     // 2. Remove from local SQLite database and terminate sessions
-    await db.delete(admins).where(eq(admins.id, targetId));
-    await destroyAllAdminSessions(targetId);
+    await purgeLocalAdmin(targetId);
 
     const ip = getClientIp(req);
 

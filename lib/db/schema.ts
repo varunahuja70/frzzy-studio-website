@@ -140,6 +140,25 @@ export const invites = sqliteTable(
   })
 );
 
+// ================= OTP VERIFICATIONS =================
+export const otpVerifications = sqliteTable(
+  'otp_verifications',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    otpHash: text('otp_hash').notNull(),
+    action: text('action').notNull().default('user_creation'),
+    payload: text('payload').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: integer('expires_at').notNull(),
+    verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => ({
+    emailIdx: index('idx_otp_email').on(table.email),
+  })
+);
+
 // ================= AUDIT LOGS =================
 export const auditLogs = sqliteTable(
   'audit_logs',

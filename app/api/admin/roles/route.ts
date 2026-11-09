@@ -38,6 +38,52 @@ export async function GET(req: NextRequest) {
 
     await ensureDatabaseReady();
 
+    // Bidirectional sync with Supabase roles table (Supabase is source of truth)
+    try {
+      const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+      const supabase = getAdminSupabaseClient();
+      const { data: sbRoles, error: sbErr } = await (supabase.from('roles') as any).select('*');
+      if (!sbErr && sbRoles) {
+        const sbRoleMap = new Map(sbRoles.map((r: any) => [r.id, r]));
+        for (const sr of sbRoles) {
+          const createdAt = sr.created_at ? new Date(sr.created_at).getTime() : Date.now();
+          const updatedAt = sr.updated_at ? new Date(sr.updated_at).getTime() : Date.now();
+          await db
+            .insert(roles)
+            .values({
+              id: sr.id,
+              name: sr.name,
+              description: sr.description,
+              isBuiltIn: Boolean(sr.is_built_in),
+              permissions: JSON.stringify(sr.permissions || []),
+              defaultLeadScope: sr.default_lead_scope ? JSON.stringify(sr.default_lead_scope) : null,
+              sessionTimeoutMinutes: sr.session_timeout_minutes || 60,
+              createdAt,
+              updatedAt,
+            })
+            .onConflictDoUpdate({
+              target: roles.id,
+              set: {
+                name: sr.name,
+                description: sr.description,
+                permissions: JSON.stringify(sr.permissions || []),
+                defaultLeadScope: sr.default_lead_scope ? JSON.stringify(sr.default_lead_scope) : null,
+                sessionTimeoutMinutes: sr.session_timeout_minutes || 60,
+                updatedAt,
+              },
+            });
+        }
+        const allLocalRoles = await db.select({ id: roles.id, isBuiltIn: roles.isBuiltIn }).from(roles);
+        for (const lr of allLocalRoles) {
+          if (!lr.isBuiltIn && !sbRoleMap.has(lr.id)) {
+            await db.delete(roles).where(eq(roles.id, lr.id));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Roles Sync] Supabase sync warning in GET:', e);
+    }
+
     const allRoles = await db.select().from(roles).orderBy(desc(roles.isBuiltIn), roles.name);
 
     // Count users assigned to each role

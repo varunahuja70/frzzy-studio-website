@@ -181,6 +181,22 @@ export async function initDatabase(): Promise<void> {
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_invites_admin_id ON invites(admin_id);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_invites_token_hash ON invites(token_hash);`);
 
+  // 7b. OTP Verifications
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS otp_verifications (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      otp_hash TEXT NOT NULL,
+      action TEXT NOT NULL DEFAULT 'user_creation',
+      payload TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      expires_at INTEGER NOT NULL,
+      verified INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+  `);
+  await client.execute(`CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_verifications(email);`);
+
   // 8. Audit Logs
   await client.execute(`
     CREATE TABLE IF NOT EXISTS audit_logs (

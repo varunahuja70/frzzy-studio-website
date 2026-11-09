@@ -403,6 +403,33 @@ export async function PATCH(
     // Save updates
     await db.update(workItems).set(updates).where(eq(workItems.id, id));
 
+    // Sync updates to Supabase work_items table
+    try {
+      const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+      const supabase = getAdminSupabaseClient();
+      const sbPayload: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (updates.title !== undefined) sbPayload.title = updates.title;
+      if (updates.description !== undefined) sbPayload.description = updates.description;
+      if (updates.category !== undefined) sbPayload.category = updates.category;
+      if (updates.priority !== undefined) sbPayload.priority = updates.priority;
+      if (updates.status !== undefined) sbPayload.status = updates.status;
+      if (updates.progressPercent !== undefined) sbPayload.progress_percent = updates.progressPercent;
+      if (updates.quotedPrice !== undefined) sbPayload.quoted_price = updates.quotedPrice;
+      if (updates.finalPrice !== undefined) sbPayload.final_price = updates.finalPrice;
+      if (updates.currency !== undefined) sbPayload.currency = updates.currency;
+      if (updates.paymentStatus !== undefined) sbPayload.payment_status = updates.paymentStatus;
+      if (updates.assignedTo !== undefined) sbPayload.assigned_to = updates.assignedTo;
+      if (updates.sharedFields !== undefined) sbPayload.shared_fields = JSON.parse(updates.sharedFields || '[]');
+      if (updates.assignmentInstructions !== undefined) sbPayload.assignment_instructions = updates.assignmentInstructions;
+      if (updates.dueDate !== undefined) sbPayload.due_date = updates.dueDate ? new Date(updates.dueDate).toISOString() : null;
+      if (updates.tags !== undefined) sbPayload.tags = JSON.parse(updates.tags || '[]');
+      if (updates.links !== undefined) sbPayload.links = JSON.parse(updates.links || '[]');
+
+      await (supabase.from('work_items') as any).update(sbPayload).eq('id', id);
+    } catch (sbErr) {
+      console.warn('Supabase work_items update sync error:', sbErr);
+    }
+
     // Fetch updated row
     const [updatedRow] = await db
       .select()

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import { NextRequest } from 'next/server';
 import { db, ensureDatabaseReady } from '../lib/db';
-import { admins, workItems, sessions } from '../lib/db/schema';
+import { admins, workItems, sessions, loginAttempts } from '../lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { hashPassword } from '../lib/auth/password';
 import { createAdminSession } from '../lib/auth/session';
@@ -128,6 +128,7 @@ describe('Security hardening', () => {
   });
 
   test('the 2FA code cannot be guessed endlessly, and accepts an encrypted secret', async () => {
+    await db.delete(loginAttempts);
     const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
     const admin = await makeAdmin('sec-role', [], { twoFactorSecret: encryptPii(secret) });
     const stepOne = async () => (await createAdminSession({ adminId: admin.id, ipAddress: '10.4.0.1', userAgent: 't', twoFactorVerified: false })).token;

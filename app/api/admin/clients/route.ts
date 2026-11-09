@@ -31,6 +31,56 @@ export async function GET(req: NextRequest) {
     }
 
     await ensureDatabaseReady();
+
+    // 1. Bidirectional sync with Supabase clients table (Supabase is source of truth)
+    try {
+      const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+      const supabase = getAdminSupabaseClient();
+      const { data: sbClients, error: sbErr } = await (supabase.from('clients') as any).select('*');
+      if (!sbErr && sbClients) {
+        const sbClientMap = new Map(sbClients.map((c: any) => [c.id, c]));
+        for (const sc of sbClients) {
+          const createdAt = sc.created_at ? new Date(sc.created_at).getTime() : Date.now();
+          const updatedAt = sc.updated_at ? new Date(sc.updated_at).getTime() : Date.now();
+          await db
+            .insert(clients)
+            .values({
+              id: sc.id,
+              name: sc.name,
+              email: sc.email,
+              phone: sc.phone,
+              company: sc.company,
+              billingAddress: sc.billing_address,
+              gstin: sc.gstin,
+              notes: sc.notes,
+              createdAt,
+              updatedAt,
+            })
+            .onConflictDoUpdate({
+              target: clients.id,
+              set: {
+                name: sc.name,
+                email: sc.email,
+                phone: sc.phone,
+                company: sc.company,
+                billingAddress: sc.billing_address,
+                gstin: sc.gstin,
+                notes: sc.notes,
+                updatedAt,
+              },
+            });
+        }
+        const allLocalClients = await db.select({ id: clients.id }).from(clients);
+        for (const lc of allLocalClients) {
+          if (!sbClientMap.has(lc.id)) {
+            await db.delete(clients).where(eq(clients.id, lc.id));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Clients Sync] Supabase sync warning in GET:', e);
+    }
+
     const url = new URL(req.url);
     const search = url.searchParams.get('search')?.trim().toLowerCase();
 

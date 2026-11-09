@@ -79,6 +79,37 @@ Premium digital production, brand design, motion, and visual studio website buil
 
 ---
 
+## ☁️ Supabase & Hosting Deployment Guide (Vercel / Firebase)
+
+Follow these steps to connect Supabase to your hosting platform:
+
+### 1. Get Your Supabase Credentials
+1. Go to your [Supabase Dashboard](https://supabase.com/dashboard).
+2. Select your project.
+3. In the left sidebar, click **Project Settings** (gear icon) -> **API**.
+4. Copy the following:
+   - **Project URL** -> `NEXT_PUBLIC_SUPABASE_URL`
+   - **Project API Keys** -> `anon public` -> `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **Project API Keys** -> `service_role secret` -> `SUPABASE_SERVICE_ROLE_KEY`
+
+### 2. Add Environment Variables to Hosting (e.g., Vercel)
+1. Go to your **Vercel Dashboard** -> Select your Project.
+2. Click **Settings** tab -> **Environment Variables**.
+3. Add the following keys for **Production**, **Preview**, and **Development**:
+   - `NEXT_PUBLIC_SUPABASE_URL` = `https://<your-project-ref>.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = `<your-supabase-anon-key>`
+   - `SUPABASE_SERVICE_ROLE_KEY` = `<your-supabase-service-role-key>`
+   - `ADMIN_ENCRYPTION_KEY` = `<64-character-hex-key>`
+   - `ADMIN_PEPPER` = `<32-character-hex-key>`
+   - `ADMIN_SESSION_SECRET` = `<64-character-hex-key>`
+   - `MEDIA_SIGNING_SECRET` = `<64-character-hex-key>`
+   - `SMTP_GMAIL_USER` = `<your-gmail-address>`
+   - `SMTP_GMAIL_PASS` = `<16-character-google-app-password>`
+   - `SMTP_FROM` = `FRZZY Studio Vault <<your-gmail-address>>`
+4. Click **Save** and trigger a **Redeploy**.
+
+---
+
 ## 📜 Available Scripts
 
 | Script | Command | Purpose |

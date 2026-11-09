@@ -44,6 +44,93 @@ export async function GET(req: NextRequest) {
     }
 
     await ensureDatabaseReady();
+
+    // 1. Bidirectional sync with Supabase work_items table (Supabase is source of truth)
+    try {
+      const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+      const supabase = getAdminSupabaseClient();
+      const { data: sbItems, error: sbErr } = await (supabase.from('work_items') as any).select('*');
+      if (!sbErr && sbItems) {
+        const sbItemMap = new Map(sbItems.map((w: any) => [w.id, w]));
+        for (const sw of sbItems) {
+          const createdAt = sw.created_at ? new Date(sw.created_at).getTime() : Date.now();
+          const updatedAt = sw.updated_at ? new Date(sw.updated_at).getTime() : Date.now();
+          const dueDate = sw.due_date ? new Date(sw.due_date).getTime() : null;
+          await db
+            .insert(workItems)
+            .values({
+              id: sw.id,
+              itemNumber: sw.item_number,
+              leadId: sw.lead_id || null,
+              clientId: sw.client_id || null,
+              clientName: sw.client_name,
+              clientEmail: sw.client_email || null,
+              clientPhone: sw.client_phone || null,
+              clientCompany: sw.client_company || null,
+              title: sw.title,
+              description: sw.description,
+              category: sw.category,
+              source: sw.source || 'Website',
+              isPersonal: Boolean(sw.is_personal),
+              priority: sw.priority || 'normal',
+              status: sw.status || 'assigned',
+              progressPercent: sw.progress_percent ?? 0,
+              dueDate,
+              tags: sw.tags ? JSON.stringify(sw.tags) : null,
+              links: sw.links ? JSON.stringify(sw.links) : null,
+              quotedPrice: sw.quoted_price ?? 0,
+              finalPrice: sw.final_price ?? 0,
+              currency: sw.currency || 'INR',
+              paymentStatus: sw.payment_status || 'unpaid',
+              assignedTo: sw.assigned_to || null,
+              assignedBy: sw.assigned_by || null,
+              assignedByName: sw.assigned_by_name || null,
+              assignedByRole: sw.assigned_by_role || null,
+              sharedFields: JSON.stringify(sw.shared_fields || []),
+              assignmentInstructions: sw.assignment_instructions || null,
+              createdBy: sw.created_by,
+              deletedAt: sw.deleted_at ? new Date(sw.deleted_at).getTime() : null,
+              deletedBy: sw.deleted_by || null,
+              createdAt,
+              updatedAt,
+              version: sw.version ?? 1,
+            })
+            .onConflictDoUpdate({
+              target: workItems.id,
+              set: {
+                title: sw.title,
+                description: sw.description,
+                category: sw.category,
+                priority: sw.priority || 'normal',
+                status: sw.status || 'assigned',
+                progressPercent: sw.progress_percent ?? 0,
+                dueDate,
+                tags: sw.tags ? JSON.stringify(sw.tags) : null,
+                links: sw.links ? JSON.stringify(sw.links) : null,
+                quotedPrice: sw.quoted_price ?? 0,
+                finalPrice: sw.final_price ?? 0,
+                currency: sw.currency || 'INR',
+                paymentStatus: sw.payment_status || 'unpaid',
+                assignedTo: sw.assigned_to || null,
+                sharedFields: JSON.stringify(sw.shared_fields || []),
+                assignmentInstructions: sw.assignment_instructions || null,
+                deletedAt: sw.deleted_at ? new Date(sw.deleted_at).getTime() : null,
+                deletedBy: sw.deleted_by || null,
+                updatedAt,
+              },
+            });
+        }
+        const allLocalItems = await db.select({ id: workItems.id }).from(workItems);
+        for (const li of allLocalItems) {
+          if (!sbItemMap.has(li.id)) {
+            await db.delete(workItems).where(eq(workItems.id, li.id));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Work Items Sync] Supabase sync warning in GET:', e);
+    }
+
     const url = new URL(req.url);
     const scope = url.searchParams.get('scope') || 'all'; // 'all' | 'assigned_to_me' | 'created_by_me'
     const status = url.searchParams.get('status');

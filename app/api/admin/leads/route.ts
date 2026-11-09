@@ -49,6 +49,61 @@ export async function GET(req: NextRequest) {
 
     await ensureDatabaseReady();
 
+    // Bidirectional sync with Supabase leads table (Supabase is source of truth)
+    try {
+      const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+      const supabase = getAdminSupabaseClient();
+      const { data: sbLeads, error: sbErr } = await (supabase.from('leads') as any).select('*');
+      if (!sbErr && sbLeads) {
+        const sbLeadMap = new Map(sbLeads.map((l: any) => [l.id, l]));
+        for (const sl of sbLeads) {
+          const createdAt = sl.created_at ? new Date(sl.created_at).getTime() : Date.now();
+          const updatedAt = sl.updated_at ? new Date(sl.updated_at).getTime() : Date.now();
+          await db
+            .insert(leads)
+            .values({
+              id: sl.id,
+              firstName: sl.first_name,
+              lastName: sl.last_name,
+              emailEncrypted: sl.email_encrypted,
+              emailBlindIndex: sl.email_blind_index,
+              category: sl.category,
+              messageEncrypted: sl.message_encrypted,
+              status: sl.status || 'new',
+              assignedTo: sl.assigned_to || null,
+              sourcePage: sl.source_page || '/',
+              referrer: sl.referrer || null,
+              utmSource: sl.utm_source || null,
+              utmMedium: sl.utm_medium || null,
+              utmCampaign: sl.utm_campaign || null,
+              deviceType: sl.device_type || 'desktop',
+              browser: sl.browser || null,
+              os: sl.os || null,
+              country: sl.country || 'Unknown',
+              ipMasked: sl.ip_masked || null,
+              createdAt,
+              updatedAt,
+            })
+            .onConflictDoUpdate({
+              target: leads.id,
+              set: {
+                status: sl.status || 'new',
+                assignedTo: sl.assigned_to || null,
+                updatedAt,
+              },
+            });
+        }
+        const allLocalLeads = await db.select({ id: leads.id }).from(leads);
+        for (const ll of allLocalLeads) {
+          if (!sbLeadMap.has(ll.id)) {
+            await db.delete(leads).where(eq(leads.id, ll.id));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Leads Sync] Supabase sync warning in GET:', e);
+    }
+
     const searchParams = req.nextUrl.searchParams;
     const query = (searchParams.get('q') || '').trim();
     const statusFilter = searchParams.get('status') || 'all';

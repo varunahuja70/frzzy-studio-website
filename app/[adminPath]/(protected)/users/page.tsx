@@ -2,31 +2,28 @@
 
 import React, { useState, useEffect, useCallback, use } from 'react';
 import {
-  UserCheck,
+  Users,
   UserPlus,
-  Search,
-  Filter,
   Shield,
   KeyRound,
-  RotateCcw,
-  LogOut,
   Trash2,
-  Copy,
-  Check,
-  Lock,
-  X,
-  Mail,
-  Calendar,
-  AlertTriangle,
-  RefreshCw,
+  RotateCcw,
   ExternalLink,
-  ChevronDown,
+  Search,
+  Check,
+  Copy,
+  AlertTriangle,
+  X,
+  LogOut,
   Clock,
-  Sliders,
   Sparkles,
+  Lock,
   Eye,
   EyeOff,
   ShieldCheck,
+  Sliders,
+  Send,
+  MailCheck,
 } from 'lucide-react';
 import { ReauthModal } from '@/components/admin/reauth-modal';
 import { getCachedData, setCachedData } from '@/lib/client-cache';
@@ -53,6 +50,7 @@ interface UserRecord {
   createdAt: number;
   updatedAt: number;
   activeSessionsCount: number;
+  isPrimaryOwner?: boolean;
 }
 
 interface RoleRecord {
@@ -78,7 +76,15 @@ export default function AdminUsersPage(props: {
 
   // Modals & Drawers
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editUser, setEditUser] = useState<UserRecord | null>(null);
+  const [createStep, setCreateStep] = useState<'form' | 'otp'>('form');
+  const [verificationId, setVerificationId] = useState('');
+  const [otpTargetEmail, setOtpTargetEmail] = useState('');
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [stagedTempPassword, setStagedTempPassword] = useState<string | undefined>(undefined);
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const [tempPasswordResult, setTempPasswordResult] = useState<{
     email: string;
     temporaryPassword?: string;
@@ -99,13 +105,20 @@ export default function AdminUsersPage(props: {
   const [passwordType, setPasswordType] = useState<'random' | 'custom'>('random');
   const [customPassword, setCustomPassword] = useState('');
   const [showCustomPassword, setShowCustomPassword] = useState(false);
-  const [newCreateInvite, setNewCreateInvite] = useState(false);
   const [newScopeStatuses, setNewScopeStatuses] = useState<string[]>([]);
   const [newScopeAssignedOnly, setNewScopeAssignedOnly] = useState(false);
   const [newScopeMaxAge, setNewScopeMaxAge] = useState<number | ''>('');
   const [copied, setCopied] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   // Escape key closes open modals
   useEffect(() => {
@@ -119,6 +132,7 @@ export default function AdminUsersPage(props: {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [tempPasswordResult, createModalOpen]);
 
+  // Fetch Users
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -129,11 +143,11 @@ export default function AdminUsersPage(props: {
       }
       if (res.ok) {
         const data = await res.json();
-        setUsers(data.users || []);
-        setCachedData('users_list', data.users || []);
+        setUsers(data.users);
+        setCachedData('users_list', data.users);
       }
-    } catch {
-      // Ignored
+    } catch (err) {
+      console.error('Fetch users error:', err);
     } finally {
       setLoading(false);
     }
@@ -146,19 +160,17 @@ export default function AdminUsersPage(props: {
         const data = await res.json();
         setRoles(data.roles || []);
       }
-    } catch {
-      // Ignored
+    } catch (err) {
+      console.error('Fetch roles error:', err);
     }
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void fetchUsers();
-      void fetchRoles();
-    }, 0);
-    return () => clearTimeout(timer);
+    fetchUsers();
+    fetchRoles();
   }, [fetchUsers, fetchRoles]);
 
+  // Helper to trigger Reauth Guard if needed
   const executeWithReauth = (action: () => Promise<void>, title: string, desc: string) => {
     setActionTitle(title);
     setActionDesc(desc);
@@ -167,6 +179,7 @@ export default function AdminUsersPage(props: {
   };
 
   const handleReauthSuccess = async () => {
+    setReauthOpen(false);
     if (pendingAction) {
       await pendingAction();
       setPendingAction(null);
@@ -174,7 +187,47 @@ export default function AdminUsersPage(props: {
     fetchUsers();
   };
 
-  // Submit Create User
+  // 6-digit OTP input handlers
+  const handleDigitChange = (index: number, val: string) => {
+    const digit = val.replace(/\D/g, '').slice(-1);
+    const updated = [...otpDigits];
+    updated[index] = digit;
+    setOtpDigits(updated);
+    setOtpError('');
+
+    if (digit && index < 5) {
+      const nextInput = document.getElementById(`otp-digit-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0) {
+        const prevInput = document.getElementById(`otp-digit-${index - 1}`);
+        prevInput?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      document.getElementById(`otp-digit-${index - 1}`)?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      document.getElementById(`otp-digit-${index + 1}`)?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const updated = ['', '', '', '', '', ''];
+    for (let i = 0; i < pasted.length; i++) {
+      updated[i] = pasted[i];
+    }
+    setOtpDigits(updated);
+    const nextIdx = Math.min(pasted.length, 5);
+    document.getElementById(`otp-digit-${nextIdx}`)?.focus();
+  };
+
+  // Step 1: Submit Form to initiate OTP
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -198,41 +251,115 @@ export default function AdminUsersPage(props: {
               status: newStatus,
               passwordType,
               customPassword: passwordType === 'custom' ? customPassword.trim() : undefined,
-              createInvite: newCreateInvite,
               leadScope: Object.keys(leadScopePayload).length > 0 ? leadScopePayload : undefined,
             }),
           });
 
           const data = await res.json();
           if (!res.ok) {
-            setFormError(data.error || 'Failed to create user');
-          } else {
-            setCreateModalOpen(false);
-            setTempPasswordResult({
-              email: newEmail,
-              temporaryPassword: data.temporaryPassword,
-              inviteUrl: data.inviteUrl,
-            });
-            // Reset form
-            setNewName('');
-            setNewEmail('');
-            setNewRole('manager');
-            setPasswordType('random');
-            setCustomPassword('');
-            setNewScopeStatuses([]);
-            setNewScopeAssignedOnly(false);
-            setNewScopeMaxAge('');
-            fetchUsers();
+            setFormError(data.error || 'Failed to initiate user creation');
+          } else if (data.requiresOtp) {
+            setVerificationId(data.verificationId);
+            setOtpTargetEmail(data.email);
+            setStagedTempPassword(data.temporaryPassword);
+            setOtpDigits(['', '', '', '', '', '']);
+            setOtpError('');
+            setCreateStep('otp');
+            setResendCooldown(30);
+            setTimeout(() => {
+              document.getElementById('otp-digit-0')?.focus();
+            }, 100);
           }
         } catch {
-          setFormError('Network failure creating user');
+          setFormError('Network failure connecting to Vault server');
         } finally {
           setFormSubmitting(false);
         }
       },
-      'Confirm User Creation',
-      `Authorization required to provision administrative credentials for ${newEmail}.`
+      'Authorize User Provisioning',
+      `Administrative privilege required to configure account and dispatch verification code to ${newEmail}.`
     );
+  };
+
+  // Step 2: Verify OTP and finalize creation
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = otpDigits.join('').trim();
+    if (code.length !== 6) {
+      setOtpError('Please enter all 6 digits of the code');
+      return;
+    }
+
+    try {
+      setOtpSubmitting(true);
+      setOtpError('');
+
+      const res = await fetch('/api/admin/users/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          verificationId,
+          otp: code,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setOtpError(data.error || 'Verification failed. Please re-check the code.');
+      } else {
+        // Success!
+        setCreateModalOpen(false);
+        setTempPasswordResult({
+          email: otpTargetEmail,
+          temporaryPassword: stagedTempPassword,
+        });
+
+        // Reset all form state
+        setCreateStep('form');
+        setNewName('');
+        setNewEmail('');
+        setNewRole('manager');
+        setPasswordType('random');
+        setCustomPassword('');
+        setNewScopeStatuses([]);
+        setNewScopeAssignedOnly(false);
+        setNewScopeMaxAge('');
+        setVerificationId('');
+        setOtpDigits(['', '', '', '', '', '']);
+
+        fetchUsers();
+      }
+    } catch {
+      setOtpError('Network error verifying code');
+    } finally {
+      setOtpSubmitting(false);
+    }
+  };
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || !verificationId) return;
+
+    try {
+      setOtpError('');
+      const res = await fetch('/api/admin/users/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verificationId }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setResendCooldown(30);
+        setOtpDigits(['', '', '', '', '', '']);
+        setTimeout(() => document.getElementById('otp-digit-0')?.focus(), 50);
+      } else {
+        setOtpError(data.error || 'Failed to resend code');
+      }
+    } catch {
+      setOtpError('Failed to dispatch code');
+    }
   };
 
   // Reset Password Action
@@ -246,27 +373,25 @@ export default function AdminUsersPage(props: {
             email: user.email,
             temporaryPassword: data.temporaryPassword,
           });
-          fetchUsers();
         } else {
-          alert(data.error || 'Password reset failed');
+          alert(data.error || 'Failed to reset password');
         }
       },
-      'Reset User Password',
-      `Confirm generating a new single-use temporary password for ${user.email}. All existing sessions will be terminated.`
+      'Force Password Reset',
+      `Confirm generating a new temporary credential for ${user.email}.`
     );
   };
 
-  // Reset 2FA Action
+  // Reset 2FA Secret Action
   const handleReset2Fa = (user: UserRecord) => {
     executeWithReauth(
       async () => {
         const res = await fetch(`/api/admin/users/${user.id}/reset-2fa`, { method: 'POST' });
         const data = await res.json();
         if (res.ok) {
-          alert(`2FA reset successful. ${user.email} will be required to re-configure 2FA upon next login.`);
           fetchUsers();
         } else {
-          alert(data.error || '2FA reset failed');
+          alert(data.error || 'Failed to reset 2FA');
         }
       },
       'Reset Two-Factor Authentication',
@@ -311,8 +436,13 @@ export default function AdminUsersPage(props: {
     );
   };
 
-  // Soft Delete Action
+  // Permanent Delete Action
   const handleDeleteUser = (user: UserRecord) => {
+    if (user.isPrimaryOwner || user.email?.toLowerCase() === 'vk679028@gmail.com') {
+      alert('This user is protected and cannot be deleted.');
+      return;
+    }
+
     executeWithReauth(
       async () => {
         const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
@@ -323,12 +453,11 @@ export default function AdminUsersPage(props: {
           alert(data.error || 'Failed to delete user');
         }
       },
-      'Confirm User Deletion',
-      `Confirm permanently revoking access for ${user.email}. Account will be soft-deleted and all sessions terminated.`
+      'Permanently Delete Account',
+      `Warning: This will permanently remove ${user.email} from Supabase Auth, profiles, and Vault. This cannot be undone.`
     );
   };
 
-  // Copy helper
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -336,58 +465,66 @@ export default function AdminUsersPage(props: {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
+    <div className="space-y-6">
+      {/* Reauth Modal Guard */}
       <ReauthModal
         isOpen={reauthOpen}
-        onClose={() => setReauthOpen(false)}
-        onSuccess={handleReauthSuccess}
         title={actionTitle}
         description={actionDesc}
+        onClose={() => {
+          setReauthOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={handleReauthSuccess}
       />
 
-      {/* ================= TOP ACTION BAR ================= */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight text-[#12110b] dark:text-[#f4efea] flex items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#12110b] dark:text-[#f4efea] flex items-center gap-2.5">
+            <Users className="h-6 w-6 text-[#26D67C]" />
             Team & User Access
           </h1>
-          <p className="text-xs sm:text-[13px] text-[#5a6265] dark:text-[#a09d93] mt-0.5">
-            Super Admin control over team members, custom permissions, and granular lead scopes.
+          <p className="text-xs text-[#5a6265] dark:text-[#a09d93] mt-1">
+            Super Admin access controls, role assignments, OTP verification, and live Supabase synchronization.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={fetchUsers}
-            disabled={loading}
-            className="h-9 px-3.5 rounded-[12px] bg-white dark:bg-[#1a1914] border border-black/[0.08] dark:border-white/[0.08] hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="h-9 px-3 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-1.5 cursor-pointer text-[#12110b] dark:text-[#f4efea]"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Refresh</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setCreateModalOpen(true)}
-            className="h-9 px-4 rounded-[12px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+            onClick={() => {
+              setCreateStep('form');
+              setFormError('');
+              setCreateModalOpen(true);
+            }}
+            className="h-9 px-4 rounded-full bg-[#26D67C] hover:bg-[#20b86a] text-black text-xs font-bold transition-all shadow-[0_0_20px_rgba(38,214,124,0.3)] flex items-center gap-1.5 cursor-pointer"
           >
-            <UserPlus className="h-3.5 w-3.5" />
+            <UserPlus className="h-4 w-4" />
             <span>New User</span>
           </button>
         </div>
       </div>
 
-      {/* ================= FILTER & SEARCH BAR ================= */}
-      <div className="p-3 rounded-[16px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.07] flex flex-col sm:flex-row items-center gap-3">
+      {/* Filter / Search Bar */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 p-3 rounded-[18px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.08] shadow-sm">
         <div className="relative flex-1 w-full">
-          <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5a6265] dark:text-[#a09d93]" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#5a6265] dark:text-[#a09d93]" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search team members by name or email..."
-            className="w-full h-9 pl-9 pr-4 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] text-xs border border-transparent focus:border-[#ff4f31] outline-none text-[#12110b] dark:text-[#f4efea]"
+            className="w-full h-9 pl-9 pr-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-transparent focus:border-[#26D67C] text-xs outline-none transition-colors"
           />
         </div>
 
@@ -395,7 +532,7 @@ export default function AdminUsersPage(props: {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="h-9 px-3 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] text-xs border border-transparent outline-none text-[#12110b] dark:text-[#f4efea] font-medium"
+            className="h-9 px-3 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-xs outline-none cursor-pointer flex-1 sm:flex-none"
           >
             <option value="all">All Roles</option>
             {roles.map((r) => (
@@ -408,7 +545,7 @@ export default function AdminUsersPage(props: {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 px-3 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] text-xs border border-transparent outline-none text-[#12110b] dark:text-[#f4efea] font-medium"
+            className="h-9 px-3 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-xs outline-none cursor-pointer flex-1 sm:flex-none"
           >
             <option value="all">All Statuses</option>
             <option value="active">Active</option>
@@ -417,12 +554,12 @@ export default function AdminUsersPage(props: {
         </div>
       </div>
 
-      {/* ================= USERS TABLE ================= */}
-      <div className="rounded-[16px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.07] overflow-hidden shadow-xs">
+      {/* Users Table */}
+      <div className="rounded-[20px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.08] shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-black/[0.06] dark:border-white/[0.07] bg-black/[0.015] dark:bg-white/[0.015] text-[11px] font-semibold text-[#5a6265] dark:text-[#a09d93] uppercase tracking-wider">
+              <tr className="border-b border-black/[0.06] dark:border-white/[0.08] text-[#5a6265] dark:text-[#a09d93] uppercase font-bold tracking-wider text-[10px]">
                 <th className="py-3 px-4">User</th>
                 <th className="py-3 px-4">Role & Scope</th>
                 <th className="py-3 px-4">Status</th>
@@ -432,19 +569,23 @@ export default function AdminUsersPage(props: {
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.05] text-xs">
+            <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
               {users.map((u) => {
                 const isSuper = u.role === 'superadmin';
                 return (
                   <tr key={u.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
-                    {/* User Info */}
+                    {/* User Identity */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-[#ff4f31] to-amber-500 text-white font-bold text-[11px] flex items-center justify-center shrink-0">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                          isSuper
+                            ? 'bg-[#ff4f31] text-white'
+                            : 'bg-black/5 dark:bg-white/5 text-[#12110b] dark:text-[#f4efea]'
+                        }`}>
                           {u.name ? u.name.slice(0, 2).toUpperCase() : u.email.slice(0, 2).toUpperCase()}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-semibold text-[#12110b] dark:text-[#f4efea] leading-tight">
+                          <span className="font-semibold text-[#12110b] dark:text-[#f4efea] flex items-center gap-1.5">
                             {u.name || 'Unnamed User'}
                           </span>
                           <span className="text-[11px] text-[#5a6265] dark:text-[#a09d93] font-mono">
@@ -519,7 +660,7 @@ export default function AdminUsersPage(props: {
                           type="button"
                           onClick={() => handleResetPassword(u)}
                           title="Generate New Temporary Password"
-                          className="h-7 w-7 rounded-md flex items-center justify-center text-[#5a6265] dark:text-[#a09d93] hover:text-[#ff4f31] hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                          className="h-7 w-7 rounded-md flex items-center justify-center text-[#5a6265] dark:text-[#a09d93] hover:text-[#26D67C] hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                         </button>
@@ -554,7 +695,7 @@ export default function AdminUsersPage(props: {
                         <button
                           type="button"
                           onClick={() => handleDeleteUser(u)}
-                          title="Soft-Delete User"
+                          title="Permanently Delete User"
                           className="h-7 w-7 rounded-md flex items-center justify-center text-[#5a6265] dark:text-[#a09d93] hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -589,74 +730,39 @@ export default function AdminUsersPage(props: {
           >
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-xl bg-[#26D67C]/10 text-[#26D67C] flex items-center justify-center">
                   <Check className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Credentials Generated</h3>
+                  <h3 className="text-sm font-bold text-white">Account Created & Verified</h3>
                   <p className="text-[11px] text-[#a09d93]">{tempPasswordResult.email}</p>
                 </div>
               </div>
               <button
                 type="button"
-                aria-label="Close modal"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setTempPasswordResult(null);
-                }}
-                className="h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-all cursor-pointer z-30"
+                onClick={() => setTempPasswordResult(null)}
+                className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-white/10 text-[#a09d93] hover:text-white"
               >
-                <X className="h-4 w-4 pointer-events-none" />
+                <X className="h-4 w-4" />
               </button>
-            </div>
-
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
-              <span>Stored & Synchronized directly in Supabase Database</span>
             </div>
 
             {tempPasswordResult.temporaryPassword && (
               <div>
                 <label className="block text-xs font-semibold text-[#5a6265] dark:text-[#a09d93] mb-1.5">
-                  Account Access Password
-                </label>
-                <div className="flex items-center gap-2 p-3 rounded-[12px] bg-black/[0.04] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08]">
-                  <code className="flex-1 font-mono text-xs font-bold text-[#ff4f31] break-all select-all">
-                    {tempPasswordResult.temporaryPassword}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(tempPasswordResult.temporaryPassword!)}
-                    className="h-8 px-3 rounded-lg bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                    <span>{copied ? 'Copied' : 'Copy'}</span>
-                  </button>
-                </div>
-                <div className="mt-2 p-2.5 rounded-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] flex items-start gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>This temporary password is never stored in plaintext and will <strong>NEVER</strong> be displayed again. Share it securely with the user.</span>
-                </div>
-              </div>
-            )}
-
-            {tempPasswordResult.inviteUrl && (
-              <div>
-                <label className="block text-xs font-semibold text-[#5a6265] dark:text-[#a09d93] mb-1.5">
-                  Single-Use 24-Hour Invite Link
+                  Confirmed Password (Saved in Supabase Auth)
                 </label>
                 <div className="flex items-center gap-2 p-3 rounded-[12px] bg-black/[0.04] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08]">
                   <input
                     type="text"
                     readOnly
-                    value={tempPasswordResult.inviteUrl}
-                    className="flex-1 font-mono text-xs bg-transparent outline-none truncate"
+                    value={tempPasswordResult.temporaryPassword}
+                    className="flex-1 font-mono text-sm font-bold text-[#26D67C] bg-transparent outline-none truncate"
                   />
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(tempPasswordResult.inviteUrl!)}
-                    className="h-8 px-3 rounded-lg bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0"
+                    onClick={() => copyToClipboard(tempPasswordResult.temporaryPassword!)}
+                    className="h-8 px-3 rounded-lg bg-[#26D67C] text-black text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
                     {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -668,248 +774,275 @@ export default function AdminUsersPage(props: {
             <button
               type="button"
               onClick={() => setTempPasswordResult(null)}
-              className="mt-2 w-full h-[40px] rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] text-xs font-semibold cursor-pointer"
+              className="mt-2 w-full h-[40px] rounded-full bg-[#26D67C] text-black text-xs font-bold cursor-pointer"
             >
-              Done & Close
+              Done & Return to Vault
             </button>
           </div>
         </div>
       )}
 
-      {/* ================= CREATE USER MODAL ================= */}
+      {/* ================= CREATE USER MODAL WITH 2-STEP EMAIL OTP ================= */}
       {createModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto py-8"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md overflow-y-auto py-8"
           onClick={() => setCreateModalOpen(false)}
         >
           <div
-            className="w-full max-w-lg rounded-[24px] bg-[#181712] p-6 shadow-2xl border border-white/10 text-[#f4efea] flex flex-col gap-4 relative z-10"
+            className={`w-full ${createStep === 'otp' ? 'max-w-md' : 'max-w-lg'} rounded-[28px] bg-[#101216] p-7 sm:p-8 shadow-[0_24px_70px_rgba(0,0,0,0.8)] border border-white/[0.08] text-[#f4efea] flex flex-col gap-5 relative z-10 transition-all duration-300`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-white/[0.07]">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-xl bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center">
-                  <UserPlus className="h-4 w-4" />
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-[#26D67C]/10 border border-[#26D67C]/20 text-[#26D67C] flex items-center justify-center">
+                  {createStep === 'form' ? <UserPlus className="h-4 w-4" /> : <MailCheck className="h-4 w-4" />}
                 </div>
-                <h3 className="text-sm font-bold text-[#f4efea]">Create Administrative User</h3>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-[#f4efea]">
+                    {createStep === 'form' ? 'Add Team Member' : 'Email Verification'}
+                  </h3>
+                  <p className="text-xs text-[#8e95a0]">
+                    {createStep === 'form'
+                      ? 'Configure member profile and credentials'
+                      : `Code sent to ${otpTargetEmail}`}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setCreateModalOpen(false);
-                }}
-                className="h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.15] text-[#a09d93] hover:text-white border border-white/10 transition-colors cursor-pointer z-30"
-                aria-label="Close modal"
+                onClick={() => setCreateModalOpen(false)}
+                className="h-8 w-8 rounded-full flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.1] text-[#8e95a0] hover:text-white border border-white/10 transition-colors cursor-pointer"
               >
-                <X className="h-4 w-4 pointer-events-none" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {formError && (
-              <div className="p-3 rounded-[12px] bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs">
-                {formError}
+            {/* Error Banner */}
+            {(formError || otpError) && (
+              <div className="p-3 rounded-[12px] bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+                <span>{formError || otpError}</span>
               </div>
             )}
 
-            <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
-              <div>
-                <label className="block text-xs font-semibold mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. Varun Singh"
-                  className="w-full h-10 px-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#ff4f31]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="team@frxcxstudio.com"
-                  className="w-full h-10 px-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#ff4f31]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            {/* STEP 1: USER DETAILS FORM */}
+            {createStep === 'form' ? (
+              <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1">Role Assignment</label>
-                  <select
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                    className="w-full h-10 px-3 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#ff4f31]"
-                  >
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-semibold mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g. Alex Rivera"
+                    className="w-full h-10 px-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#26D67C]"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold mb-1">Account Status</label>
-                  <select
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value as any)}
-                    className="w-full h-10 px-3 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#ff4f31]"
-                  >
-                    <option value="active">Active</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Password Mode Selector */}
-              <div className="p-3.5 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.07] flex flex-col gap-2.5">
-                <label className="block text-xs font-bold text-[#f4efea] flex items-center gap-1.5">
-                  <KeyRound className="h-3.5 w-3.5 text-[#ff4f31]" />
-                  Password & Credentials Method
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPasswordType('random')}
-                    className={`h-10 px-3 rounded-[12px] text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
-                      passwordType === 'random'
-                        ? 'bg-[#ff4f31]/15 border-[#ff4f31] text-[#ff4f31]'
-                        : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.08] text-[#a09d93]'
-                    }`}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>Random Password</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPasswordType('custom')}
-                    className={`h-10 px-3 rounded-[12px] text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
-                      passwordType === 'custom'
-                        ? 'bg-[#ff4f31]/15 border-[#ff4f31] text-[#ff4f31]'
-                        : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.08] text-[#a09d93]'
-                    }`}
-                  >
-                    <Lock className="h-3.5 w-3.5" />
-                    <span>Custom Password</span>
-                  </button>
+                  <label className="block text-xs font-semibold mb-1">Email Address (Receives Verification OTP)</label>
+                  <input
+                    type="email"
+                    required
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="team@frzzy.studio"
+                    className="w-full h-10 px-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#26D67C]"
+                  />
                 </div>
 
-                {passwordType === 'custom' ? (
-                  <div className="pt-1">
-                    <label className="block text-[11px] font-semibold text-[#a09d93] mb-1">
-                      Custom Password (min. 8 characters)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showCustomPassword ? 'text' : 'password'}
-                        required={passwordType === 'custom'}
-                        minLength={8}
-                        value={customPassword}
-                        onChange={(e) => setCustomPassword(e.target.value)}
-                        placeholder="Enter custom password..."
-                        className="w-full h-10 pl-3.5 pr-10 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#ff4f31]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCustomPassword(!showCustomPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a09d93] hover:text-[#f4efea]"
-                      >
-                        {showCustomPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Role Assignment</label>
+                    <select
+                      value={newRole}
+                      onChange={(e) => setNewRole(e.target.value)}
+                      className="w-full h-10 px-3 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#26D67C]"
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ) : (
-                  <p className="text-[11px] text-[#a09d93]">
-                    A cryptographically high-entropy 18-character password will be auto-generated and saved to Supabase.
-                  </p>
-                )}
 
-                <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
-                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-                  <span>Will be stored in Supabase Auth & public.profiles</span>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Account Status</label>
+                    <select
+                      value={newStatus}
+                      onChange={(e) => setNewStatus(e.target.value as any)}
+                      className="w-full h-10 px-3 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#26D67C]"
+                    >
+                      <option value="active">Active</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
 
-              {/* Granular Lead Scope Accordion */}
-              <div className="p-3.5 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.07] flex flex-col gap-2.5">
-                <span className="text-xs font-bold text-[#ff4f31] flex items-center gap-1.5">
-                  <Sliders className="h-3.5 w-3.5" />
-                  Granular Lead Scoping (Database-Enforced)
-                </span>
-                <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93]">
-                  Restrict the statuses and leads this user is permitted to view, search, export, or count in KPI widgets.
+                {/* Password Mode Selector */}
+                <div className="p-3.5 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.07] flex flex-col gap-2.5">
+                  <label className="block text-xs font-bold text-[#f4efea] flex items-center gap-1.5">
+                    <KeyRound className="h-3.5 w-3.5 text-[#26D67C]" />
+                    Password & Credentials Strategy
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPasswordType('random')}
+                      className={`h-10 px-3 rounded-[12px] text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                        passwordType === 'random'
+                          ? 'bg-[#26D67C]/15 border-[#26D67C] text-[#26D67C]'
+                          : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.08] text-[#a09d93]'
+                      }`}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Random Password</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPasswordType('custom')}
+                      className={`h-10 px-3 rounded-[12px] text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                        passwordType === 'custom'
+                          ? 'bg-[#26D67C]/15 border-[#26D67C] text-[#26D67C]'
+                          : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.08] text-[#a09d93]'
+                      }`}
+                    >
+                      <Lock className="h-3.5 w-3.5" />
+                      <span>Custom Password</span>
+                    </button>
+                  </div>
+
+                  {passwordType === 'custom' ? (
+                    <div className="pt-1">
+                      <label className="block text-[11px] font-semibold text-[#a09d93] mb-1">
+                        Custom Password (min. 8 characters)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCustomPassword ? 'text' : 'password'}
+                          required={passwordType === 'custom'}
+                          minLength={8}
+                          value={customPassword}
+                          onChange={(e) => setCustomPassword(e.target.value)}
+                          placeholder="Enter password..."
+                          className="w-full h-10 pl-3.5 pr-10 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#26D67C]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCustomPassword(!showCustomPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a09d93] hover:text-[#f4efea]"
+                        >
+                          {showCustomPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-[#a09d93]">
+                      A high-entropy 18-character password will be generated upon OTP verification and saved into Supabase.
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-1.5 text-[11px] text-[#26D67C]">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                    <span>Synchronizes in real time with Supabase Auth & public.profiles</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setCreateModalOpen(false)}
+                    className="h-10 px-5 rounded-full border border-white/10 text-xs font-semibold hover:bg-white/5 transition-colors cursor-pointer text-[#a09d93] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={formSubmitting}
+                    className="h-10 px-6 rounded-full bg-[#26D67C] hover:bg-[#20b86a] disabled:opacity-50 text-black text-xs font-bold transition-all shadow-[0_0_24px_rgba(38,214,124,0.3)] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>{formSubmitting ? 'Sending Code...' : 'Send Verification Code'}</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* STEP 2: ULTRA-PREMIUM MINIMAL OTP VERIFICATION */
+              <form onSubmit={handleVerifyOtp} className="flex flex-col items-center text-center py-2">
+                <div className="h-14 w-14 rounded-2xl bg-[#26D67C]/10 border border-[#26D67C]/25 flex items-center justify-center text-[#26D67C] mb-4 shadow-[0_0_24px_rgba(38,214,124,0.15)]">
+                  <MailCheck className="h-7 w-7" />
+                </div>
+
+                <h4 className="text-lg font-bold text-white tracking-tight mb-1.5">
+                  Check your email
+                </h4>
+                <p className="text-xs text-[#8e95a0] max-w-sm mb-6 leading-relaxed">
+                  We dispatched a 6-digit verification code to <span className="font-semibold text-white">{otpTargetEmail}</span>. Enter the code below to complete setup.
                 </p>
 
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {['new', 'contacted', 'in_progress', 'won', 'lost', 'spam'].map((st) => {
-                    const isSelected = newScopeStatuses.includes(st);
-                    return (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setNewScopeStatuses(newScopeStatuses.filter((s) => s !== st));
-                          } else {
-                            setNewScopeStatuses([...newScopeStatuses, st]);
-                          }
-                        }}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b]'
-                            : 'bg-black/5 dark:bg-white/5 text-[#5a6265] dark:text-[#a09d93]'
-                        }`}
-                      >
-                        {st.replace('_', ' ').toUpperCase()}
-                      </button>
-                    );
-                  })}
+                {/* 6 Individual Luxury Digit Cells */}
+                <div className="flex items-center justify-center gap-2 sm:gap-2.5 mb-5 w-full">
+                  {[0, 1, 2, 3, 4, 5].map((index) => (
+                    <input
+                      key={index}
+                      id={`otp-digit-${index}`}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      autoComplete="one-time-code"
+                      value={otpDigits[index] || ''}
+                      onChange={(e) => handleDigitChange(index, e.target.value)}
+                      onKeyDown={(e) => handleDigitKeyDown(index, e)}
+                      onPaste={handleOtpPaste}
+                      className="w-11 h-14 sm:w-12 sm:h-15 text-center text-xl font-bold font-mono rounded-[14px] bg-white/[0.03] border border-white/10 text-white focus:border-[#26D67C] focus:bg-[#26D67C]/[0.02] focus:ring-4 focus:ring-[#26D67C]/15 outline-none transition-all shadow-inner"
+                    />
+                  ))}
                 </div>
 
-                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer pt-1">
-                  <input
-                    type="checkbox"
-                    checked={newScopeAssignedOnly}
-                    onChange={(e) => setNewScopeAssignedOnly(e.target.checked)}
-                    className="accent-[#ff4f31]"
-                  />
-                  <span>Restrict to assigned leads only (Assigned to me)</span>
-                </label>
-              </div>
+                {otpError && (
+                  <div className="text-center text-xs font-semibold text-rose-400 mb-4 flex items-center justify-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{otpError}</span>
+                  </div>
+                )}
 
-              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newCreateInvite}
-                  onChange={(e) => setNewCreateInvite(e.target.checked)}
-                  className="accent-[#ff4f31]"
-                />
-                <span>Generate 24-hour Invite Link (instead of temporary password)</span>
-              </label>
+                <div className="text-center mb-6 text-xs text-[#8e95a0]">
+                  Didn't receive the email?{' '}
+                  <button
+                    type="button"
+                    disabled={resendCooldown > 0}
+                    onClick={handleResendOtp}
+                    className={`font-semibold transition-colors cursor-pointer ${
+                      resendCooldown > 0 ? 'text-[#5a6265] cursor-not-allowed' : 'text-[#26D67C] hover:underline'
+                    }`}
+                  >
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                  </button>
+                </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setCreateModalOpen(false)}
-                  className="h-10 px-4 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={formSubmitting}
-                  className="h-10 px-5 rounded-full bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] text-xs font-semibold hover:bg-[#ff4f31] dark:hover:bg-[#ff4f31] dark:hover:text-white transition-colors cursor-pointer"
-                >
-                  {formSubmitting ? 'Creating...' : 'Create User & Generate Credentials'}
-                </button>
-              </div>
-            </form>
+                <div className="flex flex-col gap-2.5 w-full pt-1">
+                  <button
+                    type="submit"
+                    disabled={otpSubmitting || otpDigits.join('').length !== 6}
+                    className="h-11 w-full rounded-full bg-[#26D67C] hover:bg-[#20b86a] disabled:opacity-40 text-black text-xs font-bold tracking-wide transition-all shadow-[0_0_24px_rgba(38,214,124,0.3)] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Check className="h-4 w-4" />
+                    <span>{otpSubmitting ? 'Verifying...' : 'Verify & Provision User'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCreateStep('form')}
+                    className="text-xs text-[#8e95a0] hover:text-white py-1 transition-colors cursor-pointer"
+                  >
+                    ← Back to Details
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

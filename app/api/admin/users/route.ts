@@ -1,17 +1,18 @@
 import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { z } from 'zod';
-import { validateAdminSession } from '@/lib/auth/session';
-import { resolveAdminPermissions, hasPermission, LeadScopeConfig } from '@/lib/auth/permissions';
+import { validateAdminSession, destroyAllAdminSessions } from '@/lib/auth/session';
+import { resolveAdminPermissions, hasPermission } from '@/lib/auth/permissions';
 import { db, ensureDatabaseReady } from '@/lib/db';
-import { admins, roles, sessions, passwordHistory } from '@/lib/db/schema';
+import { admins, roles, sessions } from '@/lib/db/schema';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
-import { hashPassword, generateTemporaryPassword, recordPasswordHistory } from '@/lib/auth/password';
-import { createAdminInvite } from '@/lib/auth/invites';
+import { generateTemporaryPassword } from '@/lib/auth/password';
 import { verifyReauthGrant } from '@/lib/auth/reauth';
-import { logAuditEvent } from '@/lib/auth/audit';
 import { getAdminSupabaseClient } from '@/lib/supabase/admin';
+import { initiateUserCreationOtp } from '@/lib/auth/otp-service';
+import { purgeLocalAdmin } from '@/lib/auth/user-cleanup';
+
+const PRIMARY_OWNER_EMAIL = 'vk679028@gmail.com';
 
 const CreateUserSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -28,12 +29,11 @@ const CreateUserSchema = z.object({
   }).optional(),
   status: z.enum(['active', 'disabled']).default('active'),
   expiresAt: z.number().nullable().optional(),
-  createInvite: z.boolean().default(false),
 });
 
 export async function GET(req: NextRequest) {
   try {
-    const sessionRes = await validateAdminSession();
+    const sessionRes = await validateAdminSession(req);
     if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -45,26 +45,36 @@ export async function GET(req: NextRequest) {
 
     await ensureDatabaseReady();
 
-    // Sync any existing profiles from Supabase into local admins if not already present
+    // 1. TRUE BIDIRECTIONAL SYNC WITH SUPABASE PROFILES
     try {
       const supabase = getAdminSupabaseClient();
       const { data: sbProfiles } = await (supabase.from('profiles') as any).select('*');
-      if (sbProfiles && sbProfiles.length > 0) {
+
+      if (sbProfiles && Array.isArray(sbProfiles)) {
+        const sbActiveMap = new Map<string, any>();
+
         for (const p of (sbProfiles as any[]) || []) {
+          // If deleted_at is set or disabled, treat as inactive
           if (p.deleted_at || p.status === 'disabled') continue;
+          const emailLower = (p.email || '').toLowerCase().trim();
+          if (!emailLower) continue;
+
+          sbActiveMap.set(emailLower, p);
+
           const exists = await db
-            .select({ id: admins.id })
+            .select()
             .from(admins)
-            .where(eq(admins.email, p.email.toLowerCase()))
+            .where(eq(admins.email, emailLower))
             .limit(1);
 
+          const now = Date.now();
           if (exists.length === 0) {
-            const now = Date.now();
+            // New user created in Supabase backend -> sync into local database
             await db.insert(admins).values({
               id: p.id,
               name: p.name || null,
-              email: p.email.toLowerCase(),
-              passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$dummy$dummy',
+              email: emailLower,
+              passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$synced$synced',
               salt: 'synced_from_supabase',
               role: p.role || 'viewer',
               status: p.status || 'active',
@@ -74,11 +84,42 @@ export async function GET(req: NextRequest) {
               createdAt: p.created_at ? new Date(p.created_at).getTime() : now,
               updatedAt: p.updated_at ? new Date(p.updated_at).getTime() : now,
             });
+          } else {
+            // Existing user -> sync any edits from Supabase backend (name, role, status)
+            const local = exists[0];
+            const pName = p.name || local.name;
+            const pRole = p.role || local.role;
+            const pStatus = p.status || local.status;
+
+            if (local.name !== pName || local.role !== pRole || local.status !== pStatus) {
+              await db
+                .update(admins)
+                .set({
+                  name: pName,
+                  role: pRole,
+                  status: pStatus,
+                  updatedAt: now,
+                })
+                .where(eq(admins.id, local.id));
+            }
+          }
+        }
+
+        // PURGE LOCAL USERS THAT HAVE BEEN DELETED FROM SUPABASE BACKEND
+        const allLocal = await db.select({ id: admins.id, email: admins.email }).from(admins);
+        for (const localAdmin of allLocal) {
+          const lEmail = localAdmin.email.toLowerCase();
+          // Never purge primary owner
+          if (lEmail === PRIMARY_OWNER_EMAIL.toLowerCase()) continue;
+
+          if (!sbActiveMap.has(lEmail)) {
+            // Deleted in Supabase backend -> prune from local database immediately
+            await purgeLocalAdmin(localAdmin.id);
           }
         }
       }
     } catch (e) {
-      // Non-blocking sync check
+      console.warn('[Users Sync] Supabase bidirectional sync warning in GET:', e);
     }
 
     const { searchParams } = new URL(req.url);
@@ -134,6 +175,7 @@ export async function GET(req: NextRequest) {
       activeSessionsCount: sessionCountMap.get(a.id) || 0,
       customPermissions: a.customPermissions ? JSON.parse(a.customPermissions) : [],
       leadScope: a.leadScope ? JSON.parse(a.leadScope) : null,
+      isPrimaryOwner: a.email.toLowerCase() === PRIMARY_OWNER_EMAIL.toLowerCase(),
     }));
 
     if (search) {
@@ -161,7 +203,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const sessionRes = await validateAdminSession();
+    const sessionRes = await validateAdminSession(req);
     if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -211,166 +253,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A user with this email address already exists' }, { status: 409 });
     }
 
-    // Determine password to use
+    // Check if user already exists in Supabase Auth
+    try {
+      const supabase = getAdminSupabaseClient();
+      const { data: userList } = await supabase.auth.admin.listUsers();
+      const sbExists = userList?.users?.some(
+        (u) => u.email?.toLowerCase() === data.email.toLowerCase()
+      );
+      if (sbExists) {
+        return NextResponse.json({ error: 'A user with this email already exists in Supabase Auth' }, { status: 409 });
+      }
+    } catch (e) {}
+
+    // Determine final password to stage
     const finalPassword =
       data.passwordType === 'custom' && data.customPassword
         ? data.customPassword.trim()
         : generateTemporaryPassword();
 
-    // 1. SUPABASE AUTH & SUPABASE PROFILES SYNCHRONIZATION
-    let supabaseUserId: string | null = null;
-    try {
-      const supabase = getAdminSupabaseClient();
-
-      // Ensure role exists in Supabase public.roles so foreign key in handle_new_auth_user never fails!
-      try {
-        const { data: roleCheck } = await (supabase.from('roles') as any)
-          .select('id')
-          .eq('id', data.role)
-          .maybeSingle();
-
-        if (!roleCheck) {
-          await (supabase.from('roles') as any)
-            .insert({
-              id: data.role,
-              name: data.role.charAt(0).toUpperCase() + data.role.slice(1),
-              description: `Studio ${data.role} role`,
-              is_built_in: false,
-              permissions: data.customPermissions || [],
-            })
-            .onConflictDoNothing();
-        }
-      } catch (roleErr) {
-        console.warn('Role ensure warning:', roleErr);
-      }
-
-      // Check if user already exists in Supabase Auth
-      const { data: userList } = await supabase.auth.admin.listUsers();
-      const existingSbUser = userList?.users?.find(
-        (u) => u.email?.toLowerCase() === data.email.toLowerCase()
-      );
-
-      if (existingSbUser) {
-        supabaseUserId = existingSbUser.id;
-        // Update their password and metadata
-        await supabase.auth.admin.updateUserById(supabaseUserId, {
-          password: finalPassword,
-          user_metadata: {
-            name: data.name,
-            role: data.role,
-          },
-        });
-      } else {
-        // Create brand new user in Supabase Auth
-        const { data: createData, error: createError } = await supabase.auth.admin.createUser({
-          email: data.email,
-          password: finalPassword,
-          email_confirm: true,
-          user_metadata: {
-            name: data.name,
-            role: data.role,
-          },
-        });
-
-        if (createError) {
-          console.warn('Supabase auth createUser warning:', createError.message);
-        } else if (createData?.user) {
-          supabaseUserId = createData.user.id;
-        }
-      }
-
-      // Upsert into Supabase public.profiles table
-      if (supabaseUserId) {
-        await (supabase.from('profiles') as any).upsert(
-          {
-            id: supabaseUserId,
-            name: data.name,
-            email: data.email,
-            role: data.role,
-            status: data.status,
-            custom_permissions: data.customPermissions || [],
-            lead_scope: data.leadScope || {},
-            two_factor_enabled: false,
-            must_change_password: data.passwordType === 'random',
-            must_setup_2fa: false,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        );
-      }
-    } catch (sbErr) {
-      console.error('Supabase user creation sync error:', sbErr);
-      // We still proceed so the Vault admin record is created
-    }
-
-    // 2. VAULT DATABASE INSERTION
-    const { hash, salt } = await hashPassword(finalPassword);
-    const newAdminId = supabaseUserId || crypto.randomUUID();
-    const now = Date.now();
-
-    await db.insert(admins).values({
-      id: newAdminId,
+    // ULTRA-SECURE: INITIATE OTP VERIFICATION BEFORE PROVISIONING
+    const otpResult = await initiateUserCreationOtp({
       name: data.name,
       email: data.email,
-      passwordHash: hash,
-      salt,
       role: data.role,
+      passwordType: data.passwordType,
+      password: finalPassword,
+      customPermissions: data.customPermissions,
+      leadScope: data.leadScope,
       status: data.status,
-      mustChangePassword: data.passwordType === 'random', // Force change on random pw
-      mustSetup2Fa: false,
-      twoFactorEnabled: false,
-      customPermissions: data.customPermissions ? JSON.stringify(data.customPermissions) : null,
-      leadScope: data.leadScope ? JSON.stringify(data.leadScope) : null,
-      expiresAt: data.expiresAt || null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Record into password history
-    await recordPasswordHistory(newAdminId, hash, salt);
-
-    // Create 1-time invite link if requested
-    let inviteUrl: string | undefined;
-    if (data.createInvite) {
-      const origin = req.headers.get('origin') || undefined;
-      const inviteRes = await createAdminInvite(newAdminId, origin);
-      inviteUrl = inviteRes.inviteUrl;
-    }
-
-    const ip = getClientIp(req);
-
-    await logAuditEvent({
-      adminId: sessionRes.admin.id,
-      action: 'USER_CREATED',
-      resource: data.email,
-      details: {
-        newUserId: newAdminId,
-        role: data.role,
-        status: data.status,
-        passwordType: data.passwordType,
-        supabaseSynced: Boolean(supabaseUserId),
-      },
-      ipAddress: ip,
-      userAgent: req.headers.get('user-agent') || undefined,
     });
 
     return NextResponse.json({
       success: true,
-      user: {
-        id: newAdminId,
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        status: data.status,
-      },
+      requiresOtp: true,
+      verificationId: otpResult.verificationId,
+      email: otpResult.email,
+      expiresInMinutes: otpResult.expiresInMinutes,
+      sentToEmail: otpResult.sentToEmail,
+      debugOtp: process.env.NODE_ENV !== 'production' ? otpResult.debugOtp : undefined,
       temporaryPassword: finalPassword,
-      password: finalPassword,
-      passwordType: data.passwordType,
-      inviteUrl,
-      supabaseSynced: Boolean(supabaseUserId),
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Create user error:', err);
-    return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to initiate user creation' }, { status: 500 });
   }
 }
