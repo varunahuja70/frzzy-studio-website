@@ -1,8 +1,7 @@
+import { getSecret } from './auth/secrets';
 import crypto from 'crypto';
 
-const SIGNING_SECRET =
-  process.env.MEDIA_SIGNING_SECRET ||
-  'frxcx-studio-media-signing-vault-key-production-hardened-2026';
+const signingSecret = () => getSecret('MEDIA_SIGNING_SECRET');
 
 export interface MediaTokenPayload {
   slot: string;
@@ -24,7 +23,7 @@ export function signMediaToken(slot: string, ttlSeconds = 600): string {
 
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = crypto
-    .createHmac('sha256', SIGNING_SECRET)
+    .createHmac('sha256', signingSecret())
     .update(encodedPayload)
     .digest('base64url');
 
@@ -45,7 +44,7 @@ export function verifyMediaToken(token: string): MediaTokenPayload | null {
 
   try {
     const expectedSignature = crypto
-      .createHmac('sha256', SIGNING_SECRET)
+      .createHmac('sha256', signingSecret())
       .update(encodedPayload)
       .digest('base64url');
 

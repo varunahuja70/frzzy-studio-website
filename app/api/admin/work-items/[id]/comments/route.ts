@@ -1,3 +1,4 @@
+import { canViewWorkItem } from '@/lib/work-items/access';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -39,6 +40,9 @@ export async function GET(
 
     if (!item) {
       return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+    if (!canViewWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
     }
 
     const isAssignee = item.assignedTo === perms.adminId && !perms.isSuperAdmin;
@@ -96,6 +100,9 @@ export async function POST(
 
     if (!item) {
       return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+    if (!canViewWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
     }
 
     const isAssignee = item.assignedTo === perms.adminId;

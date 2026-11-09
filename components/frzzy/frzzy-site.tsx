@@ -454,7 +454,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                 <div className="hero-bottom">
                   <GlassRefraction />
                   <p className="thesis">
-                    Visuals with <em>static energy.</em>
+                    Motion design, <em>frame&nbsp;by&nbsp;frame.</em>
                   </p>
                   <div className="hero-side">
                     <p>
@@ -488,10 +488,10 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
               <div className="band b2">
                 <div className="track">
                   <span>
-                    Stay FRZZY. <svg><use href="#z" /></svg> For real. <svg><use href="#z" /></svg> Static energy. <svg><use href="#z" /></svg> Zero boring. <svg><use href="#z" /></svg> Stay FRZZY. <svg><use href="#z" /></svg> For real. <svg><use href="#z" /></svg> Static energy. <svg><use href="#z" /></svg> Zero boring. <svg><use href="#z" /></svg>
+                    Storyboards <svg><use href="#z" /></svg> Styleframes <svg><use href="#z" /></svg> Keyframes <svg><use href="#z" /></svg> Final render <svg><use href="#z" /></svg> Storyboards <svg><use href="#z" /></svg> Styleframes <svg><use href="#z" /></svg> Keyframes <svg><use href="#z" /></svg> Final render <svg><use href="#z" /></svg>
                   </span>
                   <span>
-                    Stay FRZZY. <svg><use href="#z" /></svg> For real. <svg><use href="#z" /></svg> Static energy. <svg><use href="#z" /></svg> Zero boring. <svg><use href="#z" /></svg> Stay FRZZY. <svg><use href="#z" /></svg> For real. <svg><use href="#z" /></svg> Static energy. <svg><use href="#z" /></svg> Zero boring. <svg><use href="#z" /></svg>
+                    Storyboards <svg><use href="#z" /></svg> Styleframes <svg><use href="#z" /></svg> Keyframes <svg><use href="#z" /></svg> Final render <svg><use href="#z" /></svg> Storyboards <svg><use href="#z" /></svg> Styleframes <svg><use href="#z" /></svg> Keyframes <svg><use href="#z" /></svg> Final render <svg><use href="#z" /></svg>
                   </span>
                 </div>
               </div>
@@ -626,8 +626,8 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                       <div className="mean-row">
                         <span className="big volt" aria-hidden="true">FR</span>
                         <p>
-                          <span className="sr-only">FR: </span>For real.
-                          <span>Real ideas and real craft. No filler, no stock tricks.</span>
+                          <span className="sr-only">FR: </span>Frame rate.
+                          <span>Every move timed to the frame, from first keyframe to final render.</span>
                         </p>
                       </div>
                       <div className="mean-row">
@@ -637,8 +637,8 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                           <LiquidZZ variant="inline" />
                         </span>
                         <p>
-                          <span className="sr-only">ZZ: </span>The buzz.
-                          <span>Static energy in every frame we make.</span>
+                          <span className="sr-only">ZZ: </span>Z-depth.
+                          <span>Layers, light and camera that give every shot real dimension.</span>
                         </p>
                       </div>
                     </div>
@@ -888,7 +888,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                   Services<span className="dot">.</span>
                 </h1>
                 <p className="page-lede">
-                  Six ways we put static energy into your brand. Mix them, or start with one.
+                  Six disciplines, from first storyboard to final render. Commission one, or combine them.
                 </p>
               </div>
             </section>
@@ -1000,8 +1000,8 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                       <div className="mean-row">
                         <span className="big volt" aria-hidden="true">FR</span>
                         <p>
-                          <span className="sr-only">FR: </span>For real.
-                          <span>Real ideas and real craft. No filler, no stock tricks.</span>
+                          <span className="sr-only">FR: </span>Frame rate.
+                          <span>Every move timed to the frame, from first keyframe to final render.</span>
                         </p>
                       </div>
                       <div className="mean-row">
@@ -1011,8 +1011,8 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                           <LiquidZZ variant="inline" />
                         </span>
                         <p>
-                          <span className="sr-only">ZZ: </span>The buzz.
-                          <span>Static energy in every frame we make.</span>
+                          <span className="sr-only">ZZ: </span>Z-depth.
+                          <span>Layers, light and camera that give every shot real dimension.</span>
                         </p>
                       </div>
                     </div>

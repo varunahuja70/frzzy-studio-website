@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -140,10 +141,24 @@ export async function POST(req: NextRequest) {
       updatedAt: now,
     });
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+        // Sync to Supabase public.roles
+    try {
+      const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+      const supabase = getAdminSupabaseClient();
+      await (supabase.from('roles') as any).upsert({
+        id: roleId,
+        name: data.name,
+        description: data.description || null,
+        is_built_in: false,
+        permissions: sanitizedPermissions,
+        default_lead_scope: data.defaultLeadScope || {},
+        session_timeout_minutes: data.sessionTimeoutMinutes,
+      }, { onConflict: 'id' });
+    } catch (sbErr) {
+      console.warn('Supabase role insert sync error:', sbErr);
+    }
+
+const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,

@@ -5,6 +5,16 @@ import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions } from '@/lib/auth/permissions';
 
+const TEAM_LIST_PERMISSIONS = [
+  'performance:view_team',
+  'performance:view_all',
+  'work_items:assign',
+  'work_items:reassign',
+  'work_items:edit',
+  'work_items:create',
+  'intake:create',
+] as const;
+
 export async function GET(req: NextRequest) {
   try {
     const sessionRes = await validateAdminSession(req);
@@ -13,7 +23,9 @@ export async function GET(req: NextRequest) {
     }
 
     const perms = await resolveAdminPermissions(sessionRes.admin.id);
-    if (!perms) {
+    // Lists every team member's email: only for people who assign or review work
+    const allowed = perms && (perms.isSuperAdmin || TEAM_LIST_PERMISSIONS.some((p) => perms.permissions.has(p)));
+    if (!allowed) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

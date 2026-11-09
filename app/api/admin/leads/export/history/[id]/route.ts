@@ -40,7 +40,8 @@ export async function GET(
       .where(eq(exportsHistory.id, id))
       .limit(1);
 
-    if (record.length === 0 || !record[0].filePath) {
+    // An export holds whatever its creator could see, which may be more than this user can
+    if (record.length === 0 || !record[0].filePath || (record[0].adminId !== sessionRes.admin.id && !perms?.isSuperAdmin)) {
       return NextResponse.json({ error: 'Export record not found' }, { status: 404 });
     }
 

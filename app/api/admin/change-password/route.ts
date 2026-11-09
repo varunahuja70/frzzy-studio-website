@@ -1,9 +1,11 @@
+import { isOverLimit } from '@/lib/request-limit';
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateAdminSession } from '@/lib/auth/session';
+import { invalidateSessionValidationCache, validateAdminSession } from '@/lib/auth/session';
 import { db, ensureDatabaseReady } from '@/lib/db';
-import { admins } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { admins, sessions } from '@/lib/db/schema';
+import { and, eq, ne } from 'drizzle-orm';
 import {
   hashPassword,
   verifyPassword,
@@ -14,7 +16,7 @@ import {
 import { logAuditEvent } from '@/lib/auth/audit';
 
 const ChangePasswordSchema = z.object({
-  currentPassword: z.string().min(1).optional(),
+  currentPassword: z.string().min(1).max(256).optional(),
   newPassword: z.string().min(12).max(256),
 });
 
@@ -23,6 +25,10 @@ export async function POST(req: NextRequest) {
     const sessionRes = await validateAdminSession();
     if (!sessionRes.valid || !sessionRes.admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (isOverLimit('change-password', sessionRes.admin.id, 20, 15 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many attempts. Please wait and try again.' }, { status: 429 });
     }
 
     const json = await req.json();
@@ -89,10 +95,13 @@ export async function POST(req: NextRequest) {
     // Record into password history
     await recordPasswordHistory(admin.id, hash, salt);
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    // Anyone else logged in as this user (possibly why the password is changing) is signed out
+    if (sessionRes.session) {
+      await db.delete(sessions).where(and(eq(sessions.adminId, admin.id), ne(sessions.id, sessionRes.session.id)));
+      invalidateSessionValidationCache();
+    }
+
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: admin.id,

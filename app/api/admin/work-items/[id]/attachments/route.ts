@@ -1,3 +1,4 @@
+import { canViewWorkItem, withoutStoragePath } from '@/lib/work-items/access';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db, ensureDatabaseReady } from '@/lib/db';
@@ -6,6 +7,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions } from '@/lib/auth/permissions';
 import {
+  MAX_FILE_SIZE_BYTES,
   validateFileMagicBytes,
   savePrivateAttachment,
   generateSignedDownloadToken,
@@ -22,7 +24,25 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const perms = await resolveAdminPermissions(sessionRes.admin.id);
+    if (!perms) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await ensureDatabaseReady();
+
+    const [item] = await db
+      .select()
+      .from(workItems)
+      .where(and(eq(workItems.id, id), isNull(workItems.deletedAt)))
+      .limit(1);
+
+    if (!item) {
+      return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+    if (!canViewWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
+    }
 
     const attachments = await db
       .select()
@@ -32,7 +52,7 @@ export async function GET(
 
     // Provide signed download URLs
     const withSignedUrls = attachments.map((att) => ({
-      ...att,
+      ...withoutStoragePath(att),
       downloadUrl: `/api/admin/work-items/download/${generateSignedDownloadToken({
         attachmentId: att.id,
         adminId: sessionRes.admin!.id,
@@ -73,6 +93,9 @@ export async function POST(
     if (!item) {
       return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
     }
+    if (!canViewWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
+    }
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
@@ -80,6 +103,9 @@ export async function POST(
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json({ error: 'File exceeds maximum 50MB size limit.' }, { status: 413 });
     }
 
     const bytes = await file.arrayBuffer();

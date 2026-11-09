@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateAdminSession } from '@/lib/auth/session';
@@ -27,7 +28,7 @@ const AppearanceSchema = z
   .strict();
 
 function clientIp(req: NextRequest) {
-  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || '127.0.0.1';
+  return getClientIp(req);
 }
 
 /** Defence in depth on top of SameSite=Strict cookies: writes must come from this site. */

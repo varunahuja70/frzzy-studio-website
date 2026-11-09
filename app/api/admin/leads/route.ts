@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -15,6 +16,7 @@ import { eq, desc, and, or, like, inArray, sql } from 'drizzle-orm';
 import { decryptPii, encryptPii, createBlindIndex } from '@/lib/auth/encryption';
 import { verifyReauthGrant } from '@/lib/auth/reauth';
 import { logAuditEvent } from '@/lib/auth/audit';
+import { syncLeadToSupabase, updateLeadInSupabase, deleteLeadFromSupabase } from '@/lib/supabase/sync';
 
 const PatchLeadSchema = z.object({
   id: z.string(),
@@ -205,10 +207,23 @@ export async function POST(req: NextRequest) {
       updatedAt: now,
     });
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    await syncLeadToSupabase({
+      id,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      emailEncrypted: encryptPii(data.email),
+      emailBlindIndex: createBlindIndex(data.email),
+      category: data.category,
+      messageEncrypted: encryptPii(data.message),
+      status: data.status,
+      assignedTo: data.assignedTo || null,
+      sourcePage: '/admin-manual',
+      country: 'Studio Direct',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,
@@ -277,13 +292,14 @@ export async function PATCH(req: NextRequest) {
 
     if (Object.keys(setPayload).length > 1) {
       await db.update(leads).set(setPayload).where(eq(leads.id, id));
+      await updateLeadInSupabase(id, setPayload);
 
       await logAuditEvent({
         adminId: sessionRes.admin.id,
         action: 'LEAD_UPDATED',
         resource: id,
         details: { oldStatus: currentLead.status, newStatus: status, assignedTo },
-        ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+        ipAddress: getClientIp(req),
       });
     }
 
@@ -305,7 +321,7 @@ export async function PATCH(req: NextRequest) {
         action: 'LEAD_NOTE_ADDED',
         resource: id,
         details: { noteLength: note.length },
-        ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+        ipAddress: getClientIp(req),
       });
     }
 
@@ -358,12 +374,13 @@ export async function DELETE(req: NextRequest) {
     }
 
     await db.delete(leads).where(eq(leads.id, id));
+    await deleteLeadFromSupabase(id);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,
       action: 'LEAD_DELETED',
       resource: id,
-      ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+      ipAddress: getClientIp(req),
     });
 
     return NextResponse.json({ success: true, message: 'Lead deleted' });

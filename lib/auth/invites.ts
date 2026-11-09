@@ -109,7 +109,7 @@ export async function consumeAdminInvite(token: string): Promise<boolean> {
       used: true,
       usedAt: Date.now(),
     })
-    .where(eq(invites.tokenHash, tokenHash));
+    .where(and(eq(invites.tokenHash, tokenHash), eq(invites.used, false)));
 
   return res.rowsAffected > 0;
 }

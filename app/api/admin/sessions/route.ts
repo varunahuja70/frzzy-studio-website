@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { validateAdminSession, SESSION_COOKIE_NAME, destroySession, destroyAllAdminSessions } from '@/lib/auth/session';
@@ -77,7 +78,7 @@ export async function DELETE(req: NextRequest) {
         adminId: sessionRes.admin.id,
         action: 'LOGOUT_ALL',
         details: { action: 'revoked_all_other_sessions' },
-        ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+        ipAddress: getClientIp(req),
       });
 
       return NextResponse.json({ success: true, message: 'All other sessions revoked.' });

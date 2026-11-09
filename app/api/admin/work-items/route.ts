@@ -9,6 +9,7 @@ import { resolveAdminPermissions } from '@/lib/auth/permissions';
 import { projectWorkItem } from '@/lib/work-items/field-projection';
 import { generateSequentialReferenceNumber } from '@/lib/work-items/reference-number';
 import { sanitizeExternalLink } from '@/lib/work-items/link-sanitizer';
+import { syncWorkItemToSupabase } from '@/lib/supabase/sync';
 
 const CreateWorkItemSchema = z.object({
   title: z.string().trim().min(2).max(180),
@@ -198,6 +199,29 @@ export async function POST(req: NextRequest) {
       version: 1,
     });
 
+
+    await syncWorkItemToSupabase({
+      id: itemId,
+      itemNumber,
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      source: data.source,
+      clientName: data.clientName,
+      clientEmail: data.clientEmail || null,
+      clientPhone: data.clientPhone || null,
+      clientCompany: data.clientCompany || null,
+      priority: data.priority,
+      status: 'assigned',
+      progressPercent: 0,
+      quotedPrice: perms.isSuperAdmin || perms.permissions.has('financials:edit') ? data.quotedPrice || 0 : 0,
+      currency: data.currency || 'INR',
+      dueDate: data.dueDate || null,
+      tags: data.tags || [],
+      links: sanitizedLinks,
+      createdAt: now,
+      updatedAt: now,
+    });
     // Record activity timeline entry
     await db.insert(workItemTimeline).values({
       id: crypto.randomUUID(),

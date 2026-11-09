@@ -2,13 +2,14 @@
  * Shared guard for vault content APIs (reviews): session + permission, and for writes a
  * same-origin check on top of the SameSite=Strict session cookie.
  */
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAdminSession } from '@/lib/auth/session';
 import { hasPermission, resolveAdminPermissions } from '@/lib/auth/permissions';
 import type { PermissionKey } from '@/lib/auth/permissions-constants';
 
 export function clientIp(req: NextRequest) {
-  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || '127.0.0.1';
+  return getClientIp(req);
 }
 
 function isSameOrigin(req: NextRequest) {

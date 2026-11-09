@@ -1,3 +1,4 @@
+import { isSameHost } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -22,7 +23,7 @@ export async function GET(
     // Hotlink protection: check Referer / Host when present
     const referer = req.headers.get('referer');
     const host = req.headers.get('host');
-    if (referer && host && !referer.includes(host)) {
+    if (referer && !isSameHost(referer, host)) {
       return NextResponse.json(
         { error: 'Forbidden: Hotlink protection violation' },
         { status: 403 }
@@ -75,7 +76,7 @@ export async function GET(
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
-      if (isNaN(start) || start >= fileSize || (parts[1] && end >= fileSize)) {
+      if (isNaN(start) || isNaN(end) || start > end || start >= fileSize || (parts[1] && end >= fileSize)) {
         return new NextResponse(null, {
           status: 416,
           headers: {

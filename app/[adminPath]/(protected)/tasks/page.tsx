@@ -927,7 +927,7 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
                         className="inline-flex items-center gap-2 px-3 py-2 rounded-[12px] bg-black/30 border border-white/[0.08] text-xs font-medium"
                       >
                         <a
-                          href={link.url}
+                          href={/^https?:\/\//i.test(link.url) ? link.url : undefined}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-[#ff4f31] text-white transition-colors flex items-center gap-1.5"

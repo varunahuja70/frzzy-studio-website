@@ -1,3 +1,6 @@
+import { encryptPii } from '@/lib/auth/encryption';
+import { isOverLimit } from '@/lib/request-limit';
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verifyAdminInvite, consumeAdminInvite } from '@/lib/auth/invites';
@@ -10,14 +13,18 @@ import { createAdminSession, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import { logAuditEvent } from '@/lib/auth/audit';
 
 const AcceptInviteSchema = z.object({
-  token: z.string().min(1),
+  token: z.string().min(1).max(128),
   password: z.string().min(12).max(256),
-  totpSecret: z.string().min(16),
+  totpSecret: z.string().min(16).max(128),
   totpCode: z.string().min(6).max(8),
 });
 
 export async function POST(req: NextRequest) {
   try {
+    if (isOverLimit('invite-accept', getClientIp(req), 20, 15 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
     const json = await req.json();
     const parsed = AcceptInviteSchema.safeParse(json);
     if (!parsed.success) {
@@ -46,6 +53,11 @@ export async function POST(req: NextRequest) {
 
     await ensureDatabaseReady();
 
+    // Claim the single-use invite first, so two simultaneous submissions can't both succeed
+    if (!(await consumeAdminInvite(token))) {
+      return NextResponse.json({ error: 'Invite link is invalid or has expired' }, { status: 400 });
+    }
+
     // 4. Hash password with Argon2id
     const { hash, salt } = await hashPassword(password);
     const now = Date.now();
@@ -56,7 +68,7 @@ export async function POST(req: NextRequest) {
       .set({
         passwordHash: hash,
         salt,
-        twoFactorSecret: totpSecret,
+        twoFactorSecret: encryptPii(totpSecret),
         twoFactorEnabled: true,
         mustChangePassword: false,
         mustSetup2Fa: false,
@@ -67,13 +79,7 @@ export async function POST(req: NextRequest) {
     // Record in password history
     await recordPasswordHistory(inviteRes.admin.id, hash, salt);
 
-    // 6. Consume invite single-use token
-    await consumeAdminInvite(token);
-
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
     const userAgent = req.headers.get('user-agent') || 'Unknown';
 
     // 7. Create authenticated session

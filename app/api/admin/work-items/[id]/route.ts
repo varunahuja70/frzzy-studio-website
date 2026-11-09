@@ -1,3 +1,5 @@
+import { sanitizeLinksArray } from '@/lib/work-items/link-sanitizer';
+import { canUpdateWorkItem, isHiddenPersonalItem, withoutStoragePath } from '@/lib/work-items/access';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -17,6 +19,7 @@ import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions } from '@/lib/auth/permissions';
 import { projectWorkItem } from '@/lib/work-items/field-projection';
 import { validateStatusTransition, WorkItemStatus } from '@/lib/work-items/state-machine';
+import { syncWorkItemToSupabase, deleteWorkItemFromSupabase } from '@/lib/supabase/sync';
 
 const UpdateWorkItemSchema = z.object({
   title: z.string().trim().min(2).max(180).optional(),
@@ -136,7 +139,7 @@ export async function GET(
     return NextResponse.json({
       workItem: projected,
       subtasks,
-      attachments,
+      attachments: attachments.map(withoutStoragePath),
       comments: visibleComments,
       timeline,
       canEdit: perms.isSuperAdmin || perms.permissions.has('work_items:edit') || isOwner,
@@ -180,6 +183,10 @@ export async function PATCH(
 
     if (!item) {
       return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+
+    if (!canUpdateWorkItem(item, perms)) {
+      return NextResponse.json({ error: 'Access denied: not assigned or authorized' }, { status: 403 });
     }
 
     const isAssignee = item.assignedTo === perms.adminId;
@@ -296,7 +303,7 @@ export async function PATCH(
         updates.tags = JSON.stringify(result.data.tags);
       }
       if (result.data.links !== undefined) {
-        updates.links = JSON.stringify(result.data.links);
+        updates.links = JSON.stringify(sanitizeLinksArray(result.data.links));
       }
 
       // Financial fields (Super Admin or Financials manager)
@@ -439,6 +446,16 @@ export async function DELETE(
 
     await ensureDatabaseReady();
 
+    const [item] = await db
+      .select()
+      .from(workItems)
+      .where(and(eq(workItems.id, id), isNull(workItems.deletedAt)))
+      .limit(1);
+
+    if (!item || isHiddenPersonalItem(item, perms)) {
+      return NextResponse.json({ error: 'Work item not found' }, { status: 404 });
+    }
+
     // Soft delete to Trash
     await db
       .update(workItems)
@@ -448,6 +465,8 @@ export async function DELETE(
         updatedAt: Date.now(),
       })
       .where(eq(workItems.id, id));
+
+    await deleteWorkItemFromSupabase(id);
 
     return NextResponse.json({ success: true, message: 'Work item moved to Trash.' });
   } catch (err) {

@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -6,7 +7,8 @@ import { admins, recoveryCodes, sessions } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyTotpToken, verifyRecoveryCode } from '@/lib/auth/totp';
 import { createAdminSession, SESSION_COOKIE_NAME, ABSOLUTE_TIMEOUT_MS } from '@/lib/auth/session';
-import { recordLoginAttempt } from '@/lib/auth/rate-limit';
+import { checkLoginLockout, recordLoginAttempt } from '@/lib/auth/rate-limit';
+import { decryptPii } from '@/lib/auth/encryption';
 import { logAuditEvent } from '@/lib/auth/audit';
 
 const TwoFactorSchema = z.object({
@@ -14,12 +16,11 @@ const TwoFactorSchema = z.object({
   isRecoveryCode: z.boolean().default(false),
 });
 
+const STEP_ONE_TTL_MS = 10 * 60 * 1000;
+
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
     const userAgent = req.headers.get('user-agent') || 'Unknown';
 
     const currentToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -55,6 +56,26 @@ export async function POST(req: NextRequest) {
 
     const { session, admin } = sessionRows[0];
 
+    // The password step is good for 10 minutes on the server too, not just in the cookie
+    const now = Date.now();
+    if (admin.status !== 'active' || admin.deletedAt || now > session.expiresAt || now - session.createdAt > STEP_ONE_TTL_MS) {
+      await db.delete(sessions).where(eq(sessions.id, session.id));
+      return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
+    }
+
+    // Without this, a stolen password would allow unlimited guesses at the 6-digit code
+    const lockout = await checkLoginLockout(admin.email, ip);
+    if (lockout.isLocked) {
+      return NextResponse.json(
+        {
+          error: `Too many failed attempts. Try again in ${lockout.remainingSeconds} seconds.`,
+          locked: true,
+          remainingSeconds: lockout.remainingSeconds,
+        },
+        { status: 429 }
+      );
+    }
+
     let verified = false;
     let usedRecoveryCodeId: string | null = null;
 
@@ -75,7 +96,7 @@ export async function POST(req: NextRequest) {
     } else {
       // Verify TOTP token
       if (admin.twoFactorSecret) {
-        verified = verifyTotpToken(code, admin.twoFactorSecret);
+        verified = verifyTotpToken(code, decryptPii(admin.twoFactorSecret));
       }
     }
 

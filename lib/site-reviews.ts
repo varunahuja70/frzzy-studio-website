@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import { settings } from '@/lib/db/schema';
+import { syncReviewsToSupabase, fetchReviewsFromSupabase } from '@/lib/supabase/sync';
 import { AdminReview, PublicReview, REVIEW_LIMITS, REVIEW_PLATFORMS, ReviewInput } from '@/lib/reviews-shared';
 
 export const SITE_REVIEWS_KEY = 'site_reviews';
@@ -63,6 +64,21 @@ const CACHE_MS = 10_000;
 
 async function readStore(fresh = false): Promise<Store> {
   if (!fresh && cache && Date.now() - cache.at < CACHE_MS) return cache.store;
+
+  // 1. Try reading from Supabase settings first
+  try {
+    const sbData = await fetchReviewsFromSupabase();
+    if (sbData && sbData.value) {
+      const parsed = typeof sbData.value === 'string' ? JSON.parse(sbData.value) : sbData.value;
+      if (parsed && Array.isArray(parsed.reviews)) {
+        const store: Store = { version: 1, reviews: parsed.reviews };
+        cache = { store, at: Date.now() };
+        return store;
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to local SQLite settings
   await ensureDatabaseReady();
   const rows = await db.select().from(settings).where(eq(settings.key, SITE_REVIEWS_KEY)).limit(1);
   let store: Store = { version: 1, reviews: [] };
@@ -81,10 +97,18 @@ async function readStore(fresh = false): Promise<Store> {
 async function writeStore(store: Store) {
   const now = Date.now();
   const value = JSON.stringify(store);
-  await db
-    .insert(settings)
-    .values({ key: SITE_REVIEWS_KEY, value, updatedAt: now })
-    .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: now } });
+
+  // 1. Persist directly to Supabase settings
+  await syncReviewsToSupabase(store);
+
+  // 2. Also save to local SQLite
+  try {
+    await db
+      .insert(settings)
+      .values({ key: SITE_REVIEWS_KEY, value, updatedAt: now })
+      .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: now } });
+  } catch {}
+
   cache = { store, at: Date.now() };
 }
 

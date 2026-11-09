@@ -1,3 +1,5 @@
+import { isOverLimit } from '@/lib/request-limit';
+import { getClientIp, isSameHost } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { signMediaToken } from '@/lib/media-crypto';
@@ -7,28 +9,11 @@ const TokenRequestSchema = z.object({
   slot: z.string().min(1).max(64),
 });
 
-// Simple in-memory sliding rate-limiter per client IP (max 120 token requests per min)
-const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = ipRequestCounts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    ipRequestCounts.set(ip, { count: 1, resetAt: now + 60000 });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > 120;
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
-    if (isRateLimited(ip)) {
+    if (isOverLimit('media-token', ip, 120, 60_000)) {
       return NextResponse.json(
         { error: 'Too many requests' },
         { status: 429, headers: { 'Retry-After': '60' } }
@@ -38,7 +23,7 @@ export async function POST(req: NextRequest) {
     // Origin / Referer validation against hotlinking
     const referer = req.headers.get('referer');
     const host = req.headers.get('host');
-    if (referer && host && !referer.includes(host)) {
+    if (referer && !isSameHost(referer, host)) {
       return NextResponse.json({ error: 'Unauthorized request' }, { status: 403 });
     }
 

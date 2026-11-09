@@ -1,3 +1,6 @@
+import { getSecret } from '@/lib/auth/secrets';
+import { isOverLimit } from '@/lib/request-limit';
+import { getClientIp, isSameHost } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -17,7 +20,10 @@ const EventItemSchema = z.object({
   deviceType: z.enum(['mobile', 'tablet', 'desktop']).optional(),
   browser: z.string().max(50).optional(),
   os: z.string().max(50).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .refine((value) => JSON.stringify(value).length <= 2048, 'Metadata too large')
+    .optional(),
   timestamp: z.number().optional(),
 });
 
@@ -29,32 +35,15 @@ const BatchSchema = z.object({
 // Daily rotating salt for the cookie-free visitor hash (used for everyone, with or without cookie consent)
 function getDailySalt(): string {
   const dateStr = new Date().toISOString().slice(0, 10);
-  const secret = process.env.ANALYTICS_SALT || 'frxcx-studio-analytics-salt-2026';
+  const secret = getSecret('ANALYTICS_SALT');
   return crypto.createHmac('sha256', secret).update(dateStr).digest('hex');
-}
-
-// In-memory sliding rate-limiter: max 120 analytics requests per IP per minute
-const ipRateCounts = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = ipRateCounts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    ipRateCounts.set(ip, { count: 1, resetAt: now + 60000 });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > 120;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
-    if (isRateLimited(ip)) {
+    if (isOverLimit('analytics', ip, 120, 60_000)) {
       return new NextResponse(null, { status: 429 });
     }
 
@@ -67,7 +56,7 @@ export async function POST(req: NextRequest) {
     // Origin verification
     const origin = req.headers.get('origin');
     const host = req.headers.get('host');
-    if (origin && host && !origin.includes(host)) {
+    if (origin && !isSameHost(origin, host)) {
       return NextResponse.json({ error: 'Forbidden origin' }, { status: 403 });
     }
 
@@ -123,7 +112,8 @@ export async function POST(req: NextRequest) {
       os: evt.os || 'Unknown',
       country,
       metadata: evt.metadata ? JSON.stringify(evt.metadata) : null,
-      createdAt: evt.timestamp || Date.now(),
+      // A browser's clock is only trusted when it is close to the server's
+      createdAt: evt.timestamp && Math.abs(evt.timestamp - Date.now()) < 86_400_000 ? evt.timestamp : Date.now(),
     }));
 
     await db.insert(analyticsEvents).values(rowsToInsert);

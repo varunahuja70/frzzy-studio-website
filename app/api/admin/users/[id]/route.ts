@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateAdminSession, destroyAllAdminSessions } from '@/lib/auth/session';
@@ -131,10 +132,7 @@ export async function PATCH(
       await destroyAllAdminSessions(targetId);
     }
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,
@@ -201,47 +199,36 @@ export async function DELETE(
       await ensureNotLastSuperAdmin(targetId);
     }
 
-    // Soft-delete with timestamp
-    const now = Date.now();
-    await db
-      .update(admins)
-      .set({
-        deletedAt: now,
-        status: 'disabled',
-        updatedAt: now,
-      })
-      .where(eq(admins.id, targetId));
-
-    // Sync delete to Supabase
+    // 1. Delete from Supabase Auth and Profiles
     try {
       const supabase = getAdminSupabaseClient();
-      await (supabase.from('profiles') as any).update({
-        status: 'disabled',
-        deleted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq('id', targetId);
+      // Delete from Supabase Auth (cascades to profiles)
+      const { error: sbDeleteErr } = await supabase.auth.admin.deleteUser(targetId);
+      if (sbDeleteErr) {
+        console.warn('Supabase auth deleteUser warning:', sbDeleteErr.message);
+      }
+      // Ensure row is removed from profiles table
+      await (supabase.from('profiles') as any).delete().eq('id', targetId);
     } catch (e) {
       console.warn('Supabase DELETE sync error:', e);
     }
 
-    // Immediately kill all active sessions
+    // 2. Remove from local SQLite database and terminate sessions
+    await db.delete(admins).where(eq(admins.id, targetId));
     await destroyAllAdminSessions(targetId);
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,
       action: 'USER_DELETED',
       resource: target.email,
-      details: { targetId, softDeleted: true },
+      details: { targetId, deletedFromSupabase: true },
       ipAddress: ip,
       userAgent: req.headers.get('user-agent') || undefined,
     });
 
-    return NextResponse.json({ success: true, message: 'User soft-deleted and all sessions revoked' });
+    return NextResponse.json({ success: true, message: 'User permanently deleted from Supabase Auth, profiles, and vault' });
   } catch (err: any) {
     console.error('Delete user error:', err);
     return NextResponse.json({ error: err.message || 'Failed to delete user' }, { status: 400 });

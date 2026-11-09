@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
       const { data: sbProfiles } = await (supabase.from('profiles') as any).select('*');
       if (sbProfiles && sbProfiles.length > 0) {
         for (const p of (sbProfiles as any[]) || []) {
+          if (p.deleted_at || p.status === 'disabled') continue;
           const exists = await db
             .select({ id: admins.id })
             .from(admins)
@@ -335,10 +337,7 @@ export async function POST(req: NextRequest) {
       inviteUrl = inviteRes.inviteUrl;
     }
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,

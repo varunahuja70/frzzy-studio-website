@@ -1,3 +1,4 @@
+import { getClientIp } from '@/lib/client-ip';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions, hasPermission } from '@/lib/auth/permissions';
@@ -49,10 +50,7 @@ export async function POST(
     const origin = req.headers.get('origin') || undefined;
     const invite = await createAdminInvite(targetId, origin);
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      '127.0.0.1';
+    const ip = getClientIp(req);
 
     await logAuditEvent({
       adminId: sessionRes.admin.id,

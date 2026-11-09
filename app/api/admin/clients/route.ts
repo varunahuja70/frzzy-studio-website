@@ -6,6 +6,7 @@ import { clients, workItems } from '@/lib/db/schema';
 import { desc, like, or, eq, sql } from 'drizzle-orm';
 import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions } from '@/lib/auth/permissions';
+import { syncClientToSupabase, deleteClientFromSupabase } from '@/lib/supabase/sync';
 
 const ClientSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -89,6 +90,20 @@ export async function POST(req: NextRequest) {
       updatedAt: now,
     });
 
+    // Sync to Supabase public.clients
+    await syncClientToSupabase({
+      id: clientId,
+      name: data.name,
+      email: data.email || null,
+      phone: data.phone || null,
+      company: data.company || null,
+      billingAddress: data.billingAddress || null,
+      gstin: data.gstin || null,
+      notes: data.notes || null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
     return NextResponse.json({
       success: true,
       clientId,
@@ -97,5 +112,34 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('Create client error:', err);
     return NextResponse.json({ error: 'Failed to create client' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const sessionRes = await validateAdminSession(req);
+    if (!sessionRes.valid || !sessionRes.admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const perms = await resolveAdminPermissions(sessionRes.admin.id);
+    if (!perms || (!perms.isSuperAdmin && !perms.permissions.has('clients:manage'))) {
+      return NextResponse.json({ error: 'Permission denied: clients:manage required' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const clientId = searchParams.get('id');
+    if (!clientId) {
+      return NextResponse.json({ error: 'Client ID required' }, { status: 400 });
+    }
+
+    await ensureDatabaseReady();
+    await db.delete(clients).where(eq(clients.id, clientId));
+    await deleteClientFromSupabase(clientId);
+
+    return NextResponse.json({ success: true, message: 'Client deleted' });
+  } catch (err) {
+    console.error('Delete client error:', err);
+    return NextResponse.json({ error: 'Failed to delete client' }, { status: 500 });
   }
 }

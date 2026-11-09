@@ -61,6 +61,19 @@ async function flushAuditQueue() {
       const batch = auditQueue.splice(0, 50);
       for (const item of batch) {
         await db.insert(auditLogs).values(item);
+        try {
+          const { syncAuditLogToSupabase } = await import('@/lib/supabase/sync');
+          await syncAuditLogToSupabase({
+            id: item.id,
+            adminId: item.adminId,
+            action: item.action,
+            resource: item.resource,
+            details: item.details ? JSON.parse(item.details) : {},
+            ipAddress: item.ipAddress,
+            userAgent: item.userAgent,
+            createdAt: item.createdAt,
+          });
+        } catch {}
       }
     }
   } catch (err) {

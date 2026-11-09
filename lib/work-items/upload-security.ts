@@ -1,3 +1,4 @@
+import { getSecret } from '@/lib/auth/secrets';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -28,8 +29,8 @@ const MAGIC_BYTES: Record<string, number[][]> = {
   ],
 };
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
-const SIGNING_SECRET = process.env.MEDIA_SIGNING_SECRET || 'frxcx-uploads-hmac-secret-hardened-2026';
+export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+const signingSecret = () => getSecret('MEDIA_SIGNING_SECRET');
 
 export interface FileValidationResult {
   valid: boolean;
@@ -113,7 +114,7 @@ export function generateSignedDownloadToken(params: {
   const { attachmentId, adminId, expiresInSeconds = 900 } = params;
   const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
   const payload = `${attachmentId}:${adminId}:${expiresAt}`;
-  const hmac = crypto.createHmac('sha256', SIGNING_SECRET).update(payload).digest('hex');
+  const hmac = crypto.createHmac('sha256', signingSecret()).update(payload).digest('hex');
 
   const tokenData = JSON.stringify({ attachmentId, adminId, expiresAt, hmac });
   return Buffer.from(tokenData).toString('base64url');
@@ -140,7 +141,7 @@ export function verifySignedDownloadToken(
     }
 
     const payload = `${parsed.attachmentId}:${parsed.adminId}:${parsed.expiresAt}`;
-    const expectedHmac = crypto.createHmac('sha256', SIGNING_SECRET).update(payload).digest('hex');
+    const expectedHmac = crypto.createHmac('sha256', signingSecret()).update(payload).digest('hex');
 
     const expectedBuffer = Buffer.from(expectedHmac);
     const providedBuffer = Buffer.from(parsed.hmac);
