@@ -23,6 +23,10 @@ import {
   ChevronDown,
   Clock,
   Sliders,
+  Sparkles,
+  Eye,
+  EyeOff,
+  ShieldCheck,
 } from 'lucide-react';
 import { ReauthModal } from '@/components/admin/reauth-modal';
 import { getCachedData, setCachedData } from '@/lib/client-cache';
@@ -92,6 +96,9 @@ export default function AdminUsersPage(props: {
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('manager');
   const [newStatus, setNewStatus] = useState<'active' | 'disabled'>('active');
+  const [passwordType, setPasswordType] = useState<'random' | 'custom'>('random');
+  const [customPassword, setCustomPassword] = useState('');
+  const [showCustomPassword, setShowCustomPassword] = useState(false);
   const [newCreateInvite, setNewCreateInvite] = useState(false);
   const [newScopeStatuses, setNewScopeStatuses] = useState<string[]>([]);
   const [newScopeAssignedOnly, setNewScopeAssignedOnly] = useState(false);
@@ -189,6 +196,8 @@ export default function AdminUsersPage(props: {
               email: newEmail,
               role: newRole,
               status: newStatus,
+              passwordType,
+              customPassword: passwordType === 'custom' ? customPassword.trim() : undefined,
               createInvite: newCreateInvite,
               leadScope: Object.keys(leadScopePayload).length > 0 ? leadScopePayload : undefined,
             }),
@@ -208,6 +217,8 @@ export default function AdminUsersPage(props: {
             setNewName('');
             setNewEmail('');
             setNewRole('manager');
+            setPasswordType('random');
+            setCustomPassword('');
             setNewScopeStatuses([]);
             setNewScopeAssignedOnly(false);
             setNewScopeMaxAge('');
@@ -600,10 +611,15 @@ export default function AdminUsersPage(props: {
               </button>
             </div>
 
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>Stored & Synchronized directly in Supabase Database</span>
+            </div>
+
             {tempPasswordResult.temporaryPassword && (
               <div>
                 <label className="block text-xs font-semibold text-[#5a6265] dark:text-[#a09d93] mb-1.5">
-                  One-Time Temporary Password
+                  Account Access Password
                 </label>
                 <div className="flex items-center gap-2 p-3 rounded-[12px] bg-black/[0.04] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08]">
                   <code className="flex-1 font-mono text-xs font-bold text-[#ff4f31] break-all select-all">
@@ -748,6 +764,75 @@ export default function AdminUsersPage(props: {
                     <option value="active">Active</option>
                     <option value="disabled">Disabled</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Password Mode Selector */}
+              <div className="p-3.5 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.07] flex flex-col gap-2.5">
+                <label className="block text-xs font-bold text-[#f4efea] flex items-center gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5 text-[#ff4f31]" />
+                  Password & Credentials Method
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPasswordType('random')}
+                    className={`h-10 px-3 rounded-[12px] text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                      passwordType === 'random'
+                        ? 'bg-[#ff4f31]/15 border-[#ff4f31] text-[#ff4f31]'
+                        : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.08] text-[#a09d93]'
+                    }`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Random Password</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPasswordType('custom')}
+                    className={`h-10 px-3 rounded-[12px] text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                      passwordType === 'custom'
+                        ? 'bg-[#ff4f31]/15 border-[#ff4f31] text-[#ff4f31]'
+                        : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.08] dark:border-white/[0.08] text-[#a09d93]'
+                    }`}
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    <span>Custom Password</span>
+                  </button>
+                </div>
+
+                {passwordType === 'custom' ? (
+                  <div className="pt-1">
+                    <label className="block text-[11px] font-semibold text-[#a09d93] mb-1">
+                      Custom Password (min. 8 characters)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showCustomPassword ? 'text' : 'password'}
+                        required={passwordType === 'custom'}
+                        minLength={8}
+                        value={customPassword}
+                        onChange={(e) => setCustomPassword(e.target.value)}
+                        placeholder="Enter custom password..."
+                        className="w-full h-10 pl-3.5 pr-10 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.08] dark:border-white/[0.08] text-xs outline-none focus:border-[#ff4f31]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomPassword(!showCustomPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a09d93] hover:text-[#f4efea]"
+                      >
+                        {showCustomPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[#a09d93]">
+                    A cryptographically high-entropy 18-character password will be auto-generated and saved to Supabase.
+                  </p>
+                )}
+
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                  <span>Will be stored in Supabase Auth & public.profiles</span>
                 </div>
               </div>
 

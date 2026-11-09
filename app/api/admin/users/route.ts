@@ -5,16 +5,19 @@ import { validateAdminSession } from '@/lib/auth/session';
 import { resolveAdminPermissions, hasPermission, LeadScopeConfig } from '@/lib/auth/permissions';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import { admins, roles, sessions, passwordHistory } from '@/lib/db/schema';
-import { eq, and, isNull, desc, like, or, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import { hashPassword, generateTemporaryPassword, recordPasswordHistory } from '@/lib/auth/password';
 import { createAdminInvite } from '@/lib/auth/invites';
 import { verifyReauthGrant } from '@/lib/auth/reauth';
 import { logAuditEvent } from '@/lib/auth/audit';
+import { getAdminSupabaseClient } from '@/lib/supabase/admin';
 
 const CreateUserSchema = z.object({
   name: z.string().trim().min(1).max(100),
   email: z.string().trim().email().toLowerCase(),
   role: z.string().min(1),
+  passwordType: z.enum(['random', 'custom']).default('random'),
+  customPassword: z.string().min(8).max(128).optional(),
   customPermissions: z.array(z.string()).optional(),
   leadScope: z.object({
     statuses: z.array(z.enum(['new', 'contacted', 'in_progress', 'won', 'lost', 'spam'])).optional(),
@@ -40,6 +43,41 @@ export async function GET(req: NextRequest) {
     }
 
     await ensureDatabaseReady();
+
+    // Sync any existing profiles from Supabase into local admins if not already present
+    try {
+      const supabase = getAdminSupabaseClient();
+      const { data: sbProfiles } = await (supabase.from('profiles') as any).select('*');
+      if (sbProfiles && sbProfiles.length > 0) {
+        for (const p of (sbProfiles as any[]) || []) {
+          const exists = await db
+            .select({ id: admins.id })
+            .from(admins)
+            .where(eq(admins.email, p.email.toLowerCase()))
+            .limit(1);
+
+          if (exists.length === 0) {
+            const now = Date.now();
+            await db.insert(admins).values({
+              id: p.id,
+              name: p.name || null,
+              email: p.email.toLowerCase(),
+              passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$dummy$dummy',
+              salt: 'synced_from_supabase',
+              role: p.role || 'viewer',
+              status: p.status || 'active',
+              twoFactorEnabled: Boolean(p.two_factor_enabled),
+              mustChangePassword: Boolean(p.must_change_password),
+              mustSetup2Fa: Boolean(p.must_setup_2fa),
+              createdAt: p.created_at ? new Date(p.created_at).getTime() : now,
+              updatedAt: p.updated_at ? new Date(p.updated_at).getTime() : now,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // Non-blocking sync check
+    }
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search')?.toLowerCase().trim() || '';
@@ -147,9 +185,20 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // Validate custom password length if chosen
+    if (data.passwordType === 'custom') {
+      if (!data.customPassword || data.customPassword.trim().length < 8) {
+        return NextResponse.json(
+          { error: 'Custom password must be at least 8 characters long' },
+          { status: 400 }
+        );
+      }
+    }
+
     await ensureDatabaseReady();
 
-    // Check if email already registered
+    // Check if email already registered locally
     const existing = await db
       .select({ id: admins.id })
       .from(admins)
@@ -160,11 +209,79 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A user with this email address already exists' }, { status: 409 });
     }
 
-    // Generate secure temporary password
-    const temporaryPassword = generateTemporaryPassword();
-    const { hash, salt } = await hashPassword(temporaryPassword);
+    // Determine password to use
+    const finalPassword =
+      data.passwordType === 'custom' && data.customPassword
+        ? data.customPassword.trim()
+        : generateTemporaryPassword();
 
-    const newAdminId = crypto.randomUUID();
+    // 1. SUPABASE AUTH & SUPABASE PROFILES SYNCHRONIZATION
+    let supabaseUserId: string | null = null;
+    try {
+      const supabase = getAdminSupabaseClient();
+
+      // Check if user already exists in Supabase Auth
+      const { data: userList } = await supabase.auth.admin.listUsers();
+      const existingSbUser = userList?.users?.find(
+        (u) => u.email?.toLowerCase() === data.email.toLowerCase()
+      );
+
+      if (existingSbUser) {
+        supabaseUserId = existingSbUser.id;
+        // Update their password and metadata
+        await supabase.auth.admin.updateUserById(supabaseUserId, {
+          password: finalPassword,
+          user_metadata: {
+            name: data.name,
+            role: data.role,
+          },
+        });
+      } else {
+        // Create brand new user in Supabase Auth
+        const { data: createData, error: createError } = await supabase.auth.admin.createUser({
+          email: data.email,
+          password: finalPassword,
+          email_confirm: true,
+          user_metadata: {
+            name: data.name,
+            role: data.role,
+          },
+        });
+
+        if (createError) {
+          console.warn('Supabase auth createUser warning:', createError.message);
+        } else if (createData?.user) {
+          supabaseUserId = createData.user.id;
+        }
+      }
+
+      // Upsert into Supabase public.profiles table
+      if (supabaseUserId) {
+        await (supabase.from('profiles') as any).upsert(
+          {
+            id: supabaseUserId,
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            status: data.status,
+            custom_permissions: data.customPermissions || [],
+            lead_scope: data.leadScope || {},
+            two_factor_enabled: false,
+            must_change_password: data.passwordType === 'random',
+            must_setup_2fa: false,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+      }
+    } catch (sbErr) {
+      console.error('Supabase user creation sync error:', sbErr);
+      // We still proceed so the Vault admin record is created
+    }
+
+    // 2. VAULT DATABASE INSERTION
+    const { hash, salt } = await hashPassword(finalPassword);
+    const newAdminId = supabaseUserId || crypto.randomUUID();
     const now = Date.now();
 
     await db.insert(admins).values({
@@ -175,8 +292,8 @@ export async function POST(req: NextRequest) {
       salt,
       role: data.role,
       status: data.status,
-      mustChangePassword: true, // Forced password change on first login
-      mustSetup2Fa: true, // Mandatory 2FA enrollment on first login
+      mustChangePassword: data.passwordType === 'random', // Force change on random pw
+      mustSetup2Fa: false,
       twoFactorEnabled: false,
       customPermissions: data.customPermissions ? JSON.stringify(data.customPermissions) : null,
       leadScope: data.leadScope ? JSON.stringify(data.leadScope) : null,
@@ -209,7 +326,8 @@ export async function POST(req: NextRequest) {
         newUserId: newAdminId,
         role: data.role,
         status: data.status,
-        hasLeadScope: Boolean(data.leadScope),
+        passwordType: data.passwordType,
+        supabaseSynced: Boolean(supabaseUserId),
       },
       ipAddress: ip,
       userAgent: req.headers.get('user-agent') || undefined,
@@ -224,8 +342,11 @@ export async function POST(req: NextRequest) {
         role: data.role,
         status: data.status,
       },
-      temporaryPassword,
+      temporaryPassword: finalPassword,
+      password: finalPassword,
+      passwordType: data.passwordType,
       inviteUrl,
+      supabaseSynced: Boolean(supabaseUserId),
     });
   } catch (err) {
     console.error('Create user error:', err);

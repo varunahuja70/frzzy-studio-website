@@ -606,7 +606,7 @@ export async function initDatabase(): Promise<void> {
         role = 'superadmin',
         updated_at = EXCLUDED.updated_at`,
       args: [
-        '95015e7c-273d-44d1-b3e6-4908c2a24ac4',
+        'eedfaaae-f694-455e-bc30-0880f7cf4bca',
         adminEmail,
         '$argon2id$v=19$m=65536,t=3,p=4$MDcwMjUyZWFlNWVjZmM4MzA1NTEzMzMwZTY4YjViNzA$eCbl2F+yTbyrdTipzQcNzOrxJ8Uv9uM6YuJ3w0NGnR8',
         '070252eae5ecfc8305513330e68b5b70',

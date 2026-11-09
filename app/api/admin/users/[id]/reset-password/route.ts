@@ -7,6 +7,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { hashPassword, generateTemporaryPassword, recordPasswordHistory } from '@/lib/auth/password';
 import { verifyReauthGrant } from '@/lib/auth/reauth';
 import { logAuditEvent } from '@/lib/auth/audit';
+import { getAdminSupabaseClient } from '@/lib/supabase/admin';
 
 export async function POST(
   req: NextRequest,
@@ -33,6 +34,10 @@ export async function POST(
       );
     }
 
+    const json = await req.json().catch(() => ({}));
+    const customPassword = typeof json?.password === 'string' && json.password.trim().length >= 8 ? json.password.trim() : null;
+    const finalPassword = customPassword || generateTemporaryPassword();
+
     await ensureDatabaseReady();
 
     const targetRows = await db
@@ -46,18 +51,27 @@ export async function POST(
     }
 
     const target = targetRows[0];
-    const temporaryPassword = generateTemporaryPassword();
-    const { hash, salt } = await hashPassword(temporaryPassword);
+    const { hash, salt } = await hashPassword(finalPassword);
 
     await db
       .update(admins)
       .set({
         passwordHash: hash,
         salt,
-        mustChangePassword: true,
+        mustChangePassword: !customPassword,
         updatedAt: Date.now(),
       })
       .where(eq(admins.id, targetId));
+
+    // Sync password reset to Supabase Auth
+    try {
+      const supabase = getAdminSupabaseClient();
+      await supabase.auth.admin.updateUserById(targetId, {
+        password: finalPassword,
+      });
+    } catch (sbErr) {
+      console.warn('Supabase password reset warning:', sbErr);
+    }
 
     await recordPasswordHistory(targetId, hash, salt);
     await destroyAllAdminSessions(targetId);
@@ -71,15 +85,16 @@ export async function POST(
       adminId: sessionRes.admin.id,
       action: 'PASSWORD_RESET_BY_ADMIN',
       resource: target.email,
-      details: { targetId },
+      details: { targetId, isCustom: Boolean(customPassword) },
       ipAddress: ip,
       userAgent: req.headers.get('user-agent') || undefined,
     });
 
     return NextResponse.json({
       success: true,
-      temporaryPassword,
-      message: 'New temporary password generated. Sessions revoked.',
+      temporaryPassword: finalPassword,
+      password: finalPassword,
+      message: 'Password reset successfully and synchronized to Supabase.',
     });
   } catch (err: any) {
     console.error('Reset password error:', err);

@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import { admins, recoveryCodes } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyPassword } from '@/lib/auth/password';
+import { verifyPassword, hashPassword } from '@/lib/auth/password';
+import { getAdminSupabaseClient } from '@/lib/supabase/admin';
 import { checkLoginLockout, recordLoginAttempt } from '@/lib/auth/rate-limit';
 import { createAdminSession, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import { generateTotpSetup, generateRecoveryCodes } from '@/lib/auth/totp';
@@ -81,32 +82,123 @@ export async function POST(req: NextRequest) {
       .where(eq(admins.email, email.toLowerCase().trim()))
       .limit(1);
 
-    if (existingAdmins.length === 0) {
-      // Simulate dummy password verification to neutralize timing discovery
-      await verifyPassword(
-        password,
-        '$argon2id$v=19$m=65536,t=3,p=4$dummySalt12345678$dummyHashDummyHashDummyHashDummyHashDummyH',
-        'dummySalt12345678'
-      );
-      await recordLoginAttempt(email, ip, false, 'unknown_user');
-      await ensureMinResponseTime();
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    let admin = existingAdmins[0];
+    let passwordValid = false;
+
+    if (admin) {
+      if (admin.status !== 'active') {
+        await recordLoginAttempt(email, ip, false, 'account_disabled');
+        await ensureMinResponseTime();
+        return NextResponse.json({ error: 'Account disabled. Contact engineering.' }, { status: 403 });
+      }
+      passwordValid = await verifyPassword(password, admin.passwordHash, admin.salt);
     }
 
-    const admin = existingAdmins[0];
-
-    if (admin.status !== 'active') {
-      await recordLoginAttempt(email, ip, false, 'account_disabled');
-      await ensureMinResponseTime();
-      return NextResponse.json({ error: 'Account disabled. Contact engineering.' }, { status: 403 });
-    }
-
-    const passwordValid = await verifyPassword(password, admin.passwordHash, admin.salt);
-
+    // Supabase Auth verification fallback
     if (!passwordValid) {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (supabaseUrl && supabaseAnonKey) {
+          const { createClient } = await import('@supabase/supabase-js');
+          const sbClient = createClient(supabaseUrl, supabaseAnonKey);
+          const { data: sbData, error: sbError } = await sbClient.auth.signInWithPassword({
+            email: email.toLowerCase().trim(),
+            password,
+          });
+
+          if (!sbError && sbData?.user) {
+            passwordValid = true;
+            const sbUser = sbData.user;
+            let userRole = 'viewer';
+            let userName = (sbUser.user_metadata?.name as string) || null;
+            let userStatus = 'active';
+
+            try {
+              const adminSb = getAdminSupabaseClient();
+              const { data: profile } = await (adminSb.from('profiles') as any)
+                .select('*')
+                .eq('id', sbUser.id)
+                .single();
+              if (profile) {
+                const p = profile as any;
+                userRole = p.role || userRole;
+                userName = p.name || userName;
+                userStatus = p.status || userStatus;
+              }
+            } catch {}
+
+            if (userStatus !== 'active') {
+              await recordLoginAttempt(email, ip, false, 'account_disabled');
+              await ensureMinResponseTime();
+              return NextResponse.json({ error: 'Account disabled. Contact engineering.' }, { status: 403 });
+            }
+
+            const { hash, salt } = await hashPassword(password);
+            const now = Date.now();
+
+            if (!admin) {
+              await db.insert(admins).values({
+                id: sbUser.id,
+                name: userName,
+                email: email.toLowerCase().trim(),
+                passwordHash: hash,
+                salt,
+                role: userRole,
+                status: 'active',
+                mustChangePassword: false,
+                mustSetup2Fa: false,
+                twoFactorEnabled: false,
+                createdAt: now,
+                updatedAt: now,
+              }).onConflictDoUpdate({
+                target: admins.id,
+                set: {
+                  passwordHash: hash,
+                  salt,
+                  role: userRole,
+                  status: 'active',
+                  updatedAt: now,
+                }
+              });
+
+              admin = {
+                id: sbUser.id,
+                name: userName,
+                email: email.toLowerCase().trim(),
+                passwordHash: hash,
+                salt,
+                role: userRole,
+                status: 'active',
+                mustChangePassword: false,
+                mustSetup2Fa: false,
+                twoFactorEnabled: false,
+                twoFactorSecret: null,
+                customPermissions: null,
+                leadScope: null,
+                expiresAt: null,
+                deletedAt: null,
+                lastLoginAt: now,
+                createdAt: now,
+                updatedAt: now,
+              } as any;
+            } else {
+              await db
+                .update(admins)
+                .set({ passwordHash: hash, salt, role: userRole, updatedAt: now })
+                .where(eq(admins.id, admin.id));
+            }
+          }
+        }
+      } catch (sbErr) {
+        console.error('[login] Supabase auth fallback error:', sbErr);
+      }
+    }
+
+    if (!passwordValid || !admin) {
       await recordLoginAttempt(email, ip, false, 'invalid_password');
       await logAuditEvent({
-        adminId: admin.id,
+        adminId: admin?.id,
         action: 'LOGIN_FAILED',
         resource: email,
         ipAddress: ip,

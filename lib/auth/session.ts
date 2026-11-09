@@ -149,7 +149,33 @@ export async function validateAdminSession(
         if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) {
           const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
           if (payload && payload.adminId && payload.expiresAt && now < payload.expiresAt) {
-            const adminRows = await db.select().from(admins).where(eq(admins.id, payload.adminId)).limit(1);
+            let adminRows = await db.select().from(admins).where(eq(admins.id, payload.adminId)).limit(1);
+            if (adminRows.length === 0) {
+              try {
+                const { getAdminSupabaseClient } = await import('@/lib/supabase/admin');
+                const supabase = getAdminSupabaseClient();
+                const { data: profile } = await (supabase.from('profiles') as any).select('*').eq('id', payload.adminId).single();
+                const p = profile as any;
+                if (p && p.status === 'active') {
+                  const syncNow = Date.now();
+                  await db.insert(admins).values({
+                    id: p.id,
+                    name: p.name || null,
+                    email: p.email.toLowerCase(),
+                    passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$dummy$dummy',
+                    salt: 'synced_from_supabase',
+                    role: p.role || 'viewer',
+                    status: 'active',
+                    twoFactorEnabled: false,
+                    mustChangePassword: false,
+                    mustSetup2Fa: false,
+                    createdAt: syncNow,
+                    updatedAt: syncNow,
+                  }).onConflictDoNothing();
+                  adminRows = await db.select().from(admins).where(eq(admins.id, payload.adminId)).limit(1);
+                }
+              } catch {}
+            }
             if (adminRows.length > 0) {
               const fallbackAdmin = adminRows[0];
               if (fallbackAdmin.status === 'active' && !fallbackAdmin.deletedAt && (!fallbackAdmin.expiresAt || now <= fallbackAdmin.expiresAt)) {

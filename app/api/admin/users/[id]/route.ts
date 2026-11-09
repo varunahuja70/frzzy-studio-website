@@ -7,6 +7,7 @@ import { admins } from '@/lib/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { verifyReauthGrant } from '@/lib/auth/reauth';
 import { logAuditEvent } from '@/lib/auth/audit';
+import { getAdminSupabaseClient } from '@/lib/supabase/admin';
 
 const UpdateUserSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -96,6 +97,32 @@ export async function PATCH(
 
     await db.update(admins).set(setPayload).where(eq(admins.id, targetId));
 
+    // Sync update to Supabase
+    try {
+      const supabase = getAdminSupabaseClient();
+      const sbPayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (updateData.name !== undefined) sbPayload.name = updateData.name;
+      if (updateData.role !== undefined) sbPayload.role = updateData.role;
+      if (updateData.status !== undefined) sbPayload.status = updateData.status;
+      if (updateData.customPermissions !== undefined) sbPayload.custom_permissions = updateData.customPermissions;
+      if (updateData.leadScope !== undefined) sbPayload.lead_scope = updateData.leadScope;
+
+      await (supabase.from('profiles') as any).update(sbPayload).eq('id', targetId);
+
+      if (updateData.name || updateData.role) {
+        await supabase.auth.admin.updateUserById(targetId, {
+          user_metadata: {
+            ...(updateData.name ? { name: updateData.name } : {}),
+            ...(updateData.role ? { role: updateData.role } : {}),
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Supabase PATCH sync error:', e);
+    }
+
     // If disabled or role changed, invalidate target user's active sessions immediately
     if (
       (updateData.status && updateData.status === 'disabled') ||
@@ -184,6 +211,18 @@ export async function DELETE(
         updatedAt: now,
       })
       .where(eq(admins.id, targetId));
+
+    // Sync delete to Supabase
+    try {
+      const supabase = getAdminSupabaseClient();
+      await (supabase.from('profiles') as any).update({
+        status: 'disabled',
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', targetId);
+    } catch (e) {
+      console.warn('Supabase DELETE sync error:', e);
+    }
 
     // Immediately kill all active sessions
     await destroyAllAdminSessions(targetId);
