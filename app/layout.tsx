@@ -71,12 +71,16 @@ export default async function RootLayout({
       data-metal={appearance.metal}
       className={`${geistSans.variable} ${geistMono.variable} ${interTight.variable} ${plusJakarta.variable} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden overflow-x-clip`}
     >
-      <head>
+      <head suppressHydrationWarning>
         {/* Appearance is server-rendered on <html> above (set in the vault); this script only applies
             one-off ?palette=&look=… preview overrides, e.g. for the vault's live preview. */}
-        <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
+        <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
         {/* Colour tokens for every palette, generated from lib/palette.ts. */}
-        <style id="palette-tokens" dangerouslySetInnerHTML={{ __html: paletteCss(appearance.palette) }} />
+        <style
+          id="palette-tokens"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: paletteCss(appearance.palette) }}
+        />
       </head>
       <body
         suppressHydrationWarning
