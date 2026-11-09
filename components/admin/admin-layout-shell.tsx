@@ -62,8 +62,11 @@ export function AdminLayoutShell({
   const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
-    setIsNavigating(false);
-    setOptimisticPath(null);
+    const timer = setTimeout(() => {
+      setIsNavigating(false);
+      setOptimisticPath(null);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [pathname]);
 
   // Top bar dropdowns

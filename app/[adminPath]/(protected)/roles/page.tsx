@@ -84,7 +84,10 @@ export default function AdminRolesPage(props: {
   }, [adminPath]);
 
   useEffect(() => {
-    fetchRoles();
+    const timer = setTimeout(() => {
+      void fetchRoles();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchRoles]);
 
   const executeWithReauth = (action: () => Promise<void>, title: string, desc: string) => {

@@ -145,8 +145,11 @@ export default function AdminUsersPage(props: {
   }, []);
 
   useEffect(() => {
-    fetchUsers();
-    fetchRoles();
+    const timer = setTimeout(() => {
+      void fetchUsers();
+      void fetchRoles();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchUsers, fetchRoles]);
 
   const executeWithReauth = (action: () => Promise<void>, title: string, desc: string) => {

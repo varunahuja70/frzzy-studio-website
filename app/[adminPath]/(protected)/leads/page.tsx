@@ -139,7 +139,7 @@ export default function AdminLeadsPage(props: {
     } finally {
       setLoading(false);
     }
-  }, [adminPath, router, searchQuery, statusFilter]);
+  }, [adminPath, cachedLeads, router, searchQuery, statusFilter]);
 
   // Load team members for assignee dropdown
   useEffect(() => {

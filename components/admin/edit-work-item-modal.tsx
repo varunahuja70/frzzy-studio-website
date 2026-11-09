@@ -452,7 +452,7 @@ export function EditWorkItemModal({
                   <div>
                     <span className="font-semibold text-white block">Ticked Fields Shared with Assignee</span>
                     <span className="text-[11px] text-[#a09d93]">
-                      The assignee only sees the fields ticked below in their "My Tasks" portal.
+                      The assignee only sees the fields ticked below in their &quot;My Tasks&quot; portal.
                     </span>
                   </div>
                   <div className="flex items-center gap-2">

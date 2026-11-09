@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useCallback, use } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Briefcase,
@@ -64,7 +64,7 @@ export default function WorkItemsPage(props: { params: Promise<{ adminPath: stri
   const [deliverModalItem, setDeliverModalItem] = useState<WorkItem | null>(null);
   const [editModalItem, setEditModalItem] = useState<WorkItem | null>(null);
 
-  const fetchItems = async (silent = false) => {
+  const fetchItems = useCallback(async (silent = false) => {
     try {
       if (!silent && !cached) setLoading(true);
       const res = await fetch('/api/admin/work-items?scope=all');
@@ -79,11 +79,14 @@ export default function WorkItemsPage(props: { params: Promise<{ adminPath: stri
     } finally {
       setLoading(false);
     }
-  };
+  }, [cached]);
 
   useEffect(() => {
-    fetchItems(Boolean(cached));
-  }, []);
+    const timer = setTimeout(() => {
+      void fetchItems(Boolean(cached));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [cached, fetchItems]);
 
   const filteredItems = items.filter((item) => {
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;

@@ -36,10 +36,14 @@ export default function AdminInvitePage(props: {
   const isFormValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSymbol && passwordsMatch && totpCode.length === 6;
 
   useEffect(() => {
+    let active = true;
     if (!token) {
-      setError('Invite token is missing from URL.');
-      setLoading(false);
-      return;
+      const timer = setTimeout(() => {
+        if (!active) return;
+        setError('Invite token is missing from URL.');
+        setLoading(false);
+      }, 0);
+      return () => { active = false; clearTimeout(timer); };
     }
 
     fetch(`/api/admin/invite/verify?token=${encodeURIComponent(token)}`)

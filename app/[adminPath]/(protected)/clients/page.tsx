@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useCallback, use } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Users,
@@ -67,7 +67,7 @@ export default function ClientsPage(props: { params: Promise<{ adminPath: string
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAddOpen, selectedClient]);
 
-  const fetchClients = async (silent = false) => {
+  const fetchClients = useCallback(async (silent = false) => {
     try {
       if (!silent && !cached) setLoading(true);
       const res = await fetch(`/api/admin/clients${search ? `?search=${encodeURIComponent(search)}` : ''}`);
@@ -81,11 +81,14 @@ export default function ClientsPage(props: { params: Promise<{ adminPath: string
     } finally {
       setLoading(false);
     }
-  };
+  }, [cached, search]);
 
   useEffect(() => {
-    fetchClients(Boolean(cached) && !search);
-  }, [search]);
+    const timer = setTimeout(() => {
+      void fetchClients(Boolean(cached) && !search);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [cached, fetchClients, search]);
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();

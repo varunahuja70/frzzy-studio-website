@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useCallback, use } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckSquare,
@@ -126,15 +126,18 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
 
   // Fetch full task details whenever a task is selected
   useEffect(() => {
+    let isMounted = true;
     if (!selectedTask) {
-      setDetailedTask(null);
-      setSubtasks([]);
-      setAttachments([]);
-      setComments([]);
-      return;
+      const timer = setTimeout(() => {
+        if (!isMounted) return;
+        setDetailedTask(null);
+        setSubtasks([]);
+        setAttachments([]);
+        setComments([]);
+      }, 0);
+      return () => { isMounted = false; clearTimeout(timer); };
     }
 
-    let isMounted = true;
     const loadDetails = async () => {
       try {
         setDetailLoading(true);
@@ -162,7 +165,7 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
     return () => {
       isMounted = false;
     };
-  }, [selectedTask?.id]);
+  }, [selectedTask]);
 
   useEffect(() => {
     if (!selectedTask && !editModalOpen) return;
@@ -175,7 +178,7 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedTask, editModalOpen]);
 
-  const fetchTasks = async (silent = false) => {
+  const fetchTasks = useCallback(async (silent = false) => {
     try {
       if (!silent && !cached) setLoading(true);
       const res = await fetch('/api/admin/work-items?scope=assigned_to_me');
@@ -196,11 +199,14 @@ export default function MyTasksPage(props: { params: Promise<{ adminPath: string
     } finally {
       setLoading(false);
     }
-  };
+  }, [cached, selectedTask]);
 
   useEffect(() => {
-    fetchTasks(Boolean(cached));
-  }, []);
+    const timer = setTimeout(() => {
+      void fetchTasks(Boolean(cached));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [cached, fetchTasks]);
 
   const handleStatusChange = async (taskId: string, newStatus: string, forcedProgress?: number) => {
     try {

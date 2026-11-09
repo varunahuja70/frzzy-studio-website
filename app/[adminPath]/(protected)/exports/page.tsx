@@ -102,7 +102,10 @@ export default function AdminExportsPage(props: {
   }, []);
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadData]);
 
   // Quick 1-click export

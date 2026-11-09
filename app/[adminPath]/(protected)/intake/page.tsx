@@ -36,15 +36,18 @@ export default function IntakePage(props: { params: Promise<{ adminPath: string 
 
   // Parse pre-filled query params if redirected from Lead page
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const sp = new URLSearchParams(window.location.search);
-      if (sp.get('title')) setTitle(sp.get('title')!);
-      if (sp.get('description')) setDescription(sp.get('description')!);
-      if (sp.get('category')) setCategory(sp.get('category')!);
-      if (sp.get('clientName')) setClientName(sp.get('clientName')!);
-      if (sp.get('clientEmail')) setClientEmail(sp.get('clientEmail')!);
-      if (sp.get('source')) setSource(sp.get('source')!);
-    }
+    const timer = setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        const sp = new URLSearchParams(window.location.search);
+        if (sp.get('title')) setTitle(sp.get('title')!);
+        if (sp.get('description')) setDescription(sp.get('description')!);
+        if (sp.get('category')) setCategory(sp.get('category')!);
+        if (sp.get('clientName')) setClientName(sp.get('clientName')!);
+        if (sp.get('clientEmail')) setClientEmail(sp.get('clientEmail')!);
+        if (sp.get('source')) setSource(sp.get('source')!);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // External Drive links
