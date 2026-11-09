@@ -220,6 +220,28 @@ export async function POST(req: NextRequest) {
     try {
       const supabase = getAdminSupabaseClient();
 
+      // Ensure role exists in Supabase public.roles so foreign key in handle_new_auth_user never fails!
+      try {
+        const { data: roleCheck } = await (supabase.from('roles') as any)
+          .select('id')
+          .eq('id', data.role)
+          .maybeSingle();
+
+        if (!roleCheck) {
+          await (supabase.from('roles') as any)
+            .insert({
+              id: data.role,
+              name: data.role.charAt(0).toUpperCase() + data.role.slice(1),
+              description: `Studio ${data.role} role`,
+              is_built_in: false,
+              permissions: data.customPermissions || [],
+            })
+            .onConflictDoNothing();
+        }
+      } catch (roleErr) {
+        console.warn('Role ensure warning:', roleErr);
+      }
+
       // Check if user already exists in Supabase Auth
       const { data: userList } = await supabase.auth.admin.listUsers();
       const existingSbUser = userList?.users?.find(
