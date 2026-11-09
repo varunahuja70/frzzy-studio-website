@@ -6,10 +6,13 @@ import * as schema from './schema';
 import { BUILT_IN_ROLES, DEFAULT_SHARE_TEMPLATES } from '@/lib/auth/permissions-constants';
 import { runStartupSecurityGuard } from '@/lib/auth/startup-guard';
 
-const dbDir = path.resolve(process.cwd(), 'data');
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const dbDir = isServerless ? path.resolve(require('os').tmpdir(), 'frzzy-data') : path.resolve(process.cwd(), 'data');
+try {
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+} catch {}
 
 const dbPath = path.resolve(dbDir, 'frxcx.db');
 const dbUrl = process.env.DATABASE_URL || `file:${dbPath}`;

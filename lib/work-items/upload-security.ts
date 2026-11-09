@@ -81,7 +81,8 @@ export async function savePrivateAttachment(
   buffer: Buffer,
   originalFilename: string
 ): Promise<{ storagePath: string; fileName: string }> {
-  const privateDir = path.resolve(process.cwd(), 'data', 'attachments');
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const privateDir = isServerless ? path.resolve(require('os').tmpdir(), 'frzzy-attachments') : path.resolve(process.cwd(), 'data', 'attachments');
   if (!fs.existsSync(privateDir)) {
     fs.mkdirSync(privateDir, { recursive: true });
   }
