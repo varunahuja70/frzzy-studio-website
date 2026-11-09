@@ -45,10 +45,15 @@ export function RevealOnScroll() {
 
     const scan = (root: ParentNode) => {
       root.querySelectorAll<HTMLElement>(SELECTOR).forEach((el) => {
-        if (el.classList.contains('rv')) return;
-        const sibs = el.parentElement ? Array.from(el.parentElement.children).filter((c) => c.matches(SELECTOR)) : [];
-        el.style.setProperty('--rv-i', String(Math.min(6, Math.max(0, sibs.indexOf(el)))));
-        el.classList.add('rv');
+        if (el.classList.contains('rv-in')) return; // already shown
+        if (!el.classList.contains('rv')) {
+          const sibs = el.parentElement ? Array.from(el.parentElement.children).filter((c) => c.matches(SELECTOR)) : [];
+          el.style.setProperty('--rv-i', String(Math.min(6, Math.max(0, sibs.indexOf(el)))));
+          el.classList.add('rv');
+        }
+        // Watch it even when an earlier run already marked it: this effect can run twice (React
+        // Strict Mode in development, or the page being rebuilt in the browser after a hydration
+        // mismatch), and a section marked .rv that nothing watches stays invisible for good.
         io.observe(el);
       });
     };

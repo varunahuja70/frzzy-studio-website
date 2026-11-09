@@ -594,7 +594,7 @@ header.site {
   background: #0d0d0f;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
+  /* corners come from the look: square in Studio, rounded in Mac (see "Rounded, softly lifted media") */
   transform: rotateX(var(--tilt, 0deg)) scale(var(--sc, 1));
   transform-origin: center bottom;
   box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.75);
@@ -606,6 +606,12 @@ header.site {
 }
 :root[data-look="mac"] .reel-frame::before {
   display: none !important;
+}
+/* While the full-screen showreel is open (components/frzzy/showreel-player.tsx) the page
+   behind it doesn't scroll; the gutter keeps the page from shifting sideways. */
+:root[data-reel-open] {
+  overflow: hidden;
+  scrollbar-gutter: stable;
 }
 .reel-frame canvas {
   position: absolute;
@@ -2580,6 +2586,14 @@ a.card:hover .card-tags li:not(.is-featured) {
   border: 1px solid var(--line);
   background: #0a0a0a;
 }
+/* Below ~830px the page is narrower than 21:9 at the 320px minimum height (747px), and the
+   browser would keep the frame 747px wide and run it off the screen. There it just grows with
+   its text instead (still at least 320px tall). */
+@media (max-width: 860px) {
+  .ib-frame {
+    aspect-ratio: auto;
+  }
+}
 .ib-media {
   position: absolute;
   inset: 0;
@@ -2893,8 +2907,11 @@ a.card:hover .card-tags li:not(.is-featured) {
 }
 
 /* Soft accent glow behind showcase windows */
+/* The reel's own layer keeps the glow (z-index -1) behind it. Not a z-index on .reel > .wrap:
+   with the reel's scroll tilt, that made Chrome miss taps on the top of the clickable showreel. */
 :root[data-look="mac"] .reel {
   position: relative;
+  isolation: isolate;
 }
 :root[data-look="mac"] .reel::before,
 :root[data-look="mac"] .card-featured::after {
@@ -2912,7 +2929,6 @@ a.card:hover .card-tags li:not(.is-featured) {
 }
 :root[data-look="mac"] .reel > .wrap {
   position: relative;
-  z-index: 1;
 }
 :root[data-look="mac"] .card-featured {
   position: relative;
