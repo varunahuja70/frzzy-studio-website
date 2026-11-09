@@ -1,6 +1,17 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import {
+  CONSENT_COOKIE,
+  CONSENT_EVENT,
+  SESSION_COOKIE,
+  SESSION_IDLE_S,
+  TAB_SESSION_KEY,
+  browserOptedOut,
+  parseConsent,
+  readCookie,
+  type ConsentChoice,
+} from '@/lib/analytics/consent';
 
 interface QueuedEvent {
   eventType: 'pageview' | 'click' | 'scroll' | 'time';
@@ -16,8 +27,53 @@ interface QueuedEvent {
   timestamp: number;
 }
 
+const newSessionId = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const fallbackSessionId = 'anon_' + Date.now().toString(36);
+
+function readTabSession(): string | null {
+  try {
+    return sessionStorage.getItem(TAB_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeTabSession(sid: string) {
+  try {
+    sessionStorage.setItem(TAB_SESSION_KEY, sid);
+  } catch {
+    // storage blocked: the ID just won't survive a reload
+  }
+}
+
+function writeSessionCookie(sid: string) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(sid)}; Max-Age=${SESSION_IDLE_S}; Path=/; SameSite=Lax${secure}`;
+}
+
+/**
+ * Session ID for the next batch. With cookie consent it lives in the frzzy_sid cookie: shared by
+ * every tab and ending after 30 idle minutes (each batch pushes the expiry back). Without consent
+ * it's this tab's sessionStorage ID, as before. The tab copy is kept in sync either way, so
+ * withdrawing consent mid-visit doesn't split the visit.
+ */
+function resolveSessionId(): string {
+  if (parseConsent(readCookie(CONSENT_COOKIE)) === 'granted') {
+    const sid = readCookie(SESSION_COOKIE) || newSessionId();
+    writeSessionCookie(sid);
+    writeTabSession(sid);
+    return sid;
+  }
+  let sid = readTabSession();
+  if (!sid) {
+    sid = newSessionId();
+    writeTabSession(sid);
+    if (readTabSession() !== sid) return fallbackSessionId;
+  }
+  return sid;
+}
+
 export function AnalyticsTracker() {
-  const sessionIdRef = useRef<string>('');
   const eventQueueRef = useRef<QueuedEvent[]>([]);
   const scrollMilestonesRef = useRef<Set<number>>(new Set());
 
@@ -30,25 +86,18 @@ export function AnalyticsTracker() {
       // Inside an iframe = the vault's Site Appearance live preview (the site can only be framed by
       // itself, see frame-ancestors in next.config.ts): don't count previews as visits.
       window.self !== window.top ||
-      navigator.doNotTrack === '1' ||
-      (window as unknown as { globalPrivacyControl?: boolean }).globalPrivacyControl === true
+      browserOptedOut()
     ) {
       return;
     }
 
-    // Initialize or restore session ID
-    try {
-      let sid = sessionStorage.getItem('frxcx_sid');
-      if (!sid) {
-        sid = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        sessionStorage.setItem('frxcx_sid', sid);
-      }
-      sessionIdRef.current = sid;
-    } catch {
-      sessionIdRef.current = 'anon_' + Date.now().toString(36);
-    }
-
-    const sessionId = sessionIdRef.current;
+    // Accepting cookies mid-visit: move this tab's session into the cookie so the visit isn't split.
+    const handleConsent = (e: Event) => {
+      if ((e as CustomEvent<ConsentChoice>).detail !== 'granted' || readCookie(SESSION_COOKIE)) return;
+      const tabSid = readTabSession();
+      if (tabSid) writeSessionCookie(tabSid);
+    };
+    window.addEventListener(CONSENT_EVENT, handleConsent);
 
     // Detect device, browser, OS
     const width = window.innerWidth;
@@ -80,7 +129,7 @@ export function AnalyticsTracker() {
     const flushEvents = () => {
       if (eventQueueRef.current.length === 0) return;
       const payload = {
-        sessionId,
+        sessionId: resolveSessionId(),
         events: eventQueueRef.current.splice(0, 20),
       };
 
@@ -197,6 +246,7 @@ export function AnalyticsTracker() {
 
     return () => {
       clearTimeout(initTimer);
+      window.removeEventListener(CONSENT_EVENT, handleConsent);
       flushEvents();
     };
   }, []);

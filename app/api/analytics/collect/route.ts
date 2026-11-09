@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, ensureDatabaseReady } from '@/lib/db';
 import { analyticsEvents } from '@/lib/db/schema';
 import { SESSION_COOKIE_NAME } from '@/lib/auth/session';
+import { CONSENT_COOKIE, VISITOR_COOKIE, isValidVisitorId, parseConsent } from '@/lib/analytics/consent';
 
 // Strict schema for inbound event batch
 const EventItemSchema = z.object({
@@ -25,7 +26,7 @@ const BatchSchema = z.object({
   events: z.array(EventItemSchema).min(1).max(25), // Limit batch size to prevent abuse
 });
 
-// Daily rotating salt for cookie-free privacy-friendly visitor hashing
+// Daily rotating salt for the cookie-free visitor hash (used for everyone, with or without cookie consent)
 function getDailySalt(): string {
   const dateStr = new Date().toISOString().slice(0, 10);
   const secret = process.env.ANALYTICS_SALT || 'frxcx-studio-analytics-salt-2026';
@@ -98,11 +99,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid batch format' }, { status: 400 });
     }
 
+    // Visitors who accepted cookies also carry a stable first-party ID (lib/analytics/consent.ts).
+    // Consent is re-checked here rather than trusting whichever cookies happen to arrive.
+    const consented = parseConsent(req.cookies.get(CONSENT_COOKIE)?.value) === 'granted';
+    const rawVisitorId = req.cookies.get(VISITOR_COOKIE)?.value;
+    const visitorId = consented && isValidVisitorId(rawVisitorId) ? rawVisitorId : null;
+
     await ensureDatabaseReady();
 
     const rowsToInsert = parsed.data.events.map((evt) => ({
       id: crypto.randomUUID(),
       visitorHash,
+      visitorId,
       sessionId: parsed.data.sessionId,
       eventType: evt.eventType,
       target: evt.target || null,
@@ -120,7 +128,10 @@ export async function POST(req: NextRequest) {
 
     await db.insert(analyticsEvents).values(rowsToInsert);
 
-    return NextResponse.json({ success: true, count: rowsToInsert.length });
+    const res = NextResponse.json({ success: true, count: rowsToInsert.length });
+    // A visitor ID left behind without consent (e.g. the consent cookie expired) is dropped.
+    if (rawVisitorId && !visitorId) res.cookies.delete(VISITOR_COOKIE);
+    return res;
   } catch {
     return NextResponse.json({ error: 'Collection failed' }, { status: 500 });
   }

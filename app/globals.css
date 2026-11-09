@@ -2000,6 +2000,132 @@ footer.site-foot {
 .foot-row a:hover {
   color: var(--ivory);
 }
+.foot-row button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+.foot-row button:hover {
+  color: var(--ivory);
+}
+
+/* Cookie banner (components/cookie-consent.tsx). Sits above the header (z 60) and charge bar (80),
+   below the custom cursor (95) and the page-switch overlay (100). */
+.cookie-consent {
+  position: fixed;
+  right: calc(16px + var(--sar));
+  bottom: calc(16px + var(--sab));
+  z-index: 90;
+  width: min(440px, calc(100vw - 32px - var(--sal) - var(--sar)));
+  max-height: calc(100dvh - 32px - var(--sat) - var(--sab));
+  overflow-y: auto;
+  padding: max(18px, calc(24px * var(--scale)));
+  background: var(--charcoal);
+  color: var(--ivory);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .55);
+  animation: cookie-in .5s var(--ease) both;
+}
+.cookie-consent:focus {
+  outline: none;
+}
+.cookie-consent:focus-visible {
+  outline: 2px solid var(--volt);
+  outline-offset: 2px;
+}
+.cookie-consent > .mono:first-child {
+  margin: 0;
+  color: var(--volt);
+}
+.cookie-consent .cc-copy {
+  margin: 10px 0 0;
+  font-size: max(13px, calc(15px * var(--scale)));
+  line-height: 1.5;
+  color: var(--ivory);
+}
+.cc-details {
+  margin-top: 12px;
+  font-size: max(12px, calc(13px * var(--scale)));
+  color: var(--muted);
+}
+.cc-details summary {
+  cursor: pointer;
+  width: max-content;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cc-details summary:hover {
+  color: var(--ivory);
+}
+.cc-details ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.cc-details li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  line-height: 1.4;
+}
+.cc-details li span {
+  margin-left: auto;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.cc-details code {
+  font-family: var(--mono);
+  color: var(--ivory);
+}
+.cookie-consent .cc-status {
+  margin: 12px 0 0;
+}
+.cc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: max(16px, calc(20px * var(--scale)));
+}
+.cc-actions .btn {
+  flex: 1 1 0;
+}
+.cc-actions .btn:disabled {
+  opacity: .6;
+  cursor: progress;
+}
+.cc-close {
+  flex-basis: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: max(12px, calc(13px * var(--scale)));
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.cc-close:hover {
+  color: var(--ivory);
+}
+@keyframes cookie-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cookie-consent {
+    animation: none;
+  }
+}
 
 /* Book a call (#book): how-it-works column + embedded Calendly scheduler */
 .book-prompt .btn {
@@ -2648,6 +2774,15 @@ a.card:hover .card-tags li:not(.is-featured) {
 :root[data-look="mac"] .field :is(input, select, textarea),
 :root[data-look="mac"] .brief-out textarea {
   border-radius: var(--r-sm);
+}
+/* Cookie banner: frosted card like the header */
+:root[data-look="mac"] .cookie-consent {
+  border-radius: var(--r);
+  border-color: rgba(var(--ivory-rgb), .1);
+  background: rgba(var(--black-rgb), .78);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  backdrop-filter: saturate(180%) blur(22px);
+  box-shadow: var(--soft-shadow);
 }
 /* Rounded, softly lifted media */
 :root[data-look="mac"] :is(.art, .reel-frame, .viewport, .cal-frame, .ib-frame, .foot-band) {

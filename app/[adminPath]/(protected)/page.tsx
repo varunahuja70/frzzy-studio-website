@@ -120,6 +120,9 @@ export default function AdminDashboardPage(props: {
   // Derived metrics from DashboardMetrics contract
   const kpis = data?.kpis;
   const uniqueVisitors = kpis?.uniqueVisitors ?? 0;
+  const returningVisitors = kpis?.returningVisitors ?? 0;
+  const cookieVisitors = kpis?.cookieVisitors ?? 0;
+  const cookieConsentRate = kpis?.cookieConsentRate ?? 0;
   const pageViews = kpis?.pageViews ?? 0;
   const totalClicks = kpis?.totalClicks ?? 0;
   const totalLeads = kpis?.totalLeads ?? 0;
@@ -208,8 +211,11 @@ export default function AdminDashboardPage(props: {
             </span>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
-            <span className="text-emerald-500 font-semibold flex items-center gap-0.5">
-              <ArrowUpRight className="h-3 w-3" /> +14.8%
+            <span
+              className="text-[#5a6265] dark:text-[#a09d93] cursor-help"
+              title={`Returning visitors can only be recognised when they accept cookies: ${cookieVisitors.toLocaleString()} visitors (${cookieConsentRate}% of visits) did in this period. ${returningVisitors.toLocaleString()} of them came back.`}
+            >
+              {loading ? '—' : `${returningVisitors.toLocaleString()} returning`}
             </span>
             <Sparkline isPositive={true} />
           </div>

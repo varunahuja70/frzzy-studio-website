@@ -296,6 +296,7 @@ export async function initDatabase(): Promise<void> {
     CREATE TABLE IF NOT EXISTS analytics_events (
       id TEXT PRIMARY KEY,
       visitor_hash TEXT NOT NULL,
+      visitor_id TEXT,
       session_id TEXT NOT NULL,
       event_type TEXT NOT NULL,
       target TEXT,
@@ -313,6 +314,9 @@ export async function initDatabase(): Promise<void> {
   `);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_analytics_event_type ON analytics_events(event_type);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON analytics_events(created_at);`);
+  // Cookie-consented visitor ID (lib/analytics/consent.ts); added after launch, so migrate older DBs.
+  await addColumnIfNotExists(client, 'analytics_events', 'visitor_id TEXT');
+  await client.execute(`CREATE INDEX IF NOT EXISTS idx_analytics_visitor_id ON analytics_events(visitor_id);`);
 
   // 15. Analytics Daily Rollups
   await client.execute(`

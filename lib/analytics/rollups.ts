@@ -1,6 +1,19 @@
 import { db, ensureDatabaseReady } from '../db';
 import { analyticsEvents, leads } from '../db/schema';
-import { gte, lte, and, sql, desc, eq, SQL } from 'drizzle-orm';
+import { gte, lte, lt, and, sql, desc, eq, inArray, isNotNull, SQL } from 'drizzle-orm';
+
+type VisitorIdentity = { visitorHash: string; visitorId: string | null };
+
+/**
+ * Who an event belongs to. Visitors who accepted cookies have a stable visitorId across days;
+ * everyone else only has the daily-rotating visitorHash. Anonymous events from before someone
+ * accepted (same day, so same hash) are folded into their visitorId so they aren't counted twice.
+ */
+function visitorKeyFor(events: VisitorIdentity[]): (e: VisitorIdentity) => string {
+  const idByHash = new Map<string, string>();
+  for (const e of events) if (e.visitorId) idByHash.set(e.visitorHash, e.visitorId);
+  return (e) => e.visitorId ?? idByHash.get(e.visitorHash) ?? `h:${e.visitorHash}`;
+}
 
 export interface DashboardTimeRange {
   range: 'today' | '7d' | '30d' | '90d' | 'custom';
@@ -14,6 +27,12 @@ export interface DashboardMetrics {
     totalVisitorsChange: number;
     uniqueVisitors: number;
     uniqueVisitorsChange: number;
+    /** Cookie-consented visitors only: came back for another visit in the period, or had visited before it. */
+    returningVisitors: number;
+    /** Distinct visitors in the period who accepted cookies (the base returningVisitors is counted from). */
+    cookieVisitors: number;
+    /** Percentage of visits (sessions) in the period that accepted cookies. */
+    cookieConsentRate: number;
     pageViews: number;
     pageViewsChange: number;
     totalClicks: number;
@@ -123,12 +142,55 @@ export async function getDashboardData(
     .where(and(gte(leads.createdAt, prevStartMs), lte(leads.createdAt, prevEndMs), ...scopeConditions));
 
   // Compute Current KPIs
-  const currentVisitorsSet = new Set(currentEvents.map((e) => e.visitorHash));
+  const currentVisitorKey = visitorKeyFor(currentEvents);
+  const currentVisitorsSet = new Set(currentEvents.map(currentVisitorKey));
   const currentSessionsSet = new Set(currentEvents.map((e) => e.sessionId));
   const currentClicks = currentEvents.filter((e) => e.eventType === 'click').length;
   const currentPageviews = currentEvents.filter((e) => e.eventType === 'pageview').length;
 
-  const prevVisitorsSet = new Set(previousEvents.map((e) => e.visitorHash));
+  const prevVisitorsSet = new Set(previousEvents.map(visitorKeyFor(previousEvents)));
+
+  // Returning visitors: only measurable for visitors who accepted cookies (lib/analytics/consent.ts).
+  const sessionsByVisitorId = new Map<string, Set<string>>();
+  const consentedSessions = new Set<string>();
+  for (const e of currentEvents) {
+    if (!e.visitorId) continue;
+    consentedSessions.add(e.sessionId);
+    const sessions = sessionsByVisitorId.get(e.visitorId) ?? new Set<string>();
+    sessions.add(e.sessionId);
+    sessionsByVisitorId.set(e.visitorId, sessions);
+  }
+  const seenBeforePeriod =
+    sessionsByVisitorId.size === 0
+      ? []
+      : await db
+          .selectDistinct({ visitorId: analyticsEvents.visitorId })
+          .from(analyticsEvents)
+          .where(
+            and(
+              lt(analyticsEvents.createdAt, startMs),
+              inArray(
+                analyticsEvents.visitorId,
+                db
+                  .select({ visitorId: analyticsEvents.visitorId })
+                  .from(analyticsEvents)
+                  .where(
+                    and(
+                      isNotNull(analyticsEvents.visitorId),
+                      gte(analyticsEvents.createdAt, startMs),
+                      lte(analyticsEvents.createdAt, now)
+                    )
+                  )
+              )
+            )
+          );
+  const seenBeforeSet = new Set(seenBeforePeriod.map((r) => r.visitorId));
+  let returningVisitors = 0;
+  sessionsByVisitorId.forEach((sessions, visitorId) => {
+    if (sessions.size > 1 || seenBeforeSet.has(visitorId)) returningVisitors += 1;
+  });
+  const cookieConsentRate =
+    currentSessionsSet.size > 0 ? Math.round((consentedSessions.size / currentSessionsSet.size) * 100) : 0;
   const prevClicks = previousEvents.filter((e) => e.eventType === 'click').length;
   const prevPageviews = previousEvents.filter((e) => e.eventType === 'pageview').length;
 
@@ -182,7 +244,7 @@ export async function getDashboardData(
       timelineMap.set(d, { pageviews: 0, visitorsSet: new Set(), clicks: 0, leads: 0 });
     }
     const entry = timelineMap.get(d)!;
-    entry.visitorsSet.add(evt.visitorHash);
+    entry.visitorsSet.add(currentVisitorKey(evt));
     if (evt.eventType === 'pageview') entry.pageviews += 1;
     if (evt.eventType === 'click') entry.clicks += 1;
   });
@@ -277,7 +339,7 @@ export async function getDashboardData(
     .orderBy(desc(analyticsEvents.createdAt))
     .limit(30);
 
-  const activeVisitorsLast5Min = new Set(liveEvents.map((e) => e.visitorHash)).size;
+  const activeVisitorsLast5Min = new Set(liveEvents.map(visitorKeyFor(liveEvents))).size;
 
   // Recent Leads Preview (Scoped to user permissions)
   const recentLeadsRows = await db
@@ -308,6 +370,9 @@ export async function getDashboardData(
       totalVisitorsChange: calcChange(totalVisitors, prevTotalVisitors),
       uniqueVisitors,
       uniqueVisitorsChange: calcChange(uniqueVisitors, prevUniqueVisitors),
+      returningVisitors,
+      cookieVisitors: sessionsByVisitorId.size,
+      cookieConsentRate,
       pageViews: currentPageviews,
       pageViewsChange: calcChange(currentPageviews, prevPageviews),
       totalClicks: currentClicks,

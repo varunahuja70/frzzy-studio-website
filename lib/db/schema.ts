@@ -277,6 +277,7 @@ export const analyticsEvents = sqliteTable(
   {
     id: text('id').primaryKey(),
     visitorHash: text('visitor_hash').notNull(), // Daily salted rotating hash
+    visitorId: text('visitor_id'), // frzzy_vid cookie; only set for visitors who accepted cookies
     sessionId: text('session_id').notNull(),
     eventType: text('event_type').notNull(), // 'pageview' | 'click' | 'scroll' | 'time'
     target: text('target'), // Target CTA or element name (data-track attribute)
@@ -295,6 +296,7 @@ export const analyticsEvents = sqliteTable(
     eventTypeIdx: index('idx_analytics_event_type').on(table.eventType),
     createdAtIdx: index('idx_analytics_created_at').on(table.createdAt),
     visitorHashIdx: index('idx_analytics_visitor_hash').on(table.visitorHash),
+    visitorIdIdx: index('idx_analytics_visitor_id').on(table.visitorId),
   })
 );
 

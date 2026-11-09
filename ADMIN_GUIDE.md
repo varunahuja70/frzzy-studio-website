@@ -154,6 +154,22 @@ Consistent with the studio's luxury aesthetic:
 - **Storage**: `settings` table, key `site_reviews`. Public API: `GET /api/reviews` (published only) and `GET /api/reviews/{id}/photo`.
 - Only publish genuine reviews the client has agreed to share.
 
+### Visitor Cookies & Consent (public site tracking)
+
+The public site asks each visitor once, in a small banner, whether it may set tracking cookies. **Accept** and **No thanks** are equally prominent, and the footer's **Cookie settings** reopens the banner so anyone can change their answer.
+
+| Cookie | What it does | Lifetime | Set when |
+|---|---|---|---|
+| `frzzy_vid` | Random ID that recognises a returning visitor (HttpOnly) | 13 months from first *Accept*, never extended | Accept |
+| `frzzy_sid` | Groups one visit across tabs | 30 min idle | Accept |
+| `frzzy_consent` | Remembers the answer | 6 months, then the visitor is asked again | Either answer |
+
+- **Without cookies** (*No thanks*, or no answer yet) visits are still counted the cookie-free way: a daily-rotating hash, so the same person on two different days counts as two visitors.
+- **Not asked, not tracked**: browsers sending Do Not Track or Global Privacy Control, and the vault's live preview.
+- **Dashboard**: *Unique Visitors* uses the cookie ID when there is one, so multi-day ranges are more accurate. The line under it shows **returning** visitors: those who accepted cookies and came back. Hover it to see how many visitors (and what share of visits) accepted, since returning visitors can only be recognised among them.
+- **Everything stays first-party**: cookies are set on this domain and stored in `analytics_events.visitor_id`; nothing goes to a third party.
+- **Changing what the cookies do**: describe it in the banner (`components/cookie-consent.tsx`) and bump `CONSENT_VERSION` in `lib/analytics/consent.ts` so every visitor is asked again.
+
 ---
 
 ## 6. Secret Rotation & Zero-Downtime Key Lifecycle

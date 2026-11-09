@@ -18,6 +18,8 @@ import { Hero3DBackdrop } from '@/components/frzzy/hero-3d-backdrop';
 import { RevealOnScroll } from '@/components/frzzy/reveal-on-scroll';
 import { StackScroll } from '@/components/frzzy/stack-scroll';
 import { StudioReviews } from '@/components/frzzy/studio-reviews';
+import { CookieConsent } from '@/components/cookie-consent';
+import { OPEN_COOKIE_SETTINGS_EVENT } from '@/lib/analytics/consent';
 
 // The wide card at the top of the Work page. Change the slug to feature a different project.
 const FEATURED_SLUG = 'short-circuit';
@@ -1413,6 +1415,11 @@ export default function FrzzyStudioPage() {
               <li><a onClick={() => navigateTo('#about')}>About</a></li>
               <li><a onClick={() => navigateTo('#contact')}>Contact</a></li>
               <li><a onClick={() => navigateTo('#book')}>Book a call</a></li>
+              <li>
+                <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_COOKIE_SETTINGS_EVENT))}>
+                  Cookie settings
+                </button>
+              </li>
             </ul>
             <p className="mono muted">
               © {new Date().getFullYear()} FRZZY Studio · India · Worldwide
@@ -1420,6 +1427,8 @@ export default function FrzzyStudioPage() {
           </div>
         </div>
       </footer>
+
+      <CookieConsent />
     </div>
   );
 }
