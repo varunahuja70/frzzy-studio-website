@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, X } from 'lucide-react';
 
 const REEL_VIDEOS = [
   {
@@ -35,30 +35,34 @@ export function ShowreelPlayer() {
   const [modalProgress, setModalProgress] = useState(0);
   const [modalCurrentTime, setModalCurrentTime] = useState('00:00');
   const [modalDuration, setModalDuration] = useState('01:45');
-  const [timecode, setTimecode] = useState('00:01:09:10');
   const [activeVideoIdx] = useState(0);
 
   const activeVideo = REEL_VIDEOS[activeVideoIdx];
 
-  // Minimal clean timecode runner
+  // Ensure background video plays continuously in loop
   useEffect(() => {
-    const start = performance.now();
-    let animId: number;
-    const pad = (n: number) => (n < 10 ? '0' : '') + Math.floor(n);
+    const vid = bgVideoRef.current;
+    if (!vid) return;
 
-    const tick = (now: number) => {
-      const elapsed = (now - start) / 1000 + 69.4;
-      const hours = pad(elapsed / 3600);
-      const mins = pad((elapsed / 60) % 60);
-      const secs = pad(elapsed % 60);
-      const frames = pad((elapsed % 1) * 25);
-      setTimecode(`${hours}:${mins}:${secs}:${frames}`);
-      animId = requestAnimationFrame(tick);
+    vid.muted = true;
+    vid.loop = true;
+
+    const startPlay = () => {
+      vid.play().catch(() => {});
     };
 
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
-  }, []);
+    startPlay();
+
+    // Re-trigger play on visibility change so it never stops
+    const handleVis = () => {
+      if (!document.hidden && vid.paused && !isModalOpen) {
+        startPlay();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVis);
+    return () => document.removeEventListener('visibilitychange', handleVis);
+  }, [isModalOpen]);
 
   const openModal = useCallback(() => {
     setIsModalOpen(true);
@@ -122,37 +126,12 @@ export function ShowreelPlayer() {
             openModal();
           }
         }}
-        className="group/reel relative w-full h-full flex flex-col justify-between overflow-hidden bg-[#0d0d0f] select-none cursor-pointer transition-transform duration-500"
+        className="group/reel relative w-full h-full flex items-center justify-center overflow-hidden bg-black select-none cursor-pointer border-0 outline-none"
       >
         {/* =========================================================
-            1. MINIMAL MAC OS GLASS TITLEBAR (Clean & Refined)
+            CONTINUOUS LOOPING STUDIO VIDEO (Full Card, Edge-to-Edge)
         ========================================================= */}
-        <div
-          className="relative z-30 h-10 w-full px-4 flex items-center justify-between border-b border-white/[0.06] bg-black/40 backdrop-blur-md"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Subtle Window Dots */}
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]/90 transition-opacity group-hover/reel:opacity-100" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]/90 transition-opacity group-hover/reel:opacity-100" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]/90 transition-opacity group-hover/reel:opacity-100" />
-          </div>
-
-          {/* Simple Studio Status */}
-          <div className="text-[11px] font-mono text-white/40 tracking-wider">
-            FRZZY // REEL 2026
-          </div>
-
-          {/* Quick Expand Icon */}
-          <div className="flex items-center text-white/30 group-hover/reel:text-white/70 transition-colors">
-            <Maximize2 className="w-3.5 h-3.5" />
-          </div>
-        </div>
-
-        {/* =========================================================
-            2. VIDEO LAYER (Dark, Subtle, Cinematic)
-        ========================================================= */}
-        <div className="absolute inset-0 top-10 w-full h-[calc(100%-40px)] overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
           <video
             ref={bgVideoRef}
             src={activeVideo.src}
@@ -160,86 +139,55 @@ export function ShowreelPlayer() {
             loop
             muted
             playsInline
-            className="w-full h-full object-cover object-center opacity-40 scale-[1.01] transition-all duration-700 ease-out group-hover/reel:opacity-60 group-hover/reel:scale-105"
+            className="w-full h-full object-cover object-center opacity-75 group-hover/reel:opacity-90 scale-[1.01] group-hover/reel:scale-105 transition-all duration-700 ease-out"
           />
 
-          {/* Clean Vignette & Minimal Dark Gradients */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0f] via-transparent to-[#0d0d0f]/60" />
-          <div className="absolute inset-0 bg-black/35" />
+          {/* Clean Subtle Radial Vignette for Typography Contrast */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/60 pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.65)_100%)] pointer-events-none" />
         </div>
 
         {/* =========================================================
-            3. MINIMAL CORNER METADATA
+            CENTERPIECE: PURE MINIMAL LUXURY TYPOGRAPHY & PLAY TRIGGER
         ========================================================= */}
-        {/* Top-Right: Clean ZZ glyphs */}
-        <div className="absolute top-14 right-5 sm:right-6 pointer-events-none z-10 flex items-center gap-1 text-[var(--volt)]">
-          <svg className="w-3.5 h-4.5" viewBox="0 0 34 44" fill="none">
-            <polyline
-              points="4,5 30,5 14,22 22,22 5,39 30,39"
-              stroke="currentColor"
-              strokeWidth="6"
-              strokeLinejoin="miter"
-              strokeLinecap="square"
-            />
-          </svg>
-          <svg className="w-3.5 h-4.5 -ml-1 text-[var(--volt)]" viewBox="0 0 34 44" fill="none">
-            <polyline
-              points="4,5 30,5 14,22 22,22 5,39 30,39"
-              stroke="currentColor"
-              strokeWidth="6"
-              strokeLinejoin="miter"
-              strokeLinecap="square"
-            />
-          </svg>
-        </div>
-
-        {/* Bottom Bar: Clean REC & Running Timecode */}
-        <div className="absolute bottom-4 inset-x-5 sm:inset-x-6 pointer-events-none z-10 flex items-center justify-between text-[11px] font-mono tracking-widest text-white/40">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[var(--volt)] animate-pulse" />
-            <span className="text-white/60 font-semibold tracking-widest text-[10px]">REC</span>
-          </div>
-
-          <div className="font-mono text-white/50 tracking-wider">
-            {timecode}
-          </div>
-        </div>
-
-        {/* =========================================================
-            4. CENTERPIECE: MINIMAL, CONFIDENT, PREMIUM TYPOGRAPHY
-        ========================================================= */}
-        <div className="relative z-20 flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="relative z-20 flex flex-col items-center justify-center p-6 text-center">
           {/* FRZZY Wordmark */}
           <div className="flex items-center justify-center select-none mb-3 transition-transform duration-500 ease-out group-hover/reel:scale-[1.03]">
             <span
-              className="wm font-extrabold tracking-tight text-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.8)]"
-              style={{ fontSize: 'clamp(52px, 8.5vw, 110px)' }}
+              className="wm font-extrabold tracking-tight text-white drop-shadow-[0_12px_40px_rgba(0,0,0,0.95)]"
+              style={{ fontSize: 'clamp(56px, 9vw, 120px)' }}
             >
               <span>FR</span>
               <svg className="z" style={{ color: '#ffffff' }}>
                 <use href="#z" />
               </svg>
-              <svg className="z z2" style={{ color: 'var(--volt)' }}>
+              <svg
+                className="z z2"
+                style={{
+                  color: 'var(--volt)',
+                  filter: 'drop-shadow(0 0 24px rgba(var(--volt-rgb), 0.75))',
+                }}
+              >
                 <use href="#z" />
               </svg>
               <span>Y</span>
             </span>
           </div>
 
-          {/* Understated Minimal Subtitle */}
-          <p className="text-[12px] sm:text-[13px] font-mono tracking-[0.22em] uppercase text-white/60 mb-6 transition-colors duration-300 group-hover/reel:text-white/80">
+          {/* Clean Understated Subtitle */}
+          <p className="text-[12px] sm:text-[13px] font-mono tracking-[0.25em] uppercase text-white/70 mb-6 drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)] transition-colors duration-300 group-hover/reel:text-white">
             Showreel 2026
           </p>
 
-          {/* Sleek, Minimal Glass Play Pill */}
-          <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] hover:border-[var(--volt)]/60 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover/reel:scale-105">
-            <div className="w-5 h-5 rounded-full bg-[var(--volt)] flex items-center justify-center text-black">
-              <Play className="w-2.5 h-2.5 fill-black translate-x-0.5" />
+          {/* Minimalist Tactile Glass Play Button */}
+          <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-black/50 hover:bg-black/75 border border-white/20 hover:border-[var(--volt)]/80 backdrop-blur-xl shadow-[0_16px_36px_rgba(0,0,0,0.6)] transition-all duration-300 group-hover/reel:scale-105">
+            <div className="w-6 h-6 rounded-full bg-[var(--volt)] flex items-center justify-center text-black shadow-[0_0_14px_rgba(var(--volt-rgb),0.6)]">
+              <Play className="w-3 h-3 fill-black translate-x-0.5" />
             </div>
-            <span className="text-[12px] font-sans font-semibold tracking-wider uppercase text-white/90">
+            <span className="text-[12px] font-sans font-semibold tracking-wider uppercase text-white">
               Watch Reel
             </span>
-            <span className="text-[10px] font-mono text-white/40 ml-0.5">
+            <span className="text-[10px] font-mono text-white/50 ml-0.5">
               1:45
             </span>
           </div>
@@ -247,7 +195,7 @@ export function ShowreelPlayer() {
       </div>
 
       {/* =========================================================
-          5. CLEAN MINIMAL FULLSCREEN CINEMA MODAL
+          FULLSCREEN CINEMA LIGHTBOX MODAL
       ========================================================= */}
       {isModalOpen && (
         <div
