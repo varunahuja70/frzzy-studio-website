@@ -15,7 +15,7 @@ export function verifyReauthGrant(grantCookie?: string, adminId?: string): boole
   const exp = parseInt(expStr, 10);
   if (isNaN(exp) || Date.now() > exp) return false;
 
-  const secret = process.env.ADMIN_PASSWORD_PEPPER || 'reauth-pepper';
+  const secret = process.env.ADMIN_PASSWORD_PEPPER || process.env.ADMIN_PEPPER || 'reauth-pepper';
   const expectedSig = crypto
     .createHmac('sha256', secret)
     .update(`${grantAdminId}:${expStr}:${nonce}`)
@@ -32,7 +32,7 @@ export function verifyReauthGrant(grantCookie?: string, adminId?: string): boole
 export function createReauthGrant(adminId: string, ttlMs = 5 * 60 * 1000): string {
   const nonce = crypto.randomBytes(24).toString('hex');
   const exp = Date.now() + ttlMs;
-  const secret = process.env.ADMIN_PASSWORD_PEPPER || 'reauth-pepper';
+  const secret = process.env.ADMIN_PASSWORD_PEPPER || process.env.ADMIN_PEPPER || 'reauth-pepper';
   const signature = crypto
     .createHmac('sha256', secret)
     .update(`${adminId}:${exp}:${nonce}`)

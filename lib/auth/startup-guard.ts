@@ -25,7 +25,7 @@ export async function runStartupSecurityGuard(): Promise<StartupSecurityAuditRes
   const isProduction = process.env.NODE_ENV === 'production';
 
   // 1. Verify Server-Side Pepper Configuration
-  const pepper = process.env.ADMIN_PASSWORD_PEPPER;
+  const pepper = (process.env.ADMIN_PASSWORD_PEPPER || process.env.ADMIN_PEPPER || '').trim();
   if (isProduction) {
     if (!pepper || pepper.length < 32) {
       violations.push('CRITICAL: ADMIN_PASSWORD_PEPPER is missing or shorter than 32 characters in production.');

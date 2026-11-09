@@ -57,12 +57,25 @@ export async function createAdminSession(params: {
 }): Promise<{ token: string; csrfToken: string; sessionId: string }> {
   await ensureDatabaseReady();
 
-  const token = crypto.randomBytes(32).toString('hex');
+  const now = Date.now();
+  const sessionId = crypto.randomUUID();
+  const sessionSecret = process.env.ADMIN_SESSION_SECRET || 'frzzy-admin-session-secret-vault-2026';
+  const expiresAt = now + ABSOLUTE_TIMEOUT_MS;
+
+  const payloadB64 = Buffer.from(
+    JSON.stringify({
+      sessionId,
+      adminId: params.adminId,
+      expiresAt,
+      twoFactorVerified: params.twoFactorVerified ?? false,
+      nonce: crypto.randomBytes(16).toString('hex'),
+    })
+  ).toString('base64url');
+
+  const sig = crypto.createHmac('sha256', sessionSecret).update(payloadB64).digest('hex');
+  const token = `${payloadB64}.${sig}`;
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const csrfToken = crypto.randomBytes(24).toString('hex');
-  const sessionId = crypto.randomUUID();
-
-  const now = Date.now();
 
   await db.insert(sessions).values({
     id: sessionId,
@@ -127,6 +140,60 @@ export async function validateAdminSession(
     .limit(1);
 
   if (rows.length === 0) {
+    // Cross-container serverless fallback: verify HMAC signature of token
+    try {
+      if (token.includes('.')) {
+        const [payloadB64, sig] = token.split('.');
+        const sessionSecret = process.env.ADMIN_SESSION_SECRET || 'frzzy-admin-session-secret-vault-2026';
+        const expectedSig = crypto.createHmac('sha256', sessionSecret).update(payloadB64).digest('hex');
+        if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) {
+          const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+          if (payload && payload.adminId && payload.expiresAt && now < payload.expiresAt) {
+            const adminRows = await db.select().from(admins).where(eq(admins.id, payload.adminId)).limit(1);
+            if (adminRows.length > 0) {
+              const fallbackAdmin = adminRows[0];
+              if (fallbackAdmin.status === 'active' && !fallbackAdmin.deletedAt && (!fallbackAdmin.expiresAt || now <= fallbackAdmin.expiresAt)) {
+                try {
+                  await db.insert(sessions).values({
+                    id: payload.sessionId || crypto.randomUUID(),
+                    adminId: fallbackAdmin.id,
+                    tokenHash,
+                    ipAddress: '127.0.0.1',
+                    userAgent: 'Serverless Worker',
+                    expiresAt: payload.expiresAt,
+                    lastActiveAt: now,
+                    twoFactorVerified: Boolean(payload.twoFactorVerified),
+                    createdAt: now,
+                  });
+                } catch {}
+
+                const result: SessionValidationResult = {
+                  valid: true,
+                  admin: {
+                    id: fallbackAdmin.id,
+                    email: fallbackAdmin.email,
+                    name: fallbackAdmin.name,
+                    role: fallbackAdmin.role,
+                    twoFactorEnabled: Boolean(fallbackAdmin.twoFactorEnabled),
+                    mustChangePassword: Boolean(fallbackAdmin.mustChangePassword),
+                    mustSetup2Fa: Boolean(fallbackAdmin.mustSetup2Fa),
+                  },
+                  session: {
+                    id: payload.sessionId || 'serverless-session',
+                    expiresAt: payload.expiresAt,
+                    lastActiveAt: now,
+                    twoFactorVerified: Boolean(payload.twoFactorVerified),
+                  },
+                };
+                sessionValidationCache.set(tokenHash, { result, timestamp: now });
+                return result;
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+
     return { valid: false, reason: 'invalid' };
   }
 

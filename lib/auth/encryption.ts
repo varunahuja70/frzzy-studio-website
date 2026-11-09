@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 
-const MASTER_KEY_RAW =
-  process.env.LEADS_ENCRYPTION_KEY ||
-  'frxcx-studio-pii-aes-256-gcm-master-key-production-hardened-2026';
+const MASTER_KEY_RAW = (
+  process.env.LEADS_ENCRYPTION_KEY || process.env.ADMIN_ENCRYPTION_KEY ||
+  'frxcx-studio-pii-aes-256-gcm-master-key-production-hardened-2026'
+).trim();
 
 // Derive 32-byte key for AES-256-GCM
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(MASTER_KEY_RAW).digest();

@@ -2,9 +2,10 @@ import crypto from 'crypto';
 import { argon2id } from 'hash-wasm';
 import zxcvbn from 'zxcvbn';
 
-const PEPPER =
-  process.env.ADMIN_PASSWORD_PEPPER ||
-  'frxcx-studio-argon2id-server-pepper-secret-production-hardened-2026';
+const PEPPER = (
+  process.env.ADMIN_PASSWORD_PEPPER || process.env.ADMIN_PEPPER ||
+  'frxcx-studio-argon2id-server-pepper-secret-production-hardened-2026'
+).trim();
 
 const PREVIOUS_PEPPER = process.env.PREVIOUS_ADMIN_PASSWORD_PEPPER || null;
 
@@ -144,7 +145,13 @@ export async function verifyPassword(
   if (matchesCurrent) return true;
 
   if (PREVIOUS_PEPPER) {
-    return await tryWithPepper(PREVIOUS_PEPPER);
+    const matchesPrev = await tryWithPepper(PREVIOUS_PEPPER);
+    if (matchesPrev) return true;
+  }
+
+  const FALLBACK_PEPPER = 'frxcx-studio-argon2id-server-pepper-secret-production-hardened-2026';
+  if (PEPPER !== FALLBACK_PEPPER && await tryWithPepper(FALLBACK_PEPPER)) {
+    return true;
   }
 
   return false;

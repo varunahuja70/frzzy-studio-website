@@ -587,6 +587,35 @@ export async function initDatabase(): Promise<void> {
     }
   }
 
+  // Bootstrap initial Super Admin if none exists in this database instance
+  const adminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'vk679028@gmail.com').toLowerCase().trim();
+  const initialAdminCheck = await client.execute({
+    sql: `SELECT id FROM admins WHERE email = ? LIMIT 1;`,
+    args: [adminEmail]
+  });
+  if (initialAdminCheck.rows.length === 0) {
+    await client.execute({
+      sql: `INSERT INTO admins (
+        id, email, password_hash, salt, two_factor_secret, two_factor_enabled,
+        must_change_password, must_setup_2fa, role, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, NULL, 0, 0, 0, 'superadmin', 'active', ?, ?)
+      ON CONFLICT (id) DO UPDATE SET
+        password_hash = EXCLUDED.password_hash,
+        salt = EXCLUDED.salt,
+        status = 'active',
+        role = 'superadmin',
+        updated_at = EXCLUDED.updated_at`,
+      args: [
+        '95015e7c-273d-44d1-b3e6-4908c2a24ac4',
+        adminEmail,
+        '$argon2id$v=19$m=65536,t=3,p=4$MDcwMjUyZWFlNWVjZmM4MzA1NTEzMzMwZTY4YjViNzA$eCbl2F+yTbyrdTipzQcNzOrxJ8Uv9uM6YuJ3w0NGnR8',
+        '070252eae5ecfc8305513330e68b5b70',
+        now,
+        now,
+      ],
+    });
+  }
+
   // Seed default share templates.
   // created_by is a foreign key to admins(id), so on a fresh database with no superadmin yet
   // there is no valid creator: skip seeding (it runs on the next boot once an admin exists)

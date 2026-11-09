@@ -1,3 +1,14 @@
+import fs from 'fs';
+import path from 'path';
+
+// Automatically load .env.local if present in CLI environment
+try {
+  const envLocalPath = path.resolve(process.cwd(), '.env.local');
+  if (fs.existsSync(envLocalPath) && typeof process.loadEnvFile === 'function') {
+    process.loadEnvFile(envLocalPath);
+  }
+} catch {}
+
 import readline from 'readline';
 import crypto from 'crypto';
 import { db, ensureDatabaseReady } from '../lib/db';
