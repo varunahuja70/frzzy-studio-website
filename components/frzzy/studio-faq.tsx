@@ -45,8 +45,9 @@ export function StudioFaq({ onBookCall }: { onBookCall: () => void }) {
           <h2 id="faq-title">Good to know.</h2>
           <p className="muted">
             Still unsure?{' '}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- the site switches pages in place (navigateTo); the href is for new tabs */}
             <a
-              href="#book"
+              href="/book"
               onClick={(e) => {
                 e.preventDefault();
                 onBookCall();

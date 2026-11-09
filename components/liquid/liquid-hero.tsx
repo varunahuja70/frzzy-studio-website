@@ -11,6 +11,8 @@ import {
   applyZones,
   colourSetup,
   createSheet,
+  HEADER_SLOT,
+  headerZones,
   measureZones,
   startRipple,
   tick,
@@ -28,6 +30,10 @@ import {
  * melting into the gradient. Tilts with the cursor; a click ("zap") spins the bolts and sends a
  * ripple through the gradient from the clicked point. Replaces the classic Hero3DBackdrop when
  * Effects is Liquid (components/liquid/index.tsx falls back to it on any error).
+ *
+ * The layer reaches up behind the (glass) site header, so the logo and nav links are text zones
+ * too, re-measured every frame (gradient-core: headerZones); the hero's own text zones are measured
+ * on layout changes.
  */
 
 const QUAD_VERT = /* glsl */ `
@@ -363,7 +369,10 @@ export default function LiquidHero() {
       if (heroRef.current) resizeHero(heroRef.current, width, height, dpr, camera);
     },
     onFrame: (dt, { renderer }) => {
-      if (heroRef.current) animate(heroRef.current, motionRef.current, dt, renderer, pointerRef.current);
+      const h = heroRef.current;
+      if (!h) return;
+      if (wrapRef.current) applyZones(h.sheet.material, headerZones(wrapRef.current), HEADER_SLOT);
+      animate(h, motionRef.current, dt, renderer, pointerRef.current);
     },
     onReady: () => setReady(true),
     onError: () => setFailed(true),
@@ -381,9 +390,19 @@ export default function LiquidHero() {
   }, [pal, stageRef]);
 
   useEffect(() => {
-    applyZones(heroRef.current?.sheet.material ?? null, zones);
+    applyZones(heroRef.current?.sheet.material ?? null, zones, 0, HEADER_SLOT);
     stageRef.current?.invalidate();
   }, [zones, stageRef]);
+
+  // When not animating (reduced motion), still redraw while scrolling so the header's zones follow it.
+  useEffect(() => {
+    const onScroll = () => {
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (r && r.bottom > 0) stageRef.current?.invalidate();
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [stageRef]);
 
   // Text zones: the hero's labels, wordmark, headline and copy.
   useEffect(() => {

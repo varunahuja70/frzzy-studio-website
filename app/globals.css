@@ -94,13 +94,23 @@ video {
 }
 /* Kept at full size: top navigation stays prominent; overlay/switcher are sized by hand. */
 header.site,
-.wipe,
-.frzzy-cursor {
+.wipe {
   --scale: 1;
 }
 /* Base text size for the public site (paragraphs without their own size). */
 .frzzy-site {
   font-size: max(13px, calc(16px * var(--scale)));
+}
+/* No text selection on the public site, so dragging across the 3D scenes (hero, viewport, strands)
+   never highlights text. Form fields stay selectable so visitors can still type, edit and copy what
+   they wrote, including the generated brief. The vault lives outside .frzzy-site and is unaffected. */
+.frzzy-site {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.frzzy-site :is(input, textarea, select, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
 }
 /* Touch screens keep comfortable 44px tap targets whatever the scale. */
 @media (pointer: coarse) {
@@ -143,49 +153,6 @@ header.site,
   background: var(--volt);
   z-index: 80;
   pointer-events: none;
-}
-
-/* Custom cursor */
-.frzzy-cursor {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 20px;
-  height: 20px;
-  margin: -10px 0 0 -10px;
-  border: 1.5px solid var(--volt);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 95;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  font: 600 8px/1 var(--mono);
-  letter-spacing: .08em;
-  color: var(--on-volt);
-  transition: width .25s var(--ease), height .25s var(--ease), margin .25s var(--ease), background .25s var(--ease);
-}
-.frzzy-cursor.on {
-  display: flex;
-}
-.frzzy-cursor.big {
-  width: 36px;
-  height: 36px;
-  margin: -18px 0 0 -18px;
-  background: rgba(var(--volt-rgb), .12);
-}
-.frzzy-cursor.push {
-  width: 38px;
-  height: 38px;
-  margin: -19px 0 0 -19px;
-  background: var(--volt);
-}
-.frzzy-cursor span {
-  opacity: 0;
-  transition: opacity .2s;
-}
-.frzzy-cursor.push span {
-  opacity: 1;
 }
 
 /* Volt Bolt wordmark */
@@ -248,7 +215,8 @@ header.site {
   transition: color .15s ease;
   cursor: pointer;
 }
-.nav-links a:hover {
+/* (not the "Start a project" pill: its text keeps --on-volt, or it turns ivory on volt) */
+.nav-links a:not(.btn):hover {
   color: var(--ivory);
 }
 .nav-links .btn {
@@ -2013,7 +1981,7 @@ footer.site-foot {
 }
 
 /* Cookie banner (components/cookie-consent.tsx). Sits above the header (z 60) and charge bar (80),
-   below the custom cursor (95) and the page-switch overlay (100). */
+   below the page-switch overlay (100). */
 .cookie-consent {
   position: fixed;
   right: calc(16px + var(--sar));
@@ -2653,6 +2621,14 @@ a.card:hover .card-tags li:not(.is-featured) {
   mix-blend-mode: color;
   opacity: .55;
 }
+/* Volt palette only: the "Ideas, built to move" bolts (ImageBand grade="bolts") get their own
+   colour grade instead of the flat tint (filter in components/frzzy/svg-symbols.tsx) */
+:root[data-palette="volt"] .image-band[data-grade="bolts"] .ib-media img {
+  filter: url(#frzzy-grade-bolts);
+}
+:root[data-palette="volt"] .image-band[data-grade="bolts"] .ib-tint {
+  display: none;
+}
 /* legibility gradient */
 .ib-media::after {
   content: "";
@@ -3286,6 +3262,21 @@ a.review-platform:hover {
   isolation: isolate;
   overflow: hidden;
 }
+/* page heroes: the gradient reaches 70px up behind the glass header (like the home hero), so it
+   fills the screen from the very top; everything else stays clipped to the section */
+.page-hero:has(> .liquid-gradient) {
+  overflow: visible;
+  clip-path: inset(-70px 0 0 0);
+}
+.page-hero > .liquid-gradient {
+  top: -70px;
+}
+/* ...and 70px further down as well, so the gradient has as much room under the text as it gained
+   above it. Keyed to data-fx (server-rendered) rather than :has(), so the page doesn't shift when
+   the gradient loads. */
+:root[data-fx="liquid"] .page-hero {
+  padding-bottom: calc(clamp(36px, 5vw, 64px) + 70px);
+}
 :is(.page-hero, .cta-band) > .liquid-gradient ~ .wrap {
   position: relative;
   z-index: 1;
@@ -3297,10 +3288,37 @@ a.review-platform:hover {
 }
 
 /* Home hero (liquid-hero.tsx): the flowing gradient with glass bolts, behind strands (0),
-   wordmark (1) and UI (2). Replaces the classic .hero-3d layer. */
+   wordmark (1) and UI (2). Replaces the classic .hero-3d layer. It reaches 70px above the hero, up
+   behind the glass header, so the gradient fills the screen from the very top; the hero clips
+   everything else to its own box, as before. */
+:root[data-fx="liquid"] .view > .hero {
+  overflow: visible;
+  clip-path: inset(-70px 0 0 0);
+  /* 70px longer at the bottom too, so the gradient has as much room below the content as it
+     gained above it; the wordmark and the UI keep their places */
+  height: calc(clamp(620px, 92vh, 960px) + 70px);
+}
+:root[data-fx="liquid"] .view > .hero .hero-ui {
+  padding-bottom: calc(clamp(24px, 4vw, 44px) + 70px);
+}
+:root[data-fx="liquid"] .view > .hero .hero-word {
+  top: calc((100% - 70px) * .44);
+}
+@media (max-width: 760px) {
+  :root[data-fx="liquid"] .view > .hero {
+    height: auto;
+    min-height: 770px;
+  }
+  :root[data-fx="liquid"] .view > .hero .hero-ui {
+    min-height: 770px;
+  }
+  :root[data-fx="liquid"] .view > .hero .hero-word {
+    top: calc((100% - 70px) * .36);
+  }
+}
 .hero-liquid {
   position: absolute;
-  inset: 0;
+  inset: -70px 0 0;
   z-index: -1;
   pointer-events: none;
   opacity: 0;
@@ -3308,6 +3326,16 @@ a.review-platform:hover {
 }
 .hero-liquid.is-ready {
   opacity: 1;
+}
+/* the header is light glass while only a hero gradient is under it (page.tsx sets data-over-hero,
+   home and page heroes); the logo and links stay readable because the gradient treats them as
+   text zones */
+:root[data-fx="liquid"] header.site {
+  transition: background-color .45s var(--ease), border-color .45s var(--ease);
+}
+:root[data-fx="liquid"] header.site[data-over-hero] {
+  background: rgba(var(--black-rgb), .2);
+  border-bottom-color: rgba(var(--ivory-rgb), .06);
 }
 /* the headline and copy sit on a glass dock... */
 :root[data-fx="liquid"] .hero-bottom {
@@ -3474,6 +3502,124 @@ a.review-platform:hover {
   }
 }
 
+/* "Start a project" buttons (.btn-glass): a glass finish. The volt pill keeps a solid accent body
+   (its text keeps the palette's contrast) under a specular cap that stops above the letters, lit
+   rims, an inner glow along the bottom and a light sweep on hover that passes behind the text.
+   The black pill on the CTA band is smoked glass over the flowing gradient. */
+:root[data-fx="liquid"] .btn-glass {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+:root[data-fx="liquid"] .btn-glass.btn-volt {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .42) 0%, rgba(255, 255, 255, .1) 22%, rgba(255, 255, 255, 0) 34%),
+    linear-gradient(0deg, rgba(0, 0, 0, .12) 0%, rgba(0, 0, 0, 0) 30%),
+    var(--volt);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .7),
+    inset 0 0 0 1px rgba(255, 255, 255, .25),
+    inset 0 -1px 0 rgba(0, 0, 0, .2),
+    inset 0 -10px 18px -12px rgba(255, 255, 255, .55),
+    0 12px 30px -12px rgba(var(--volt-rgb), .8),
+    0 2px 6px -2px rgba(0, 0, 0, .35);
+}
+:root[data-fx="liquid"] .btn-glass.btn-black {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .2) 0%, rgba(255, 255, 255, .05) 26%, rgba(255, 255, 255, 0) 40%),
+    rgba(var(--black-rgb), .88);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .38),
+    inset 0 0 0 1px rgba(255, 255, 255, .14),
+    inset 0 -10px 18px -12px rgba(255, 255, 255, .28),
+    0 12px 30px -14px rgba(0, 0, 0, .55);
+}
+/* the pill in the header: no coloured glow (it bled past the header's bottom edge) */
+:root[data-fx="liquid"] header.site .btn-glass.btn-volt {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .7),
+    inset 0 0 0 1px rgba(255, 255, 255, .25),
+    inset 0 -1px 0 rgba(0, 0, 0, .2),
+    inset 0 -10px 18px -12px rgba(255, 255, 255, .55),
+    0 2px 6px -2px rgba(0, 0, 0, .35);
+}
+/* the light sweep: above the button's background, under its text */
+:root[data-fx="liquid"] .btn-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .5) 47%, rgba(255, 255, 255, .14) 55%, transparent 68%);
+  transform: translateX(-130%);
+  transition: transform .9s var(--ease);
+}
+:root[data-fx="liquid"] .btn-glass:hover::after,
+:root[data-fx="liquid"] .btn-glass:focus-visible::after {
+  transform: translateX(130%);
+}
+
+/* The team card (About → "Who's behind it"): a glass card in the same language as the glass
+   buttons: frosted body, a soft specular cap, lit rims and a faint accent glow along the bottom;
+   the ZZ sits on a small glass tile with a glow rising behind it. Lifts with a slow light sweep. */
+:root[data-fx="liquid"] .people > .person {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, .02) 30%, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(180deg, rgba(var(--ivory-rgb), .06), rgba(var(--ivory-rgb), .015)),
+    rgba(var(--black-rgb), .45);
+  border: 1px solid rgba(var(--ivory-rgb), .1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .14),
+    inset 0 -14px 26px -20px rgba(var(--volt-rgb), .4),
+    0 24px 60px -30px rgba(0, 0, 0, .7);
+  transition: transform .45s var(--ease), box-shadow .45s var(--ease), border-color .45s var(--ease);
+}
+:root[data-fx="liquid"][data-look="mac"] .people > .person {
+  border-radius: var(--r);
+}
+:root[data-fx="liquid"] .people > .person:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--volt-rgb), .28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    inset 0 -14px 30px -18px rgba(var(--volt-rgb), .55),
+    0 30px 70px -30px rgba(0, 0, 0, .75);
+}
+:root[data-fx="liquid"] .people > .person::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .1) 48%, transparent 66%);
+  transform: translateX(-130%);
+  transition: transform 1.2s var(--ease);
+}
+:root[data-fx="liquid"] .people > .person:hover::after {
+  transform: translateX(130%);
+}
+:root[data-fx="liquid"] .people .avatar {
+  background:
+    radial-gradient(120% 85% at 50% 125%, rgba(var(--volt-rgb), .3), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 45%),
+    var(--charcoal);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .22),
+    inset 0 0 0 1px rgba(var(--ivory-rgb), .1),
+    inset 0 -8px 16px -10px rgba(var(--volt-rgb), .5),
+    0 10px 24px -14px rgba(var(--volt-rgb), .5);
+}
+:root[data-fx="liquid"][data-look="mac"] .people .avatar {
+  border-radius: var(--r-sm);
+}
+
 /* Glass filter chips over the Work page gradient (borders keep their 3:1 contrast) */
 :root[data-fx="liquid"][data-look="mac"] .page-hero .filter:not([aria-pressed="true"]) {
   background: rgba(var(--ivory-rgb), .05);
@@ -3495,5 +3641,15 @@ a.review-platform:hover {
   }
   [data-lens="on"] > .nav-lens.is-moving {
     animation: none;
+  }
+  :root[data-fx="liquid"] .btn-glass::after {
+    display: none;
+  }
+  :root[data-fx="liquid"] .people > .person,
+  :root[data-fx="liquid"] .people > .person:hover {
+    transform: none;
+  }
+  :root[data-fx="liquid"] .people > .person::after {
+    display: none;
   }
 }

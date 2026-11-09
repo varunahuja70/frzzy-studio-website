@@ -16,6 +16,7 @@ export function ImageBand({
   body,
   variant = 'bleed',
   position = 'center',
+  grade,
   children,
 }: {
   src: string;
@@ -26,6 +27,8 @@ export function ImageBand({
   variant?: 'bleed' | 'framed';
   /** CSS object-position for the crop, e.g. "center 30%" */
   position?: string;
+  /** Use a dedicated colour grade instead of the palette tint (see `data-grade` in globals.css). */
+  grade?: string;
   children?: React.ReactNode;
 }) {
   const media = (
@@ -50,7 +53,7 @@ export function ImageBand({
 
   if (variant === 'framed') {
     return (
-      <section className="image-band framed">
+      <section className="image-band framed" data-grade={grade}>
         <div className="wrap">
           <div className="ib-frame">
             {media}
@@ -61,7 +64,7 @@ export function ImageBand({
     );
   }
   return (
-    <section className="image-band bleed">
+    <section className="image-band bleed" data-grade={grade}>
       {media}
       <div className="wrap ib-wrap">{content}</div>
     </section>

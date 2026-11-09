@@ -140,9 +140,10 @@ export function StudioReviews({ onStartProject }: { onStartProject: () => void }
             What clients say<span className="dot">.</span>
           </h2>
           <p className="lede">Feedback from the brands and creators we have worked with.</p>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- the site switches pages in place (navigateTo); the href is for new tabs */}
           <a
-            className="btn btn-volt magnetic"
-            href="#contact"
+            className="btn btn-volt btn-glass magnetic"
+            href="/contact"
             onClick={(e) => {
               e.preventDefault();
               onStartProject();

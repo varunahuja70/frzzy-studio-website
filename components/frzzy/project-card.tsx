@@ -34,7 +34,7 @@ export function ProjectCard({ item, index, total, onOpen, featured = false }: Pr
   };
 
   return (
-    <a className={featured ? 'card card-featured' : 'card'} href={hash} onClick={handleClick}>
+    <a className={featured ? 'card card-featured' : 'card'} href={`/work/${item.slug}`} onClick={handleClick}>
       <div className="card-media">
         <WorkCardArt item={item} />
         <span className="card-go" aria-hidden="true">

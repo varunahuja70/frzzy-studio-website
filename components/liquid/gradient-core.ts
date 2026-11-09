@@ -38,7 +38,7 @@ export const PRESETS: Record<GradientPreset, PresetDef> = {
   ambient: { density: 0.4, strength: 0.7, speed: 0.05, segments: 96, rotation: [-0.45, 0.1, 0.5], grain: 0, stillTime: 12.5 },
 };
 
-export const MAX_ZONES = 8;
+export const MAX_ZONES = 10;
 /** Zone kinds: 1 normal text (4.5:1), 2 large title (3:1), 3 wordmark (3:1 to text, 2:1 to its accent slice). */
 export type ZoneKind = 1 | 2 | 3;
 /** A text block over the gradient, in CSS px relative to the canvas. */
@@ -326,11 +326,12 @@ export function applyColours(m: THREE.ShaderMaterial | null, c: ReturnType<typeo
   u.uRadial.value.set(...c.radial);
 }
 
-export function applyZones(m: THREE.ShaderMaterial | null, zones: Zone[]) {
+/** Writes `zones` into zone slots [from, to) (unused slots are cleared). */
+export function applyZones(m: THREE.ShaderMaterial | null, zones: Zone[], from = 0, to = MAX_ZONES) {
   if (!m) return;
   const u = m.uniforms;
-  for (let i = 0; i < MAX_ZONES; i++) {
-    const z = zones[i];
+  for (let i = from; i < to; i++) {
+    const z = zones[i - from];
     u.uZones.value[i].set(z?.x ?? 0, z?.y ?? 0, z?.w ?? 0, z?.h ?? 0);
     u.uZoneKind.value[i] = z?.kind ?? 0;
   }
@@ -360,6 +361,26 @@ export function startRipple(m: THREE.ShaderMaterial | null, x: number, y: number
   if (!m) return;
   const p = m.uniforms.uPointer.value as THREE.Vector2;
   (m.uniforms.uZap.value as THREE.Vector4).set(x + p.x * 0.8, y + p.y * 0.8, 1, 0);
+}
+
+/**
+ * Slots for the site header's logo and links. Gradients that reach up behind the glass header
+ * (home hero, page heroes) treat them as text zones; the header stays put while the page scrolls
+ * under it, so these are re-measured every frame. Slots 0–7 are the gradient's own text zones.
+ */
+export const HEADER_SLOT = 8;
+
+/** The header's logo and links over the gradient, relative to `wrap` (skipped once they're off it). */
+export function headerZones(wrap: HTMLElement): Zone[] {
+  const base = wrap.getBoundingClientRect();
+  const zones: Zone[] = [];
+  for (const el of document.querySelectorAll('header.site .brand, header.site .nav-links')) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || r.bottom < base.top || r.top > base.bottom) continue;
+    const pad = 8;
+    zones.push({ x: r.left - base.left - pad, y: r.top - base.top - pad, w: r.width + pad * 2, h: r.height + pad * 2, kind: 1 });
+  }
+  return zones;
 }
 
 /** Tight boxes (CSS px, relative to `wrapper`) around the given text elements. */

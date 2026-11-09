@@ -10,6 +10,8 @@ import {
   applyZones,
   colourSetup,
   createSheet,
+  HEADER_SLOT,
+  headerZones,
   measureZones,
   tick,
   type GradientPreset,
@@ -23,6 +25,8 @@ export type { GradientPreset } from './gradient-core';
  * The liquid gradient as a section background: page heroes (preset "hero") and the accent
  * "Got a brief?" bands (preset "cta"). The sheet, colours and contrast guard live in gradient-core.ts.
  * Put it as the first child of the section; it fills the section and sits behind its `.wrap`.
+ * Page heroes reach up behind the glass site header (globals.css), so the header's logo and links
+ * are text zones too, re-measured every frame.
  */
 
 /** Page heroes: every block of the `.wrap` is a text zone; the page title is "large". */
@@ -56,7 +60,10 @@ export default function LiquidGradient({ preset }: { preset: Exclude<GradientPre
       };
     },
     onResize: ({ width, height, dpr }) => applyCanvasSize(matRef.current, width, height, dpr),
-    onFrame: (dt) => tick(matRef.current, dt * (preset === 'cta' ? 0.48 : 0.28), dt, pointerRef.current),
+    onFrame: (dt) => {
+      if (preset === 'hero' && wrapRef.current) applyZones(matRef.current, headerZones(wrapRef.current), HEADER_SLOT);
+      tick(matRef.current, dt * (preset === 'cta' ? 0.48 : 0.28), dt, pointerRef.current);
+    },
     onReady: () => setReady(true),
   });
 
@@ -66,9 +73,20 @@ export default function LiquidGradient({ preset }: { preset: Exclude<GradientPre
   }, [preset, pal, stageRef]);
 
   useEffect(() => {
-    applyZones(matRef.current, zones);
+    applyZones(matRef.current, zones, 0, HEADER_SLOT);
     stageRef.current?.invalidate();
   }, [zones, stageRef]);
+
+  // When not animating (reduced motion), still redraw while scrolling so the header's zones follow it.
+  useEffect(() => {
+    if (preset !== 'hero') return;
+    const onScroll = () => {
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (r && r.bottom > 0) stageRef.current?.invalidate();
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [preset, stageRef]);
 
   // Text zones (page heroes only): re-measured when the layout or fonts change.
   useEffect(() => {

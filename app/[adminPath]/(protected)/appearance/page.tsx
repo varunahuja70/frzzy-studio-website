@@ -271,7 +271,7 @@ function LivePreview({ appearance }: { appearance: SiteAppearance }) {
   // Debounced so clicking through options doesn't reload the preview on every click
   const query = `preview=1&palette=${appearance.palette}&look=${appearance.look}&scroll=${appearance.scroll}&strands=${appearance.strands}&fx=${appearance.fx}&metal=${appearance.metal}`;
   useEffect(() => {
-    const t = setTimeout(() => setSrc(`/?${query}#home`), 250);
+    const t = setTimeout(() => setSrc(`/?${query}`), 250);
     return () => clearTimeout(t);
   }, [query]);
 
