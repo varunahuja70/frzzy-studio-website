@@ -364,21 +364,19 @@ export async function PATCH(
             createdAt: now,
           });
 
-          // Notification
-          if (targetAdmin.id !== perms.adminId) {
-            await db.insert(notifications).values({
-              id: crypto.randomUUID(),
-              recipientId: targetAdmin.id,
-              actorId: perms.adminId,
-              actorName: perms.name || perms.email,
-              type: 'assignment',
-              title: `Task Assigned: ${item.itemNumber}`,
-              message: `${perms.name || perms.email} assigned you "${updates.title || item.title}".`,
-              resourceType: 'work_item',
-              resourceId: id,
-              createdAt: now,
-            });
-          }
+          // Notification to target assignee
+          await db.insert(notifications).values({
+            id: crypto.randomUUID(),
+            recipientId: targetAdmin.id,
+            actorId: perms.adminId,
+            actorName: perms.name || perms.email,
+            type: 'assignment',
+            title: `Task Assigned: ${item.itemNumber}`,
+            message: `${perms.name || perms.email} assigned you "${updates.title || item.title}".`,
+            resourceType: 'work_item',
+            resourceId: id,
+            createdAt: now,
+          });
         } else {
           // Unassign
           updates.assignedTo = null;

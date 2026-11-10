@@ -38,16 +38,20 @@ import {
   Palette,
   Star,
 } from 'lucide-react';
+import { VaultNotificationsPopover } from '@/components/admin/vault-notifications-popover';
+import { getLocalNotifications, NOTIF_EVENT_NAME } from '@/lib/client-notifications';
 
 interface AdminLayoutShellProps {
   children: React.ReactNode;
   userEmail?: string;
+  adminId?: string;
   adminPath: string;
 }
 
 export function AdminLayoutShell({
   children,
   userEmail = '',
+  adminId = '',
   adminPath,
 }: AdminLayoutShellProps) {
   const pathname = usePathname();
@@ -77,6 +81,24 @@ export function AdminLayoutShell({
 
   // Range selector
   const [activeRange, setActiveRange] = useState<'today' | '7d' | '30d' | '90d'>('30d');
+
+  // Notifications unread count
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
+
+  useEffect(() => {
+    const userKey = adminId || userEmail;
+    const updateCount = () => {
+      const list = getLocalNotifications(userKey);
+      setUnreadNotificationsCount(list.filter((n) => !n.isRead).length);
+    };
+    updateCount();
+    window.addEventListener(NOTIF_EVENT_NAME, updateCount);
+    window.addEventListener('storage', updateCount);
+    return () => {
+      window.removeEventListener(NOTIF_EVENT_NAME, updateCount);
+      window.removeEventListener('storage', updateCount);
+    };
+  }, [adminId, userEmail]);
 
   // Dynamic theme state
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -719,83 +741,31 @@ export function AdminLayoutShell({
                 ))}
               </div>
 
-              {/* Notifications Dropdown */}
+              {/* Notifications Dropdown & Popover */}
               <div ref={notifRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setNotificationsOpen((o) => !o)}
                   className="relative h-9 w-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
                   title="Notifications"
+                  aria-label="Notifications"
                 >
-                  <Bell className="h-4 w-4 text-[#a09d93]" />
-                  <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#ff4f31]" />
+                  <Bell className={`h-4 w-4 ${unreadNotificationsCount > 0 ? 'text-[#26D67C]' : 'text-[#a09d93]'}`} />
+                  {unreadNotificationsCount > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[17px] h-4 px-1 rounded-full bg-[#26D67C] text-[#080808] font-black text-[9px] flex items-center justify-center shadow-[0_0_10px_rgba(38,214,124,0.7)] animate-pulse">
+                      {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                    </span>
+                  )}
                 </button>
 
-                <AnimatePresence>
-                  {notificationsOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ duration: 0.16 }}
-                      className="absolute right-0 mt-2 w-84 rounded-[22px] bg-[#181712]/98 backdrop-blur-2xl border border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.85)] p-4 z-50 text-left"
-                    >
-                      <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-                        <div className="flex items-center gap-2">
-                          <Bell className="h-4 w-4 text-[#ff4f31]" />
-                          <span className="text-[13px] font-bold text-white">System Security</span>
-                        </div>
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          Vault Active
-                        </span>
-                      </div>
-
-                      <div className="py-2 flex flex-col gap-2 max-h-72 overflow-y-auto">
-                        <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
-                          <div className="flex items-start gap-2.5">
-                            <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                              <ShieldCheck className="h-3.5 w-3.5" />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-xs text-[#f4efea]">Hardware Vault Defense</p>
-                              <p className="text-[11px] text-[#a09d93] mt-0.5 leading-snug">
-                                Argon2id memory-hardened encryption + TOTP 2FA active across all sessions.
-                              </p>
-                              <span className="text-[9.5px] text-[#a09d93]/60 mt-1 inline-block">Security Layer</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
-                          <div className="flex items-start gap-2.5">
-                            <div className="h-7 w-7 rounded-lg bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center shrink-0 mt-0.5">
-                              <Lock className="h-3.5 w-3.5" />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-xs text-[#f4efea]">Client PII Protected</p>
-                              <p className="text-[11px] text-[#a09d93] mt-0.5 leading-snug">
-                                AES-256-GCM encryption verified on all incoming client leads and contacts.
-                              </p>
-                              <span className="text-[9.5px] text-[#a09d93]/60 mt-1 inline-block">Privacy Guard</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-2.5 border-t border-white/[0.08] flex items-center justify-between text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => setNotificationsOpen(false)}
-                          className="text-[#a09d93] hover:text-white transition-colors cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
-                        <span className="text-[10px] text-[#a09d93]/50">FRXCX Sec-Ops</span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <VaultNotificationsPopover
+                  adminPath={adminPath}
+                  userEmail={userEmail}
+                  adminId={adminId}
+                  isOpen={notificationsOpen}
+                  onClose={() => setNotificationsOpen(false)}
+                  onUnreadChange={(count) => setUnreadNotificationsCount(count)}
+                />
               </div>
 
               {/* Theme Switcher Toggle */}

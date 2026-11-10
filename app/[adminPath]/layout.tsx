@@ -8,6 +8,16 @@ export const metadata = {
     follow: false,
   },
   title: 'FRXCX Studio Vault — Secured Admin Area',
+  icons: {
+    icon: [
+      { url: '/icon-32x32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    shortcut: '/icon-32x32.png',
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default async function AdminRootLayout(props: {
@@ -25,6 +35,11 @@ export default async function AdminRootLayout(props: {
 
   return (
     <div className="min-h-screen w-full bg-[#12110b] text-[#f4efea] dark">
+      <link rel="icon" type="image/png" sizes="32x32" href="/icon-32x32.png" />
+      <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+      <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
+      <link rel="shortcut icon" href="/icon-32x32.png" />
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       <script
         nonce={nonce}
         suppressHydrationWarning

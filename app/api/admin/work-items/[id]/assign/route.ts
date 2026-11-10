@@ -117,21 +117,19 @@ export async function POST(
       createdAt: now,
     });
 
-    // 4. Send in-app notification to assignee
-    if (data.assignedTo !== perms.adminId) {
-      await db.insert(notifications).values({
-        id: crypto.randomUUID(),
-        recipientId: data.assignedTo,
-        actorId: perms.adminId,
-        actorName: perms.name || perms.email,
-        type: 'assignment',
-        title: `New Task Assigned: ${item.itemNumber}`,
-        message: `${perms.name || perms.email} assigned you "${item.title}". Priority: ${data.priority.toUpperCase()}.`,
-        resourceType: 'work_item',
-        resourceId: id,
-        createdAt: now,
-      });
-    }
+    // 4. Send in-app notification to assignee (always delivers to target recipient)
+    await db.insert(notifications).values({
+      id: crypto.randomUUID(),
+      recipientId: data.assignedTo,
+      actorId: perms.adminId,
+      actorName: perms.name || perms.email,
+      type: 'assignment',
+      title: `New Task Assigned: ${item.itemNumber}`,
+      message: `${perms.name || perms.email} assigned you "${item.title}". Priority: ${data.priority.toUpperCase()}.`,
+      resourceType: 'work_item',
+      resourceId: id,
+      createdAt: now,
+    });
 
     return NextResponse.json({
       success: true,

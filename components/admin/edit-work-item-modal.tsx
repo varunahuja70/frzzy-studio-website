@@ -21,6 +21,7 @@ import {
   Square,
 } from 'lucide-react';
 import { SHAREABLE_FIELDS, DEFAULT_SHARE_TEMPLATES } from '@/lib/auth/permissions-constants';
+import { dispatchAssignedTaskNotification } from '@/lib/client-notifications';
 
 interface AssigneeCandidate {
   id: string;
@@ -225,6 +226,20 @@ export function EditWorkItemModal({
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to update work item');
+      }
+
+      // If assigned to a specialist, dispatch targeted task notification
+      if (assignedTo) {
+        const candidate = candidates.find((c) => c.id === assignedTo);
+        dispatchAssignedTaskNotification({
+          targetAdminId: assignedTo,
+          targetEmail: candidate?.email,
+          taskTitle: title || 'Updated Deliverable',
+          itemNumber: workItemId.substring(0, 8).toUpperCase(),
+          assignerName: 'Studio Director',
+          priority,
+          resourceId: workItemId,
+        });
       }
 
       setSuccess(true);

@@ -45,10 +45,13 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: '/icon-32x32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
       { url: '/favicon.ico', sizes: 'any' },
     ],
-    shortcut: '/favicon.ico',
-    apple: '/favicon.ico',
+    shortcut: '/icon-32x32.png',
+    apple: '/apple-touch-icon.png',
   },
   twitter: {
     card: 'summary_large_image',
@@ -81,6 +84,11 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${interTight.variable} ${plusJakarta.variable} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0 [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden overflow-x-clip`}
     >
       <head suppressHydrationWarning>
+        <link rel="icon" type="image/png" sizes="32x32" href="/icon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
+        <link rel="shortcut icon" href="/icon-32x32.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* Appearance is server-rendered on <html> above (set in the vault); this script only applies
             one-off ?palette=&look=… preview overrides, e.g. for the vault's live preview. */}
         <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />

@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { SHAREABLE_FIELDS, DEFAULT_SHARE_TEMPLATES } from '@/lib/auth/permissions-constants';
+import { dispatchAssignedTaskNotification } from '@/lib/client-notifications';
 
 interface AssigneeCandidate {
   id: string;
@@ -137,6 +138,17 @@ export function AssignWorkModal({
         const data = await res.json();
         throw new Error(data.error || 'Assignment failed');
       }
+
+      // Dispatch real-time targeted notification to the assigned person
+      dispatchAssignedTaskNotification({
+        targetAdminId: selectedAssignee,
+        targetEmail: selectedCandidate?.email,
+        taskTitle: itemTitle || 'Creative Deliverable',
+        itemNumber: itemNumber || 'Task',
+        assignerName: 'Creative Director',
+        priority,
+        resourceId: workItemId,
+      });
 
       onAssigned();
       onClose();
