@@ -73,6 +73,7 @@ export default function AdminUsersPage(props: {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
 
   // Modals & Drawers
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -142,23 +143,40 @@ export default function AdminUsersPage(props: {
   }, [tempPasswordResult, createModalOpen, pwdModalUser]);
 
   // Fetch Users
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (isManualRefresh = false) => {
     try {
-      setLoading(true);
-      const res = await fetch(`/api/admin/users?search=${encodeURIComponent(search)}&role=${roleFilter}&status=${statusFilter}`);
+      if (isManualRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      const res = await fetch(
+        `/api/admin/users?search=${encodeURIComponent(search)}&role=${roleFilter}&status=${statusFilter}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+          },
+        }
+      );
       if (res.status === 403) {
         window.location.href = `/${adminPath}/403`;
         return;
       }
       if (res.ok) {
         const data = await res.json();
-        setUsers(data.users);
-        setCachedData('users_list', data.users);
+        const userList = Array.isArray(data.users) ? data.users : [];
+        setUsers(userList);
+        setCachedData('users_list', userList);
       }
     } catch (err) {
       console.error('Fetch users error:', err);
     } finally {
       setLoading(false);
+      if (isManualRefresh) {
+        setTimeout(() => setRefreshing(false), 400);
+      }
     }
   }, [adminPath, search, roleFilter, statusFilter]);
 
@@ -546,11 +564,13 @@ export default function AdminUsersPage(props: {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={fetchUsers}
-            className="h-9 px-3 rounded-full border border-black/10 dark:border-white/10 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-1.5 cursor-pointer text-[#12110b] dark:text-[#f4efea]"
+            disabled={refreshing}
+            onClick={() => fetchUsers(true)}
+            title="Reload user list directly from server"
+            className="h-9 px-3.5 rounded-[12px] border border-black/10 dark:border-white/10 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer text-[#12110b] dark:text-[#f4efea] disabled:opacity-60"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            <span>Refresh</span>
+            <RotateCcw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-[#26D67C]' : ''}`} />
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
 
           <button
@@ -560,9 +580,9 @@ export default function AdminUsersPage(props: {
               setFormError('');
               setCreateModalOpen(true);
             }}
-            className="h-9 px-4 rounded-full bg-[#26D67C] hover:bg-[#20b86a] text-black text-xs font-bold transition-all shadow-[0_0_20px_rgba(38,214,124,0.3)] flex items-center gap-1.5 cursor-pointer"
+            className="h-9 px-4 rounded-[12px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:opacity-90 active:scale-[0.98] text-xs font-semibold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
           >
-            <UserPlus className="h-4 w-4" />
+            <UserPlus className="h-3.5 w-3.5" />
             <span>New User</span>
           </button>
         </div>

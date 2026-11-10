@@ -588,6 +588,14 @@ header.site {
   border-bottom: 1px solid var(--line);
   perspective: 1400px;
 }
+@media (max-width: 640px) {
+  .reel {
+    padding: clamp(20px, 4vw, 36px) 0;
+  }
+  .reel-frame {
+    transform: none !important;
+  }
+}
 .reel-frame {
   position: relative;
   aspect-ratio: 16/9;

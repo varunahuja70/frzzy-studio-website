@@ -194,7 +194,16 @@ export async function GET(req: NextRequest) {
       filtered = filtered.filter((u) => u.status === statusFilter);
     }
 
-    return NextResponse.json({ users: filtered });
+    return NextResponse.json(
+      { users: filtered },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    );
   } catch (err) {
     console.error('Fetch users error:', err);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
