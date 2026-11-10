@@ -91,6 +91,14 @@ export default function AdminUsersPage(props: {
     inviteUrl?: string;
   } | null>(null);
 
+  // Recreate / Set Password Modal State
+  const [pwdModalUser, setPwdModalUser] = useState<UserRecord | null>(null);
+  const [pwdMode, setPwdMode] = useState<'custom' | 'random'>('custom');
+  const [customNewPassword, setCustomNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+
   // Reauth Guard state
   const [reauthOpen, setReauthOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
@@ -126,11 +134,12 @@ export default function AdminUsersPage(props: {
       if (e.key === 'Escape') {
         if (tempPasswordResult) setTempPasswordResult(null);
         if (createModalOpen) setCreateModalOpen(false);
+        if (pwdModalUser) setPwdModalUser(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tempPasswordResult, createModalOpen]);
+  }, [tempPasswordResult, createModalOpen, pwdModalUser]);
 
   // Fetch Users
   const fetchUsers = useCallback(async () => {
@@ -362,23 +371,67 @@ export default function AdminUsersPage(props: {
     }
   };
 
-  // Reset Password Action
-  const handleResetPassword = (user: UserRecord) => {
+  // Recreate / Set User Password Handlers
+  const openResetPasswordModal = (user: UserRecord) => {
+    setPwdModalUser(user);
+    setPwdMode('custom');
+    setCustomNewPassword('');
+    setShowNewPassword(false);
+    setPwdError('');
+  };
+
+  const handleQuickGeneratePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+    let res = '';
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < 16; i++) {
+      res += chars[array[i] % chars.length];
+    }
+    setCustomNewPassword(res);
+  };
+
+  const handleConfirmPasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwdModalUser) return;
+
+    if (pwdMode === 'custom' && customNewPassword.trim().length < 8) {
+      setPwdError('Password must be at least 8 characters long');
+      return;
+    }
+
+    const targetUser = pwdModalUser;
+    const finalPayload = pwdMode === 'custom' ? { password: customNewPassword.trim() } : {};
+
     executeWithReauth(
       async () => {
-        const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: 'POST' });
-        const data = await res.json();
-        if (res.ok && data.temporaryPassword) {
-          setTempPasswordResult({
-            email: user.email,
-            temporaryPassword: data.temporaryPassword,
+        setPwdSubmitting(true);
+        setPwdError('');
+        try {
+          const res = await fetch(`/api/admin/users/${targetUser.id}/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(finalPayload),
           });
-        } else {
-          alert(data.error || 'Failed to reset password');
+          const data = await res.json();
+          if (res.ok && (data.password || data.temporaryPassword)) {
+            setPwdModalUser(null);
+            setTempPasswordResult({
+              email: targetUser.email,
+              temporaryPassword: data.password || data.temporaryPassword,
+            });
+            fetchUsers();
+          } else {
+            setPwdError(data.error || 'Failed to update user password');
+          }
+        } catch {
+          setPwdError('Network error connecting to Vault server');
+        } finally {
+          setPwdSubmitting(false);
         }
       },
-      'Force Password Reset',
-      `Confirm generating a new temporary credential for ${user.email}.`
+      'Recreate User Password',
+      `Administrative confirmation required to set new credentials for ${targetUser.email} and synchronize to Supabase Auth.`
     );
   };
 
@@ -658,8 +711,8 @@ export default function AdminUsersPage(props: {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => handleResetPassword(u)}
-                          title="Generate New Temporary Password"
+                          onClick={() => openResetPasswordModal(u)}
+                          title="Recreate / Set New Password"
                           className="h-7 w-7 rounded-md flex items-center justify-center text-[#5a6265] dark:text-[#a09d93] hover:text-[#26D67C] hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                         >
                           <KeyRound className="h-3.5 w-3.5" />
@@ -778,6 +831,152 @@ export default function AdminUsersPage(props: {
             >
               Done & Return to Vault
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= RECREATE / SET USER PASSWORD MODAL ================= */}
+      {pwdModalUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
+          onClick={() => !pwdSubmitting && setPwdModalUser(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-[28px] bg-[#101216] p-7 sm:p-8 shadow-[0_24px_70px_rgba(0,0,0,0.8)] border border-white/[0.08] text-[#f4efea] flex flex-col gap-5 relative z-10 transition-all duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-[#26D67C]/10 border border-[#26D67C]/20 text-[#26D67C] flex items-center justify-center">
+                  <KeyRound className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white tracking-tight">Recreate User Password</h3>
+                  <p className="text-[11px] text-[#a09d93]">Set custom password or generate new credential</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPwdModalUser(null)}
+                className="h-7 w-7 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-white/50 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Target Account Info */}
+            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between text-xs">
+              <span className="text-[#a09d93]">Target Account</span>
+              <span className="font-semibold text-white">{pwdModalUser.email}</span>
+            </div>
+
+            <form onSubmit={handleConfirmPasswordChange} className="flex flex-col gap-4">
+              {/* Mode Selector */}
+              <div className="flex items-center gap-2 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPwdMode('custom');
+                    setPwdError('');
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    pwdMode === 'custom'
+                      ? 'bg-[#26D67C] text-black shadow-sm'
+                      : 'text-[#a09d93] hover:text-white'
+                  }`}
+                >
+                  Custom Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPwdMode('random');
+                    setPwdError('');
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    pwdMode === 'random'
+                      ? 'bg-[#26D67C] text-black shadow-sm'
+                      : 'text-[#a09d93] hover:text-white'
+                  }`}
+                >
+                  Random Generated
+                </button>
+              </div>
+
+              {/* Custom Input */}
+              {pwdMode === 'custom' ? (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[12px] font-medium text-[#d0cbc2]">
+                      New Custom Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleQuickGeneratePassword}
+                      className="text-[11px] text-[#26D67C] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>Auto-Generate</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={customNewPassword}
+                      onChange={(e) => {
+                        setCustomNewPassword(e.target.value);
+                        setPwdError('');
+                      }}
+                      placeholder="Enter new password (min. 8 chars)"
+                      className="w-full h-[46px] rounded-xl bg-white/[0.04] px-3.5 pr-10 text-sm text-white border border-white/10 focus:border-[#26D67C] focus:ring-1 focus:ring-[#26D67C] outline-none transition-all placeholder:text-white/20"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-[#a09d93]">
+                    Must be at least 8 characters. Directly updates in Vault and Supabase Auth.
+                  </span>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-xs text-[#a09d93] leading-relaxed">
+                  A high-entropy, cryptographically secure 16-character temporary password will be created, stored in Supabase Auth, and displayed upon confirmation.
+                </div>
+              )}
+
+              {/* Error Banner */}
+              {pwdError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+                  <span>{pwdError}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPwdModalUser(null)}
+                  disabled={pwdSubmitting}
+                  className="flex-1 h-[42px] rounded-xl border border-white/10 hover:bg-white/5 text-xs font-semibold text-[#a09d93] hover:text-white transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={pwdSubmitting}
+                  className="flex-1 h-[42px] rounded-xl bg-[#26D67C] hover:bg-[#20b86b] text-black text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  {pwdSubmitting ? <span>Updating...</span> : <span>Save & Sync Supabase</span>}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

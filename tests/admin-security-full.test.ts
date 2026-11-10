@@ -91,8 +91,8 @@ describe('PHASE 2: Brute-Force Rate Limiting & Progressive Lockout', () => {
     assert.equal(status.isLocked, false);
   });
 
-  test('Lockout activates after 5 failed attempts within window', async () => {
-    for (let i = 0; i < 5; i++) {
+  test('Lockout activates after 10 failed attempts within window', async () => {
+    for (let i = 0; i < 10; i++) {
       await recordLoginAttempt(testEmail, testIp, false, 'bad_password');
     }
 

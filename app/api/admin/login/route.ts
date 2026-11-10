@@ -204,8 +204,34 @@ export async function POST(req: NextRequest) {
         ipAddress: ip,
         userAgent,
       });
+
+      const updatedLockout = await checkLoginLockout(email, ip);
       await ensureMinResponseTime();
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+
+      if (updatedLockout.isLocked) {
+        return NextResponse.json(
+          {
+            error: `Maximum 10 failed attempts reached. Account locked for 5 minutes. Try again in ${updatedLockout.remainingSeconds} seconds.`,
+            locked: true,
+            remainingSeconds: updatedLockout.remainingSeconds,
+          },
+          { status: 429 }
+        );
+      }
+
+      const remaining = updatedLockout.attemptsRemaining;
+      const errorMsg =
+        remaining <= 4 && remaining > 0
+          ? `Invalid credentials. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before 5-minute lockout.`
+          : 'Invalid credentials';
+
+      return NextResponse.json(
+        {
+          error: errorMsg,
+          attemptsRemaining: remaining,
+        },
+        { status: 401 }
+      );
     }
 
     const has2FaConfigured = Boolean(admin.twoFactorEnabled && admin.twoFactorSecret);

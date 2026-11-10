@@ -122,7 +122,7 @@ describe('Security hardening', () => {
 
   test('a flood of failures for other accounts cannot lift an account lockout', async () => {
     const email = `locked-${uniq()}@studio.test`;
-    for (let i = 0; i < 6; i++) await recordLoginAttempt(email, `10.1.${i}.1`, false, 'invalid_password');
+    for (let i = 0; i < 10; i++) await recordLoginAttempt(email, `10.1.${i}.1`, false, 'invalid_password');
     for (let i = 0; i < 30; i++) await recordLoginAttempt(`noise-${uniq()}@studio.test`, `10.2.${i}.1`, false, 'invalid_password');
     assert.equal((await checkLoginLockout(email, '10.3.3.3')).isLocked, true);
   });

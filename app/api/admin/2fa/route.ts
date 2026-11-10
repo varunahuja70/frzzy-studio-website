@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Without this, a stolen password would allow unlimited guesses at the 6-digit code
-    const lockout = await checkLoginLockout(admin.email, ip);
+    const lockout = await checkLoginLockout(admin.email, ip, 5);
     if (lockout.isLocked) {
       return NextResponse.json(
         {

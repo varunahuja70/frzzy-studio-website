@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, use } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Mail, KeyRound, ShieldAlert, ArrowRight, ArrowLeft, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
@@ -21,6 +21,27 @@ export default function AdminLoginPage(props: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [lockoutSeconds, setLockoutSeconds] = useState<number | null>(null);
+
+  // Live countdown timer for 5-minute lockout
+  useEffect(() => {
+    if (!lockoutSeconds || lockoutSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutSeconds((prev) => {
+        if (!prev || prev <= 1) {
+          setError('');
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutSeconds]);
+
+  const formatLockout = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   // Step 1: Submit Password
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -204,11 +225,21 @@ export default function AdminLoginPage(props: {
 
               <button
                 type="submit"
-                disabled={loading}
-                className="mt-2 w-full h-[48px] rounded-full bg-[#f4efea] text-[#12110b] hover:bg-[#ff4f31] hover:text-white font-semibold text-[14.5px] tracking-tight transition-all duration-300 shadow-md flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                disabled={loading || Boolean(lockoutSeconds && lockoutSeconds > 0)}
+                className="mt-2 w-full h-[48px] rounded-full bg-[#f4efea] text-[#12110b] hover:bg-[#ff4f31] hover:text-white font-semibold text-[14.5px] tracking-tight transition-all duration-300 shadow-md flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
               >
-                <span>{loading ? 'Verifying...' : 'Next Step'}</span>
-                <ArrowRight className="h-4 w-4" />
+                {loading ? (
+                  <span>Verifying...</span>
+                ) : lockoutSeconds && lockoutSeconds > 0 ? (
+                  <span className="flex items-center gap-1.5 font-mono text-rose-500 font-bold">
+                    <span>Locked ({formatLockout(lockoutSeconds)})</span>
+                  </span>
+                ) : (
+                  <>
+                    <span>Next Step</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
             </motion.form>
           ) : (

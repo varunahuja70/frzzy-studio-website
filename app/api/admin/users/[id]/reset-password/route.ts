@@ -36,8 +36,20 @@ export async function POST(
     }
 
     const json = await req.json().catch(() => ({}));
-    const customPassword = typeof json?.password === 'string' && json.password.trim().length >= 8 ? json.password.trim() : null;
-    const finalPassword = customPassword || generateTemporaryPassword();
+    let finalPassword = '';
+    let isCustom = false;
+
+    if (json?.password !== undefined && json?.password !== null && String(json.password).trim() !== '') {
+      const trimmed = String(json.password).trim();
+      if (trimmed.length < 8) {
+        return NextResponse.json({ error: 'Password must be at least 8 characters long.' }, { status: 400 });
+      }
+      finalPassword = trimmed;
+      isCustom = true;
+    } else {
+      finalPassword = generateTemporaryPassword();
+      isCustom = false;
+    }
 
     await ensureDatabaseReady();
 
@@ -59,7 +71,7 @@ export async function POST(
       .set({
         passwordHash: hash,
         salt,
-        mustChangePassword: !customPassword,
+        mustChangePassword: !isCustom,
         updatedAt: Date.now(),
       })
       .where(eq(admins.id, targetId));
@@ -67,9 +79,20 @@ export async function POST(
     // Sync password reset to Supabase Auth
     try {
       const supabase = getAdminSupabaseClient();
-      await supabase.auth.admin.updateUserById(targetId, {
+      const { error: updateErr } = await supabase.auth.admin.updateUserById(targetId, {
         password: finalPassword,
       });
+      if (updateErr) {
+        const { data: usersList } = await supabase.auth.admin.listUsers();
+        const matched = usersList?.users?.find(
+          (u) => u.email?.toLowerCase() === target.email.toLowerCase()
+        );
+        if (matched) {
+          await supabase.auth.admin.updateUserById(matched.id, {
+            password: finalPassword,
+          });
+        }
+      }
     } catch (sbErr) {
       console.warn('Supabase password reset warning:', sbErr);
     }
@@ -83,7 +106,7 @@ export async function POST(
       adminId: sessionRes.admin.id,
       action: 'PASSWORD_RESET_BY_ADMIN',
       resource: target.email,
-      details: { targetId, isCustom: Boolean(customPassword) },
+      details: { targetId, isCustom },
       ipAddress: ip,
       userAgent: req.headers.get('user-agent') || undefined,
     });
