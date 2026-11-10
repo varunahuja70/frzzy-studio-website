@@ -43,6 +43,13 @@ export const metadata: Metadata = {
       'FRZZY Studio makes motion design, 3D and branding with static energy. Stay FRZZY.',
     type: 'website',
   },
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
   twitter: {
     card: 'summary_large_image',
     title: 'FRZZY Studio — Motion, 3D & Visuals with Static Energy',

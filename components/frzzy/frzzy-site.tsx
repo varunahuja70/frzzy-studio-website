@@ -1078,10 +1078,14 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                 <div className="people">
                   <div className="person">
                     <div className="avatar" aria-hidden="true">
-                      <span className="wm">
-                        <svg className="z"><use href="#z" /></svg>
-                        <svg className="z z2"><use href="#z" /></svg>
-                      </span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/assets/frzzy/frzzy-team-badge.png"
+                        alt="FRZZY Emblem"
+                        width={48}
+                        height={48}
+                        className="w-11 h-11 object-contain drop-shadow-[0_2px_12px_rgba(38,214,124,0.35)]"
+                      />
                     </div>
                     <div>
                       <h3>FRZZY Team</h3>
