@@ -584,17 +584,9 @@ header.site {
 
 /* Reel */
 .reel {
-  padding: clamp(48px, 7vw, 96px) 0;
+  padding: clamp(36px, 6vw, 84px) 0;
   border-bottom: 1px solid var(--line);
   perspective: 1400px;
-}
-@media (max-width: 640px) {
-  .reel {
-    padding: clamp(20px, 4vw, 36px) 0;
-  }
-  .reel-frame {
-    transform: none !important;
-  }
 }
 .reel-frame {
   position: relative;
@@ -603,16 +595,16 @@ header.site {
   overflow: hidden;
   border: none !important;
   outline: none !important;
-  /* corners come from the look: square in Studio, rounded in Mac (see "Rounded, softly lifted media") */
+  border-radius: clamp(16px, 2.5vw, 24px);
   transform: rotateX(var(--tilt, 0deg)) scale(var(--sc, 1));
   transform-origin: center bottom;
   box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.9);
-  transition: box-shadow 0.35s ease;
+  transition: box-shadow 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .reel-frame:hover {
   border: none !important;
   outline: none !important;
-  box-shadow: 0 50px 120px -20px rgba(0, 0, 0, 0.95);
+  box-shadow: 0 50px 120px -20px rgba(0, 0, 0, 0.95), 0 0 35px rgba(var(--volt-rgb), 0.12);
 }
 :root[data-look="mac"] .reel-frame::before {
   display: none !important;

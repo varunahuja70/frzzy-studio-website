@@ -156,17 +156,11 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
       }
 
       if (reelFrameRef.current) {
-        const isMobile = window.innerWidth < 768;
-        if (isMobile) {
-          reelFrameRef.current.style.setProperty('--tilt', '0deg');
-          reelFrameRef.current.style.setProperty('--sc', '1');
-        } else {
-          const rect = reelFrameRef.current.getBoundingClientRect();
-          const vh = window.innerHeight;
-          const p = Math.min(1, Math.max(0, 1 - (rect.top - vh * 0.15) / (vh * 0.85)));
-          reelFrameRef.current.style.setProperty('--tilt', `${((1 - p) * 10).toFixed(2)}deg`);
-          reelFrameRef.current.style.setProperty('--sc', (0.96 + p * 0.04).toFixed(3));
-        }
+        const rect = reelFrameRef.current.getBoundingClientRect();
+        const vh = window.innerHeight;
+        const p = Math.min(1, Math.max(0, 1 - (rect.top - vh * 0.15) / (vh * 0.85)));
+        reelFrameRef.current.style.setProperty('--tilt', `${((1 - p) * 22).toFixed(2)}deg`);
+        reelFrameRef.current.style.setProperty('--sc', (0.88 + p * 0.12).toFixed(3));
       }
     };
 
@@ -515,7 +509,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
 
             {/* Showreel Section */}
             <section className="reel w-full" aria-label="Showreel">
-              <div className="wrap !max-w-[1400px] px-2.5 sm:px-6 lg:px-8">
+              <div className="wrap max-w-[1100px] px-4 sm:px-8 lg:px-10">
                 <div
                   className="reel-frame w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl"
                   ref={reelFrameRef}
