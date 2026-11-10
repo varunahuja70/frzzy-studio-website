@@ -1158,12 +1158,12 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                       <p className="mono muted">Email</p>
                       <div className="reach-row">
                         <span className="val" id="email-text">
-                          frxcxstudio@gmail.com
+                          frzzystudio@gmail.com
                         </span>
                         <button
                           className="small-btn"
                           type="button"
-                          onClick={() => copyToClipboard('frxcxstudio@gmail.com', setEmailCopyStatus)}
+                          onClick={() => copyToClipboard('frzzystudio@gmail.com', setEmailCopyStatus)}
                         >
                           Copy
                         </button>
@@ -1303,8 +1303,8 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                         </div>
                         <p className="muted" style={{ fontSize: '14px' }}>
                           Paste it into an email to{' '}
-                          <a href="mailto:frxcxstudio@gmail.com" className="text-white underline">
-                            frxcxstudio@gmail.com
+                          <a href="mailto:frzzystudio@gmail.com" className="text-white underline">
+                            frzzystudio@gmail.com
                           </a>
                           .
                         </p>
@@ -1382,7 +1382,7 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                     key={`cal-${paletteVersion}`}
                     prefillName={contactName}
                     prefillEmail={contactEmail}
-                    studioEmail="frxcxstudio@gmail.com"
+                    studioEmail="frzzystudio@gmail.com"
                   />
                 </div>
               </div>
@@ -1413,8 +1413,8 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
 
           <div className="foot-contact">
             <p className="mono muted">Got an idea? Say hello</p>
-            <a className="foot-email" href="mailto:frxcxstudio@gmail.com">
-              frxcxstudio@gmail.com
+            <a className="foot-email" href="mailto:frzzystudio@gmail.com">
+              frzzystudio@gmail.com
               <svg aria-hidden="true">
                 <use href="#arrow" />
               </svg>

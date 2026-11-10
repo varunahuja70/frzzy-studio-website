@@ -8,7 +8,7 @@ You set this up once, in about 10 minutes.
 
 ## 1. Create the Calendly account
 
-1. Sign up at <https://calendly.com> with the **studio inbox** (`frxcxstudio@gmail.com`).
+1. Sign up at <https://calendly.com> with the **studio inbox** (`frzzystudio@gmail.com`).
    Booking notifications go to this address, so both of you see every meeting.
 2. When asked, **connect the studio Google Calendar**. Busy times are then blocked automatically
    and each booking appears in the calendar.

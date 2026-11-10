@@ -69,7 +69,7 @@ export default function AdminExportsPage(props: {
   const [schedTime, setSchedTime] = useState('08:00');
   const [schedTimezone, setSchedTimezone] = useState('Asia/Kolkata');
   const [schedFormat, setSchedFormat] = useState<'xlsx' | 'csv'>('xlsx');
-  const [schedRecipients, setSchedRecipients] = useState('frxcxstudio@gmail.com');
+  const [schedRecipients, setSchedRecipients] = useState('frzzystudio@gmail.com');
   const [savingSchedule, setSavingSchedule] = useState(false);
 
   // Reauth for re-downloads
