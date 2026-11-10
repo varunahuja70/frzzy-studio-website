@@ -14,6 +14,7 @@ import { readLivePalette } from '@/lib/palette';
  */
 
 const CALENDLY_ORIGIN = 'https://calendly.com';
+const DEFAULT_CALENDLY_URL = 'https://calendly.com/frxcxstudio/30min';
 
 // Brand colours from the active site palette (only applied on paid Calendly plans; the free plan shows white).
 const hex6 = (n: number) => n.toString(16).padStart(6, '0');
@@ -54,7 +55,20 @@ interface CalendlyEmbedProps {
 }
 
 export function CalendlyEmbed({ prefillName, prefillEmail, studioEmail }: CalendlyEmbedProps) {
-  const rawUrl = process.env.NEXT_PUBLIC_CALENDLY_URL || '';
+  const [overrideUrl, setOverrideUrl] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('frxcx_calendly_url');
+      if (saved && saved.trim()) {
+        setOverrideUrl(saved.trim());
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const rawUrl = overrideUrl || process.env.NEXT_PUBLIC_CALENDLY_URL || DEFAULT_CALENDLY_URL;
   const [loaded, setLoaded] = useState(false);
   const [booked, setBooked] = useState(false);
 

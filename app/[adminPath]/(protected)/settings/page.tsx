@@ -10,7 +10,7 @@ export default function AdminSettingsPage(props: {
   const { adminPath } = use(props.params);
   const router = useRouter();
 
-  const [calendlyUrl, setCalendlyUrl] = useState('https://calendly.com/frxcx-studio/intro-call');
+  const [calendlyUrl, setCalendlyUrl] = useState('https://calendly.com/frxcxstudio/30min');
   const [notifyOnNewLead, setNotifyOnNewLead] = useState(true);
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState('15');
   const [savedMessage, setSavedMessage] = useState(false);
