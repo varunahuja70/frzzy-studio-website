@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
       email: otpResult.email,
       expiresInMinutes: otpResult.expiresInMinutes,
       sentToEmail: otpResult.sentToEmail,
-      debugOtp: process.env.NODE_ENV !== 'production' ? otpResult.debugOtp : undefined,
+      debugOtp: process.env.NODE_ENV === 'test' ? otpResult.debugOtp : undefined,
       temporaryPassword: finalPassword,
     });
   } catch (err: any) {

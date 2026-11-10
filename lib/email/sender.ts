@@ -42,59 +42,50 @@ function getEmailTransporter() {
 
 /**
  * Dispatches an ultra-secure OTP verification email to the user.
- * If SMTP is configured, sends the email immediately.
- * In local/offline development, prints a glowing console banner and provides debugOtp.
+ * Never prints plaintext OTP in console logs.
  */
 export async function sendOtpVerificationEmail(props: OtpEmailProps): Promise<SendOtpResult> {
   const { email, name, otp, role, expiresInMinutes = 10 } = props;
   const html = renderOtpEmailHtml({ email, name, otp, role, expiresInMinutes });
-  const from = process.env.SMTP_FROM || `"FRZZY Studio Vault" <${process.env.SMTP_USER || 'vault@frzzy.studio'}>`;
+  const from = process.env.SMTP_FROM || `"FRZZY Studio" <${process.env.SMTP_GMAIL_USER || 'vault@frzzy.studio'}>`;
 
   const transporter = getEmailTransporter();
 
-  // Always log prominently to terminal in development for testing convenience
-  console.log(`
-\x1b[32m╔══════════════════════════════════════════════════════════════════════╗
-║                FRZZY STUDIO VAULT - OTP DISPATCH                     ║
-╠══════════════════════════════════════════════════════════════════════╣
-║ Recipient : \x1b[37m${email.padEnd(52)}\x1b[32m║
-║ User Name : \x1b[37m${name.padEnd(52)}\x1b[32m║
-║ Role Scope: \x1b[37m${role.padEnd(52)}\x1b[32m║
-║ OTP Code  : \x1b[1m\x1b[36m[ ${otp.split('').join(' ')} ]\x1b[0m\x1b[32m (Valid for ${expiresInMinutes} mins)             ║
-╚══════════════════════════════════════════════════════════════════════╝\x1b[0m
-  `);
+  // Log dispatch event securely without exposing plaintext OTP in terminal
+  const maskedEmail = email.replace(/(?<=^.{2}).+(?=@)/, '***');
+  console.log(`[Vault Security] OTP dispatch requested for ${maskedEmail} (Channel: ${transporter ? 'Gmail SMTP' : 'Local Sandbox'})`);
 
   if (transporter) {
     try {
       await transporter.sendMail({
         from,
         to: email,
-        subject: `[${otp}] Your FRZZY Studio Vault Verification Code`,
+        subject: `${otp} is your FRZZY Studio verification code`,
         html,
-        text: `Hello ${name},\n\nYour FRZZY Studio Vault verification code is: ${otp}\nValid for ${expiresInMinutes} minutes.\n\nDo not share this code with anyone.`,
+        text: `Hi ${name || 'there'},\n\nYour FRZZY Studio verification code is: ${otp}\n\nThis code will expire in ${expiresInMinutes} minutes.\nIf you did not request this code, you can safely ignore this email.\n\nBest,\nThe FRZZY Team`,
       });
+
+      console.log(`[Vault Security] OTP email delivered to ${maskedEmail} via SMTP successfully.`);
 
       return {
         success: true,
         sentToEmail: true,
-        debugOtp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+        debugOtp: process.env.NODE_ENV === 'test' ? otp : undefined,
       };
     } catch (err: any) {
-      console.error('[Email Dispatch] SMTP error:', err.message);
-      // Fallback in dev/local mode
+      console.error('[Vault Security] SMTP dispatch failed:', err.message);
       return {
         success: true,
         sentToEmail: false,
-        debugOtp: otp,
-        error: `SMTP error: ${err.message}. Code logged to server console.`,
+        debugOtp: process.env.NODE_ENV === 'test' ? otp : undefined,
+        error: `SMTP error: ${err.message}`,
       };
     }
   }
 
-  // When SMTP is not configured: local testing mode
   return {
     success: true,
     sentToEmail: false,
-    debugOtp: otp,
+    debugOtp: process.env.NODE_ENV === 'test' ? otp : undefined,
   };
 }

@@ -7,6 +7,8 @@ import { db, ensureDatabaseReady } from '@/lib/db';
 import { otpVerifications } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { sendOtpVerificationEmail } from '@/lib/email/sender';
+import { hashOtp } from '@/lib/auth/otp-service';
+import { decryptPii } from '@/lib/auth/encryption';
 
 const ResendSchema = z.object({
   verificationId: z.string().uuid(),
@@ -47,10 +49,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This verification has already been completed' }, { status: 400 });
     }
 
-    // Generate new OTP
+    // Generate new OTP with HMAC-SHA256 and server pepper
     const randomNum = crypto.randomInt(100000, 999999);
     const newOtp = randomNum.toString();
-    const newOtpHash = crypto.createHash('sha256').update(newOtp).digest('hex');
+    const newOtpHash = hashOtp(newOtp);
     const now = Date.now();
     const newExpiresAt = now + 10 * 60 * 1000;
 
@@ -63,7 +65,15 @@ export async function POST(req: NextRequest) {
       })
       .where(eq(otpVerifications.id, session.id));
 
-    const payload = JSON.parse(session.payload);
+    let payload: any = {};
+    try {
+      const decrypted = decryptPii(session.payload);
+      payload = JSON.parse(decrypted);
+    } catch {
+      try {
+        payload = JSON.parse(session.payload);
+      } catch {}
+    }
 
     const emailRes = await sendOtpVerificationEmail({
       email: session.email,
@@ -77,7 +87,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: 'A new verification code has been dispatched.',
       sentToEmail: emailRes.sentToEmail,
-      debugOtp: process.env.NODE_ENV !== 'production' ? emailRes.debugOtp : undefined,
+      debugOtp: process.env.NODE_ENV === 'test' ? emailRes.debugOtp : undefined,
     });
   } catch (err: any) {
     console.error('Resend OTP error:', err);

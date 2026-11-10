@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { sendOtpVerificationEmail } from '@/lib/email/sender';
 import { getAdminSupabaseClient } from '@/lib/supabase/admin';
 import { hashPassword, recordPasswordHistory } from '@/lib/auth/password';
+import { encryptPii, decryptPii } from '@/lib/auth/encryption';
 
 export interface UserCreationPayload {
   name: string;
@@ -15,6 +16,42 @@ export interface UserCreationPayload {
   customPermissions?: string[];
   leadScope?: any;
   status?: 'active' | 'disabled';
+}
+
+/**
+ * Computes an HMAC-SHA256 hash using the server pepper.
+ * Ensures that OTP hashes cannot be cracked with precomputed rainbow tables.
+ */
+export function hashOtp(otp: string): string {
+  const pepper = (process.env.ADMIN_PEPPER || 'vault-otp-pepper-default').trim();
+  return crypto.createHmac('sha256', pepper).update(otp.trim()).digest('hex');
+}
+
+/**
+ * Validates an entered OTP against a stored hash using constant-time comparison.
+ * Supports legacy SHA-256 for backward compatibility.
+ */
+export function verifyOtpHash(enteredOtp: string, storedHash: string): boolean {
+  try {
+    const pepperHash = hashOtp(enteredOtp);
+    if (
+      pepperHash.length === storedHash.length &&
+      crypto.timingSafeEqual(Buffer.from(pepperHash, 'hex'), Buffer.from(storedHash, 'hex'))
+    ) {
+      return true;
+    }
+
+    // Fallback for legacy plain SHA-256 without pepper
+    const legacyHash = crypto.createHash('sha256').update(enteredOtp.trim()).digest('hex');
+    if (
+      legacyHash.length === storedHash.length &&
+      crypto.timingSafeEqual(Buffer.from(legacyHash, 'hex'), Buffer.from(storedHash, 'hex'))
+    ) {
+      return true;
+    }
+  } catch {}
+
+  return false;
 }
 
 /**
@@ -35,7 +72,7 @@ export async function initiateUserCreationOtp(
   // Generate cryptographically secure 6-digit OTP
   const randomNum = crypto.randomInt(100000, 999999);
   const otp = randomNum.toString();
-  const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+  const otpHash = hashOtp(otp);
 
   const verificationId = crypto.randomUUID();
   const now = Date.now();
@@ -46,20 +83,23 @@ export async function initiateUserCreationOtp(
     .delete(otpVerifications)
     .where(and(eq(otpVerifications.email, payload.email.toLowerCase()), eq(otpVerifications.verified, false)));
 
+  // Encrypt sensitive user creation payload with AES-256-GCM before database insertion
+  const encryptedPayload = encryptPii(JSON.stringify(payload));
+
   // Save pending verification session
   await db.insert(otpVerifications).values({
     id: verificationId,
     email: payload.email.toLowerCase(),
     otpHash,
     action: 'user_creation',
-    payload: JSON.stringify(payload),
+    payload: encryptedPayload,
     attempts: 0,
     expiresAt,
     verified: false,
     createdAt: now,
   });
 
-  // Dispatch email with beautiful Curare template
+  // Dispatch email with beautiful responsive Curare template
   const emailRes = await sendOtpVerificationEmail({
     email: payload.email,
     name: payload.name,
@@ -121,9 +161,9 @@ export async function verifyUserCreationOtp(
     return { success: false, error: 'Too many incorrect attempts. Please initiate a new request.' };
   }
 
-  const inputHash = crypto.createHash('sha256').update(enteredOtp.trim()).digest('hex');
+  const isMatch = verifyOtpHash(enteredOtp, record.otpHash);
 
-  if (inputHash !== record.otpHash) {
+  if (!isMatch) {
     await db
       .update(otpVerifications)
       .set({ attempts: record.attempts + 1 })
@@ -136,8 +176,14 @@ export async function verifyUserCreationOtp(
     };
   }
 
-  // OTP is valid! Parse user payload
-  const payload: UserCreationPayload = JSON.parse(record.payload);
+  // OTP is valid! Decrypt user payload
+  let payload: UserCreationPayload;
+  try {
+    const decrypted = decryptPii(record.payload);
+    payload = JSON.parse(decrypted);
+  } catch {
+    payload = JSON.parse(record.payload);
+  }
 
   // Check if email already registered
   const existing = await db

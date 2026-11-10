@@ -8,6 +8,7 @@ try {
     process.loadEnvFile(envLocalPath);
   }
 } catch {}
+(process.env as any).NODE_ENV = 'test';
 
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
