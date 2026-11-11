@@ -37,6 +37,7 @@ import {
   Lock,
   Palette,
   Star,
+  Layers,
 } from 'lucide-react';
 import { VaultNotificationsPopover } from '@/components/admin/vault-notifications-popover';
 import { getLocalNotifications, NOTIF_EVENT_NAME } from '@/lib/client-notifications';
@@ -327,6 +328,14 @@ export function AdminLayoutShell({
       active: activePath.startsWith(`/${adminPath}/audit`),
       badge: null,
       show: hasPerm('audit:view'),
+    },
+    {
+      name: 'Projects & Showreel',
+      href: `/${adminPath}/projects`,
+      icon: Layers,
+      active: activePath.startsWith(`/${adminPath}/projects`),
+      badge: null,
+      show: hasPerm('settings:view'),
     },
     {
       name: 'Reviews',

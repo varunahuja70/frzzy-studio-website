@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { CaseStudy } from '@/components/frzzy/work-data';
+import { ProjectItem } from '@/lib/projects-shared';
 import { WorkCardArt } from '@/components/frzzy/work-card-art';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
 interface ProjectCardProps {
-  item: CaseStudy;
+  item: CaseStudy | ProjectItem;
   /** 1-based position in the full project list (stays the same when filters are applied). */
   index: number;
   total: number;

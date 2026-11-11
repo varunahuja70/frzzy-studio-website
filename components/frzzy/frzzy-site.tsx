@@ -8,8 +8,9 @@
  * (see components/frzzy/site-routes.ts).
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { CASES, CASE_ORDER, CaseStudy } from '@/components/frzzy/work-data';
+import { ProjectItem, getDefaultProjectsSeed } from '@/lib/projects-shared';
 import { pathFor, routeFromId, routeFromPath, type SiteRoute, type ViewRoute } from '@/components/frzzy/site-routes';
 import { HeroStrandsCanvas } from '@/components/frzzy/hero-strands-canvas';
 import { ShowreelPlayer } from '@/components/frzzy/showreel-player';
@@ -55,6 +56,24 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
   const [currentView, setCurrentView] = useState<ViewRoute>(initialView);
   const [currentCaseSlug, setCurrentCaseSlug] = useState<string>(initialSlug ?? 'grid-runner');
   const [workFilter, setWorkFilter] = useState<string>('all');
+  const [projectsList, setProjectsList] = useState<ProjectItem[]>(() => getDefaultProjectsSeed());
+
+  // Fetch live projects stored in Supabase
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/projects')
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data?.projects?.length > 0) {
+          setProjectsList(data.projects);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const toggleMenu = useCallback(() => setMobileMenuOpen((open) => !open), []);
   const closeMenu = useCallback(() => setMobileMenuOpen(false), []);
@@ -275,10 +294,23 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
     );
   };
 
-  const currentCase = CASES[currentCaseSlug] || CASES['grid-runner'];
-  const caseIndex = CASE_ORDER.indexOf(currentCaseSlug);
-  const nextCaseSlug = CASE_ORDER[(caseIndex + 1) % CASE_ORDER.length];
-  const nextCase = CASES[nextCaseSlug];
+  const currentCase =
+    projectsList.find((p) => p.slug === currentCaseSlug) ||
+    CASES[currentCaseSlug] ||
+    projectsList[0] ||
+    CASES['grid-runner'];
+
+  const projectOrderSlugs = projectsList.map((p) => p.slug);
+  const caseIndex = Math.max(0, projectOrderSlugs.indexOf(currentCaseSlug));
+  const nextCaseSlug = projectOrderSlugs[(caseIndex + 1) % projectOrderSlugs.length] || 'grid-runner';
+  const nextCase = projectsList.find((p) => p.slug === nextCaseSlug) || CASES[nextCaseSlug] || currentCase;
+
+  const homeProjects = useMemo(() => {
+    const featured = projectsList
+      .filter((p) => p.showOnHome)
+      .sort((a, b) => (a.homeOrder || 0) - (b.homeOrder || 0));
+    return featured.length > 0 ? featured.slice(0, 6) : projectsList.slice(0, 4);
+  }, [projectsList]);
 
   return (
     <div className="frzzy-site bg-[var(--black)] text-[var(--ivory)] min-h-screen relative font-[family-name:var(--display)] selection:bg-[var(--volt)] selection:text-[var(--on-volt)]">
@@ -541,12 +573,12 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                 </div>
 
                 <div className="work-grid">
-                  {CASE_ORDER.slice(0, 4).map((slug, i) => (
+                  {homeProjects.map((item, i) => (
                     <ProjectCard
-                      key={slug}
-                      item={CASES[slug]}
+                      key={item.id || item.slug}
+                      item={item}
                       index={i + 1}
-                      total={CASE_ORDER.length}
+                      total={homeProjects.length}
                       onOpen={navigateTo}
                     />
                   ))}
@@ -722,14 +754,14 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
               <Ambient at="tl" seed={3} />
               <div className="wrap">
                 {(() => {
-                  const visible = CASE_ORDER.filter(
-                    (slug) => workFilter === 'all' || CASES[slug].category === workFilter
+                  const visible = projectsList.filter(
+                    (p) => workFilter === 'all' || p.category === workFilter
                   );
                   // Feature one project in a wide card when it's part of the current filter.
-                  const featured = visible.includes(FEATURED_SLUG) ? FEATURED_SLUG : null;
-                  const rest = visible.filter((slug) => slug !== featured);
-                  const total = CASE_ORDER.length;
-                  const indexOf = (slug: string) => CASE_ORDER.indexOf(slug) + 1;
+                  const featured = visible.find((p) => p.slug === FEATURED_SLUG) || (visible.length > 0 ? visible[0] : null);
+                  const rest = featured ? visible.filter((p) => p.slug !== featured.slug) : visible;
+                  const total = projectsList.length;
+                  const indexOf = (slug: string) => Math.max(1, projectsList.findIndex((p) => p.slug === slug) + 1);
 
                   return (
                     <>
@@ -745,8 +777,9 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
 
                       {featured && (
                         <ProjectCard
-                          item={CASES[featured]}
-                          index={indexOf(featured)}
+                          key={featured.id || featured.slug}
+                          item={featured}
+                          index={indexOf(featured.slug)}
                           total={total}
                           onOpen={navigateTo}
                           featured
@@ -755,11 +788,11 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
 
                       {rest.length > 0 && (
                         <div className="work-grid three" id="all-work">
-                          {rest.map((slug) => (
+                          {rest.map((p) => (
                             <ProjectCard
-                              key={slug}
-                              item={CASES[slug]}
-                              index={indexOf(slug)}
+                              key={p.id || p.slug}
+                              item={p}
+                              index={indexOf(p.slug)}
                               total={total}
                               onOpen={navigateTo}
                             />
@@ -817,11 +850,11 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                   </div>
                   <div>
                     <p className="mono muted">Year</p>
-                    <p>2026</p>
+                    <p>{(currentCase as any).year || '2026'}</p>
                   </div>
                   <div>
                     <p className="mono muted">Made with</p>
-                    <p>Houdini · Cinema 4D · Octane · After Effects</p>
+                    <p>{(currentCase as any).software || 'Houdini · Cinema 4D · Octane · After Effects'}</p>
                   </div>
                 </div>
               </div>

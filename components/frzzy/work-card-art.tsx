@@ -2,9 +2,14 @@
 
 import React, { useRef, useEffect } from 'react';
 import { CaseStudy } from './work-data';
+import { ProjectItem } from '@/lib/projects-shared';
 
-export function WorkCardArt({ item }: { item: CaseStudy }) {
+type WorkItemLike = (Partial<CaseStudy> & Partial<ProjectItem>) & { artType?: string; title?: string };
+
+export function WorkCardArt({ item }: { item: WorkItemLike }) {
   const artRef = useRef<HTMLDivElement>(null);
+  const videoUrl = item.videoUrl;
+  const imageUrl = item.imageUrl;
 
   useEffect(() => {
     const art = artRef.current;
@@ -41,12 +46,50 @@ export function WorkCardArt({ item }: { item: CaseStudy }) {
     };
   }, []);
 
+  if (videoUrl) {
+    return (
+      <div
+        ref={artRef}
+        className="art tilt relative overflow-hidden bg-black"
+        role="img"
+        aria-label={item.title || 'Video project'}
+      >
+        <video
+          src={videoUrl}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-cover transition-transform duration-700 ease-out hover:scale-105"
+        />
+      </div>
+    );
+  }
+
+  if (imageUrl) {
+    return (
+      <div
+        ref={artRef}
+        className="art tilt relative overflow-hidden bg-black"
+        role="img"
+        aria-label={item.title || 'Project image'}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt={item.title || 'Project media'}
+          className="w-full h-full object-cover transition-transform duration-700 ease-out hover:scale-105"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       ref={artRef}
-      className={`art art-${item.artType} tilt`}
+      className={`art art-${item.artType || 'grid'} tilt`}
       role="img"
-      aria-label={item.ariaLabel}
+      aria-label={item.ariaLabel || item.title || 'Work artwork'}
     >
       {item.artType === 'grid' && (
         <>

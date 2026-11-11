@@ -1,16 +1,35 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
- * FRZZY Studio Homepage - Seamless 16:9 Continuous Looping Showreel
- * Clean cinematic video with interactive hover scale animation.
+ * FRZZY Studio Homepage - Seamless Continuous Looping Showreel
+ * Dynamically streams the active video directly from Supabase Storage / Supabase Settings.
+ * If deleted or updated in Supabase, it syncs live and falls back cleanly.
  */
-const REEL_VIDEO_SRC = '/assets/videos/works/work-1.mp4';
+const DEFAULT_VIDEO_SRC = '/assets/videos/works/work-1.mp4';
 
 export function ShowreelPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoSrc, setVideoSrc] = useState<string>(DEFAULT_VIDEO_SRC);
+
+  // Fetch latest active video from Supabase via /api/showreel
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/showreel')
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data?.showreel?.videoUrl) {
+          setVideoSrc(data.showreel.videoUrl);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Background loop: plays continuously whenever on screen
   useEffect(() => {
@@ -47,7 +66,7 @@ export function ShowreelPlayer() {
       io.disconnect();
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, []);
+  }, [videoSrc]);
 
   return (
     <div
@@ -55,8 +74,9 @@ export function ShowreelPlayer() {
       className="group/reel relative w-full h-full aspect-video overflow-hidden bg-black select-none rounded-[inherit] cursor-pointer"
     >
       <video
+        key={videoSrc}
         ref={videoRef}
-        src={REEL_VIDEO_SRC}
+        src={videoSrc}
         autoPlay
         loop
         muted
