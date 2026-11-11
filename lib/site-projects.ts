@@ -296,12 +296,12 @@ async function writeProjectsStore(store: ProjectsStore): Promise<void> {
 }
 
 export async function listAllProjects(): Promise<ProjectItem[]> {
-  const store = await readProjectsStore();
+  const store = await readProjectsStore(true);
   return store.projects;
 }
 
 export async function listHomeProjects(): Promise<ProjectItem[]> {
-  const store = await readProjectsStore();
+  const store = await readProjectsStore(true);
   // Filter for home page and slice to MAX_HOME_PROJECTS (0 to 6)
   return store.projects
     .filter((p) => p.showOnHome)
@@ -310,7 +310,7 @@ export async function listHomeProjects(): Promise<ProjectItem[]> {
 }
 
 export async function getProjectBySlug(slug: string): Promise<ProjectItem | null> {
-  const store = await readProjectsStore();
+  const store = await readProjectsStore(true);
   return store.projects.find((p) => p.slug === slug) || null;
 }
 

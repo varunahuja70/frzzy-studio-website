@@ -30,6 +30,9 @@ import {
   ShieldCheck,
   Play,
   RotateCcw,
+  FileVideo,
+  FileImage,
+  ArrowUpRight,
 } from 'lucide-react';
 import type {
   ProjectItem,
@@ -40,19 +43,20 @@ import type {
 } from '@/lib/projects-shared';
 import { PROJECT_CATEGORIES, ART_TYPES, MAX_HOME_PROJECTS } from '@/lib/projects-shared';
 
-// Luxury Theme Tokens matching Studio Vault & Dashboard
+// Luxury Theme Tokens - Studio Vault Electric Orange Edition (#ff4f31)
 const card =
-  'p-5 sm:p-6 rounded-[18px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.07] shadow-xs hover:border-black/15 dark:hover:border-white/15 transition-all';
+  'p-5 sm:p-6 rounded-[20px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.08] shadow-xs hover:border-[#ff4f31]/30 transition-all';
 const sub = 'text-xs text-[#5a6265] dark:text-[#a09d93]';
-const label = 'block text-[11px] font-semibold uppercase tracking-wider text-[#5a6265] dark:text-[#a09d93] mb-1.5';
+const label =
+  'block text-[11px] font-semibold uppercase tracking-wider text-[#5a6265] dark:text-[#a09d93] mb-1.5';
 const input =
-  'w-full h-10 px-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-[13px] text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#26D67C] transition-all placeholder:text-[#5a6265]/60';
+  'w-full h-11 px-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-[13px] text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#ff4f31] focus:ring-1 focus:ring-[#ff4f31]/30 transition-all placeholder:text-[#5a6265]/60';
 const btnPrimary =
-  'h-10 px-5 rounded-[12px] bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] hover:bg-[#26D67C] dark:hover:bg-[#26D67C] dark:hover:text-[#12110b] text-xs font-bold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
-const btnVolt =
-  'h-10 px-5 rounded-[12px] bg-[#26D67C] hover:bg-[#20ba6b] text-[#12110b] font-bold text-xs inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
+  'h-11 px-5 rounded-[12px] bg-[#ff4f31] hover:bg-[#ff3b1a] text-white font-semibold text-xs inline-flex items-center gap-2 shadow-lg shadow-[#ff4f31]/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
+const btnSecondary =
+  'h-11 px-4 rounded-[12px] bg-white dark:bg-[#181712] border border-black/10 dark:border-white/10 text-xs font-semibold text-[#12110b] dark:text-[#f4efea] inline-flex items-center gap-2 hover:border-[#ff4f31]/40 hover:text-[#ff4f31] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
 const btnGhost =
-  'h-9 px-3.5 rounded-[12px] bg-white dark:bg-[#181712] border border-black/10 dark:border-white/10 text-xs font-medium text-[#12110b] dark:text-[#f4efea] inline-flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
+  'h-9 px-3 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5 text-xs font-medium text-[#12110b] dark:text-[#f4efea] inline-flex items-center gap-1.5 hover:bg-[#ff4f31]/10 hover:text-[#ff4f31] hover:border-[#ff4f31]/20 transition-all cursor-pointer';
 
 const EMPTY_FORM: ProjectInput = {
   title: '',
@@ -63,11 +67,11 @@ const EMPTY_FORM: ProjectInput = {
   software: 'Cinema 4D · Octane · After Effects',
   idea: '',
   explored: [
-    'Looping seamless camera perspective',
-    'Clean volt accent discipline',
-    'High voltage particle motion',
+    'Seamless camera loop timed to 10 seconds',
+    'Controlled accent lighting and chrome reflections',
+    'Rendered at 60fps for high-density displays',
   ],
-  mediaType: 'art',
+  mediaType: 'video',
   videoUrl: '',
   imageUrl: '',
   artType: 'grid',
@@ -89,19 +93,29 @@ export default function AdminProjectsPage(props: {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
   // Showreel State
-  const [showreel, setShowreel] = useState<{ videoUrl: string; fileName?: string; source: string; updatedAt?: string } | null>(null);
+  const [showreel, setShowreel] = useState<{
+    videoUrl: string;
+    fileName?: string;
+    source: string;
+    updatedAt?: string;
+  } | null>(null);
   const [reelUploading, setReelUploading] = useState(false);
+  const [reelDragging, setReelDragging] = useState(false);
   const reelFileInputRef = useRef<HTMLInputElement>(null);
 
   // Project Modal State
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalTab, setModalTab] = useState<'details' | 'explored' | 'media' | 'placement'>('details');
+  const [activeSection, setActiveSection] = useState<'info' | 'media' | 'case' | 'placement'>('info');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProjectInput>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
 
-  // Media Upload inside Project Modal
+  // Media Drag & Drop & Live Preview
+  const [mediaDragging, setMediaDragging] = useState(false);
   const [mediaUploading, setMediaUploading] = useState(false);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const [localPreviewType, setLocalPreviewType] = useState<'video' | 'image' | null>(null);
+  const [uploadProgressText, setUploadProgressText] = useState<string>('');
   const projectMediaInputRef = useRef<HTMLInputElement>(null);
 
   // Exploration points state
@@ -115,21 +129,28 @@ export default function AdminProjectsPage(props: {
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setAlert({ type, message });
-    setTimeout(() => setAlert(null), 4000);
+    setTimeout(() => setAlert(null), 4500);
   };
 
-  // Fetch projects and showreel
+  // Broadcast sync event to public site components in current window
+  const notifyPublicSite = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('frzzy-projects-updated'));
+    }
+  };
+
+  // Fetch projects and showreel from API
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [projRes, reelRes] = await Promise.all([
-        fetch('/api/admin/projects'),
-        fetch('/api/admin/showreel'),
+        fetch(`/api/admin/projects?t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/admin/showreel?t=${Date.now()}`, { cache: 'no-store' }),
       ]);
 
       if (projRes.ok) {
         const data = await projRes.json();
-        if (data.projects) setProjects(data.projects);
+        if (Array.isArray(data.projects)) setProjects(data.projects);
         if (typeof data.canEdit === 'boolean') setCanEdit(data.canEdit);
       }
 
@@ -138,7 +159,7 @@ export default function AdminProjectsPage(props: {
         if (data.showreel) setShowreel(data.showreel);
       }
     } catch {
-      showToast('error', 'Failed to load projects from server');
+      showToast('error', 'Failed to load projects from Supabase');
     } finally {
       setLoading(false);
     }
@@ -148,11 +169,18 @@ export default function AdminProjectsPage(props: {
     loadData();
   }, [loadData]);
 
-  // Handle Showreel Video Upload
-  const handleShowreelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Clean up object URLs on modal close or unmount
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(localPreviewUrl);
+      }
+    };
+  }, [localPreviewUrl]);
 
+  // ================= SHOWREEL MANAGEMENT ================= //
+
+  const uploadReelFile = async (file: File) => {
     if (!file.type.startsWith('video/')) {
       showToast('error', 'Please select a valid video file (MP4, WebM, MOV)');
       return;
@@ -172,6 +200,7 @@ export default function AdminProjectsPage(props: {
       if (!res.ok) throw new Error(data.error || 'Failed to upload showreel');
 
       setShowreel(data.showreel);
+      notifyPublicSite();
       showToast('success', 'Showreel video uploaded and synced to Supabase Storage!');
     } catch (err: any) {
       showToast('error', err.message || 'Showreel upload failed');
@@ -181,9 +210,13 @@ export default function AdminProjectsPage(props: {
     }
   };
 
-  // Handle Showreel Video Reset/Delete
   const handleShowreelDelete = async () => {
-    if (!confirm('Are you sure you want to delete the custom showreel video from Supabase and restore the default showreel?')) return;
+    if (
+      !confirm(
+        'Are you sure you want to delete the custom video from Supabase Storage and restore the default showreel?'
+      )
+    )
+      return;
 
     try {
       const res = await fetch('/api/admin/showreel', { method: 'DELETE' });
@@ -191,25 +224,36 @@ export default function AdminProjectsPage(props: {
       if (!res.ok) throw new Error(data.error || 'Failed to delete showreel');
 
       setShowreel(data.showreel);
+      notifyPublicSite();
       showToast('success', 'Custom video removed from Supabase. Default showreel restored.');
     } catch (err: any) {
       showToast('error', err.message || 'Failed to delete showreel');
     }
   };
 
-  // Open Modal for New Project
+  // ================= PROJECT MODAL CONTROLS ================= //
+
   const handleOpenCreate = () => {
+    if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(localPreviewUrl);
+    }
+    setLocalPreviewUrl(null);
+    setLocalPreviewType(null);
     setEditingId(null);
     setForm({
       ...EMPTY_FORM,
       homeOrder: projects.length + 1,
     });
-    setModalTab('details');
+    setActiveSection('info');
     setModalOpen(true);
   };
 
-  // Open Modal for Editing Project
   const handleOpenEdit = (p: ProjectItem) => {
+    if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(localPreviewUrl);
+    }
+    setLocalPreviewUrl(p.videoUrl || p.imageUrl || null);
+    setLocalPreviewType(p.mediaType === 'video' ? 'video' : p.mediaType === 'image' ? 'image' : null);
     setEditingId(p.id);
     setForm({
       title: p.title,
@@ -227,11 +271,10 @@ export default function AdminProjectsPage(props: {
       showOnHome: p.showOnHome,
       homeOrder: p.homeOrder || 0,
     });
-    setModalTab('details');
+    setActiveSection('info');
     setModalOpen(true);
   };
 
-  // Auto-generate slug from title
   const handleTitleChange = (val: string) => {
     setForm((prev) => {
       const updated = { ...prev, title: val };
@@ -246,7 +289,87 @@ export default function AdminProjectsPage(props: {
     });
   };
 
-  // Toggle Show on Homepage with 0 to 6 Limit enforcement
+  // ================= DRAG & DROP MEDIA UPLOAD WITH INSTANT PREVIEW ================= //
+
+  const handleMediaFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+
+    const isVid = file.type.startsWith('video/');
+    const isImg = file.type.startsWith('image/');
+
+    if (!isVid && !isImg) {
+      showToast('error', 'Please drop a video (MP4/WebM/MOV) or an image (PNG/JPG/WebP/GIF)');
+      return;
+    }
+
+    // 1. Instant local preview
+    if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(localPreviewUrl);
+    }
+    const blobUrl = URL.createObjectURL(file);
+    setLocalPreviewUrl(blobUrl);
+    setLocalPreviewType(isVid ? 'video' : 'image');
+
+    // 2. Upload to Supabase Storage
+    try {
+      setMediaUploading(true);
+      setUploadProgressText(`Uploading ${file.name} to Supabase Storage...`);
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('projectId', editingId || 'new');
+
+      const res = await fetch('/api/admin/projects/upload', {
+        method: 'POST',
+        body: fd,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upload media');
+
+      if (data.isVideo) {
+        setForm((prev) => ({
+          ...prev,
+          mediaType: 'video',
+          videoUrl: data.publicUrl,
+          imageUrl: '',
+        }));
+        showToast('success', 'Video successfully uploaded to Supabase Storage!');
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          mediaType: 'image',
+          imageUrl: data.publicUrl,
+          videoUrl: '',
+        }));
+        showToast('success', 'Image successfully uploaded to Supabase Storage!');
+      }
+    } catch (err: any) {
+      showToast('error', err.message || 'Media upload failed');
+    } finally {
+      setMediaUploading(false);
+      setUploadProgressText('');
+      if (projectMediaInputRef.current) projectMediaInputRef.current.value = '';
+    }
+  };
+
+  const handleClearMedia = () => {
+    if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(localPreviewUrl);
+    }
+    setLocalPreviewUrl(null);
+    setLocalPreviewType(null);
+    setForm((prev) => ({
+      ...prev,
+      mediaType: 'art',
+      videoUrl: '',
+      imageUrl: '',
+    }));
+  };
+
+  // ================= FORM SUBMISSION & DELETION ================= //
+
   const handleToggleHome = async (p: ProjectItem) => {
     if (!p.showOnHome && homeCount >= MAX_HOME_PROJECTS) {
       showToast(
@@ -267,47 +390,18 @@ export default function AdminProjectsPage(props: {
       if (!res.ok) throw new Error(data.error || 'Failed to update');
 
       setProjects((prev) => prev.map((item) => (item.id === p.id ? data.project : item)));
-      showToast('success', !p.showOnHome ? 'Project featured on Homepage!' : 'Project moved to Work archive.');
+      notifyPublicSite();
+      showToast(
+        'success',
+        !p.showOnHome
+          ? `"${p.title}" is now featured on Homepage!`
+          : `"${p.title}" removed from Homepage.`
+      );
     } catch (err: any) {
       showToast('error', err.message || 'Update failed');
     }
   };
 
-  // Handle Project Media Upload to Supabase Storage
-  const handleProjectMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setMediaUploading(true);
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('projectId', editingId || 'new');
-
-      const res = await fetch('/api/admin/projects/upload', {
-        method: 'POST',
-        body: fd,
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upload media');
-
-      if (data.isVideo) {
-        setForm((prev) => ({ ...prev, mediaType: 'video', videoUrl: data.publicUrl }));
-        showToast('success', 'Project video uploaded directly to Supabase Storage!');
-      } else {
-        setForm((prev) => ({ ...prev, mediaType: 'image', imageUrl: data.publicUrl }));
-        showToast('success', 'Project image uploaded directly to Supabase Storage!');
-      }
-    } catch (err: any) {
-      showToast('error', err.message || 'Media upload failed');
-    } finally {
-      setMediaUploading(false);
-      if (projectMediaInputRef.current) projectMediaInputRef.current.value = '';
-    }
-  };
-
-  // Handle Form Submit (Create or Update)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -343,6 +437,7 @@ export default function AdminProjectsPage(props: {
         showToast('success', 'New project created and stored in Supabase!');
       }
 
+      notifyPublicSite();
       setModalOpen(false);
     } catch (err: any) {
       showToast('error', err.message || 'Save failed');
@@ -351,63 +446,99 @@ export default function AdminProjectsPage(props: {
     }
   };
 
-  // Handle Delete Project
   const handleDelete = async (p: ProjectItem) => {
-    if (!confirm(`Are you sure you want to permanently delete "${p.title}"? Media stored in Supabase will also be cleaned.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete "${p.title}"? Media files in Supabase Storage will also be wiped.`
+      )
+    ) {
       return;
     }
+
+    // Optimistic UI removal
+    setProjects((prev) => prev.filter((item) => item.id !== p.id));
 
     try {
       const res = await fetch(`/api/admin/projects/${p.id}`, { method: 'DELETE' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      if (!res.ok) {
+        // Rollback on failure
+        loadData();
+        throw new Error(data.error || 'Failed to delete');
+      }
 
-      setProjects((prev) => prev.filter((item) => item.id !== p.id));
-      showToast('success', `"${p.title}" removed from Supabase and site.`);
+      notifyPublicSite();
+      showToast('success', `"${p.title}" permanently deleted from Supabase & site.`);
     } catch (err: any) {
       showToast('error', err.message || 'Delete failed');
     }
   };
 
-  // Add explored point
   const handleAddPoint = () => {
     if (!newPoint.trim()) return;
     setForm((prev) => ({ ...prev, explored: [...prev.explored, newPoint.trim()] }));
     setNewPoint('');
   };
 
-  // Remove explored point
   const handleRemovePoint = (idx: number) => {
-    setForm((prev) => ({ ...prev, explored: prev.explored.filter((_, i) => i !== idx) }));
+    if (form.explored.length <= 1) {
+      showToast('error', 'Must have at least one explored bullet point');
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      explored: prev.explored.filter((_, i) => i !== idx),
+    }));
   };
 
-  // Filtered projects
-  const filteredProjects = projects.filter((p) => {
+  // Filtered list
+  const filtered = projects.filter((p) => {
+    const matchCat = selectedCategory === 'all' || p.category === selectedCategory;
     const matchSearch =
+      search.trim() === '' ||
       p.title.toLowerCase().includes(search.toLowerCase()) ||
       p.slug.toLowerCase().includes(search.toLowerCase()) ||
+      p.software.toLowerCase().includes(search.toLowerCase()) ||
       p.type.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = selectedCategory === 'all' || p.category === selectedCategory;
-    return matchSearch && matchCategory;
+    return matchCat && matchSearch;
   });
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300 max-w-7xl">
-      {/* 1. TOP HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2">
+    <div className="space-y-8 max-w-7xl mx-auto pb-16">
+      {/* Toast Notification */}
+      {alert && (
+        <div
+          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-[14px] text-xs font-semibold flex items-center gap-2.5 shadow-2xl backdrop-blur-md transition-all animate-in fade-in slide-in-from-top-4 ${
+            alert.type === 'success'
+              ? 'bg-[#12110b] dark:bg-[#1f1e18] text-[#ff4f31] border border-[#ff4f31]/40'
+              : 'bg-red-950/90 text-red-200 border border-red-800'
+          }`}
+        >
+          {alert.type === 'success' ? (
+            <CheckCircle2 className="h-4 w-4 text-[#ff4f31] shrink-0" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+          )}
+          <span>{alert.message}</span>
+        </div>
+      )}
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight text-[#12110b] dark:text-[#f4efea] flex items-center gap-2.5">
-              <Layers className="h-6 w-6 text-[#26D67C]" />
-              Studio Projects & Works
-            </h1>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-[#26D67C]/10 text-[#26D67C] border border-[#26D67C]/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#26D67C] animate-pulse" />
-              Supabase Live Sync
-            </span>
+          <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ff4f31] uppercase">
+            <Layers className="h-3.5 w-3.5" />
+            <span>Studio Vault · Projects &amp; Works</span>
           </div>
-          <p className={`${sub} mt-1`}>
-            Manage homepage showcase experiments, detailed portfolio case studies, and hero showreel media.
+          <h1 className="text-2xl sm:text-3xl font-light text-[#12110b] dark:text-[#f4efea] tracking-tight mt-1">
+            Portfolio <span className="font-semibold text-[#ff4f31]">Case Studies</span>
+          </h1>
+          <p className="text-xs text-[#5a6265] dark:text-[#a09d93] mt-1 max-w-xl">
+            Live synchronization with Supabase Database and Storage bucket{' '}
+            <code className="text-[#ff4f31] bg-[#ff4f31]/10 px-1.5 py-0.5 rounded font-mono">
+              public-media
+            </code>
+            . Deletions and additions instantly reflect on the public website.
           </p>
         </div>
 
@@ -416,284 +547,247 @@ export default function AdminProjectsPage(props: {
             type="button"
             onClick={loadData}
             disabled={loading}
-            className={btnGhost}
-            title="Refresh latest data from Supabase"
+            className={btnSecondary}
+            title="Refresh from Supabase"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-[#ff4f31]' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
 
-          <Link href="/work" target="_blank" className={btnGhost}>
-            <ExternalLink className="h-3.5 w-3.5" />
-            <span>Public Work</span>
-          </Link>
-
           {canEdit && (
-            <button onClick={handleOpenCreate} className={btnVolt}>
+            <button type="button" onClick={handleOpenCreate} className={btnPrimary}>
               <Plus className="h-4 w-4" />
-              <span>Add New Project</span>
+              <span>Create Project</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Toast Alert */}
-      {alert && (
-        <div
-          className={`p-3.5 sm:p-4 rounded-[14px] text-xs font-semibold flex items-center gap-2.5 shadow-sm transition-all animate-in fade-in ${
-            alert.type === 'success'
-              ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-              : 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400'
-          }`}
-        >
-          {alert.type === 'success' ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-          ) : (
-            <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-          )}
-          <span>{alert.message}</span>
-        </div>
-      )}
-
-      {/* 2. STATS ROW (Strict Linear / Apple Health Aesthetic) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Published Works */}
+      {/* Top Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className={card}>
           <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-semibold text-[#5a6265] dark:text-[#a09d93]">Total Works</span>
-            <div className="h-7 w-7 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
-              <Layers className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
-            <span className="text-[22px] font-bold tracking-tight text-[#12110b] dark:text-[#f4efea]">
-              {projects.length}
+            <span className={sub}>Total Works</span>
+            <span className="h-8 w-8 rounded-[10px] bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center">
+              <Layers className="h-4 w-4" />
             </span>
-            <span className="text-[11px] font-medium text-blue-500">All Live</span>
           </div>
-          <span className={`${sub} mt-1 block`}>Public case studies in database</span>
+          <p className="text-2xl sm:text-3xl font-light text-[#12110b] dark:text-[#f4efea] mt-2">
+            {projects.length}
+          </p>
+          <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93] mt-1">
+            {projects.length === 0 ? 'No projects published' : 'Live in Supabase store'}
+          </p>
         </div>
 
-        {/* Card 2: Homepage Featured Slot (Strict 0 to 6 Limit) */}
         <div className={card}>
           <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-semibold text-[#5a6265] dark:text-[#a09d93]">Homepage Showcase</span>
-            <div className="h-7 w-7 rounded-lg bg-[#26D67C]/10 text-[#26D67C] flex items-center justify-center">
-              <Sparkles className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
-            <span className="text-[22px] font-bold tracking-tight text-[#12110b] dark:text-[#f4efea]">
-              {homeCount} <span className="text-xs font-normal text-[#5a6265]">/ {MAX_HOME_PROJECTS} max</span>
-            </span>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                homeCount >= MAX_HOME_PROJECTS
-                  ? 'bg-amber-500/10 text-amber-500'
-                  : 'bg-[#26D67C]/10 text-[#26D67C]'
-              }`}
-            >
-              {homeCount >= MAX_HOME_PROJECTS ? 'Full (6/6)' : `${MAX_HOME_PROJECTS - homeCount} Available`}
+            <span className={sub}>Homepage Showcase</span>
+            <span className="h-8 w-8 rounded-[10px] bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center font-mono font-bold text-xs">
+              {homeCount}/{MAX_HOME_PROJECTS}
             </span>
           </div>
-          {/* Progress bar */}
-          <div className="w-full bg-black/5 dark:bg-white/5 h-1.5 rounded-full mt-2.5 overflow-hidden">
+          <div className="flex items-baseline gap-2 mt-2">
+            <p className="text-2xl sm:text-3xl font-light text-[#12110b] dark:text-[#f4efea]">
+              {homeCount}
+            </p>
+            <span className="text-xs text-[#5a6265] dark:text-[#a09d93]">/ {MAX_HOME_PROJECTS} max</span>
+          </div>
+          <div className="w-full bg-black/10 dark:bg-white/10 h-1.5 rounded-full mt-2.5 overflow-hidden">
             <div
-              className="bg-[#26D67C] h-full rounded-full transition-all duration-500"
-              style={{ width: `${(homeCount / MAX_HOME_PROJECTS) * 100}%` }}
+              className="bg-[#ff4f31] h-full rounded-full transition-all duration-300"
+              style={{ width: `${Math.min(100, (homeCount / MAX_HOME_PROJECTS) * 100)}%` }}
             />
           </div>
         </div>
 
-        {/* Card 3: Hero Showreel Status */}
         <div className={card}>
           <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-semibold text-[#5a6265] dark:text-[#a09d93]">Hero Showreel</span>
-            <div className="h-7 w-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center">
-              <Film className="h-3.5 w-3.5" />
-            </div>
+            <span className={sub}>Hero Showreel</span>
+            <span className="h-8 w-8 rounded-[10px] bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center">
+              <Film className="h-4 w-4" />
+            </span>
           </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
-            <span className="text-sm font-bold tracking-tight text-[#12110b] dark:text-[#f4efea] truncate max-w-[140px]">
+          <div className="flex items-center gap-2 mt-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                showreel?.source === 'supabase' ? 'bg-[#ff4f31] animate-pulse' : 'bg-emerald-500'
+              }`}
+            />
+            <span className="text-sm font-semibold text-[#12110b] dark:text-[#f4efea]">
               {showreel?.source === 'supabase' ? 'Custom Video' : 'Default Reel'}
             </span>
-            <span className="text-[11px] font-semibold text-emerald-500 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
-            </span>
           </div>
-          <span className={`${sub} mt-1 block truncate`}>
-            {showreel?.fileName || 'work-1.mp4 continuous loop'}
-          </span>
+          <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93] mt-1 truncate">
+            {showreel?.fileName || 'work-1.mp4 continuous'}
+          </p>
         </div>
 
-        {/* Card 4: Supabase Media Storage */}
         <div className={card}>
           <div className="flex items-center justify-between">
-            <span className="text-[11.5px] font-semibold text-[#5a6265] dark:text-[#a09d93]">Media Bucket</span>
-            <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-              <HardDrive className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-baseline justify-between">
-            <span className="text-sm font-bold tracking-tight text-[#12110b] dark:text-[#f4efea]">
-              public-media
-            </span>
-            <span className="text-[10px] font-mono text-[#26D67C] bg-[#26D67C]/10 px-1.5 py-0.5 rounded">
-              CDN Active
+            <span className={sub}>Supabase Storage</span>
+            <span className="h-8 w-8 rounded-[10px] bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center">
+              <HardDrive className="h-4 w-4" />
             </span>
           </div>
-          <span className={`${sub} mt-1 block`}>Videos & images stored in Supabase</span>
+          <p className="text-sm font-semibold text-[#12110b] dark:text-[#f4efea] mt-2 flex items-center gap-1.5">
+            <ShieldCheck className="h-4 w-4 text-[#ff4f31]" />
+            <span>public-media</span>
+          </p>
+          <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93] mt-1">
+            Direct video &amp; image uploads
+          </p>
         </div>
       </div>
 
-      {/* 3. CINEMATIC HERO SHOWREEL MANAGER */}
-      <div className="p-5 sm:p-7 rounded-[22px] bg-gradient-to-b from-white to-[#FAFAFA] dark:from-[#181712] dark:to-[#12110b] border border-black/[0.08] dark:border-white/[0.08] shadow-sm">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-5 border-b border-black/[0.06] dark:border-white/[0.07]">
-          <div>
+      {/* ================= HERO SHOWREEL DRAG & DROP BANNER ================= */}
+      <div className="p-6 rounded-[22px] bg-gradient-to-br from-white via-white to-black/[0.02] dark:from-[#181712] dark:via-[#181712] dark:to-black/40 border border-black/[0.08] dark:border-white/[0.08] shadow-sm relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5 max-w-xl">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#26D67C] animate-pulse" />
-              <h2 className="text-sm font-bold text-[#12110b] dark:text-[#f4efea]">
-                Homepage Continuous Showreel Player
-              </h2>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#26D67C]/10 text-[#26D67C] border border-[#26D67C]/20">
-                16:9 Cinema Loop
+              <span className="px-2.5 py-0.5 rounded-full bg-[#ff4f31]/10 border border-[#ff4f31]/20 text-[#ff4f31] text-[10px] font-mono font-bold uppercase">
+                Homepage Hero Video
+              </span>
+              <span className="text-xs text-[#5a6265] dark:text-[#a09d93]">
+                Autoplays continuously on the public website
               </span>
             </div>
-            <p className={`${sub} mt-1 max-w-2xl`}>
-              This continuous background video plays right under the header on the public homepage. You can upload any video here, or directly to Supabase Storage at <code className="text-[#26D67C] font-mono">public-media/showreel/</code>.
+            <h2 className="text-lg font-semibold text-[#12110b] dark:text-[#f4efea]">
+              Drag &amp; Drop Showreel Video
+            </h2>
+            <p className="text-xs text-[#5a6265] dark:text-[#a09d93]">
+              Drop an MP4, WebM, or MOV video file here to upload it straight to Supabase Storage.
+              If deleted, it automatically falls back to the default continuous showreel.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-            <input
-              type="file"
-              ref={reelFileInputRef}
-              onChange={handleShowreelUpload}
-              accept="video/mp4,video/webm,video/quicktime"
-              className="hidden"
-            />
-            <button
+          {/* Showreel Drag Drop Zone */}
+          <div className="flex items-center gap-4 shrink-0 flex-wrap">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setReelDragging(true);
+              }}
+              onDragLeave={() => setReelDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setReelDragging(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) uploadReelFile(f);
+              }}
               onClick={() => reelFileInputRef.current?.click()}
-              disabled={reelUploading || !canEdit}
-              className={btnVolt}
+              className={`px-5 py-4 rounded-[16px] border-2 border-dashed transition-all cursor-pointer flex items-center gap-3.5 ${
+                reelDragging
+                  ? 'border-[#ff4f31] bg-[#ff4f31]/10 scale-[1.02]'
+                  : 'border-black/15 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.02] hover:border-[#ff4f31]/50'
+              }`}
             >
-              {reelUploading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              <span>{reelUploading ? 'Uploading to Supabase…' : 'Upload Showreel Video'}</span>
-            </button>
-
-            {showreel?.source === 'supabase' && canEdit && (
-              <button
-                onClick={handleShowreelDelete}
-                className={`${btnGhost} text-rose-500 hover:border-rose-500/30 hover:bg-rose-500/10`}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span>Reset to Default</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center mt-6">
-          {/* Video Preview */}
-          <div className="lg:col-span-7 relative aspect-video rounded-[16px] overflow-hidden bg-black border border-black/15 dark:border-white/10 shadow-lg group">
-            <video
-              key={showreel?.videoUrl}
-              src={showreel?.videoUrl || '/assets/videos/works/work-1.mp4'}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute top-3 left-3 flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/75 backdrop-blur-md text-[#26D67C] border border-white/10 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#26D67C] animate-pulse" />
-                LIVE ON HOMEPAGE
-              </span>
-            </div>
-          </div>
-
-          {/* Details & Live Status */}
-          <div className="lg:col-span-5 space-y-3.5">
-            <div className="p-4 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06]">
-              <span className="text-[10.5px] uppercase font-bold text-[#5a6265] dark:text-[#a09d93]">
-                Source Information
-              </span>
-              <p className="font-semibold text-xs text-[#12110b] dark:text-[#f4efea] mt-1 flex items-center gap-1.5">
-                {showreel?.source === 'supabase' ? (
-                  <>
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[#26D67C]" /> Custom Supabase Storage Video
-                  </>
+              <input
+                ref={reelFileInputRef}
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadReelFile(f);
+                }}
+              />
+              <div className="h-10 w-10 rounded-xl bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center shrink-0">
+                {reelUploading ? (
+                  <RefreshCw className="h-5 w-5 animate-spin" />
                 ) : (
-                  <>
-                    <Film className="h-3.5 w-3.5 text-blue-500" /> Default Studio Showreel Loop
-                  </>
+                  <Upload className="h-5 w-5" />
                 )}
-              </p>
-              {showreel?.fileName && (
-                <p className="font-mono text-[11px] text-[#26D67C] mt-1 truncate">
-                  file: {showreel.fileName}
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-semibold text-[#12110b] dark:text-[#f4efea]">
+                  {reelUploading ? 'Uploading to Supabase...' : 'Drop new video here'}
                 </p>
-              )}
+                <p className="text-[10px] text-[#5a6265] dark:text-[#a09d93]">
+                  or click to select (MP4/WebM/MOV)
+                </p>
+              </div>
             </div>
 
-            <div className="p-4 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06]">
-              <span className="text-[10.5px] uppercase font-bold text-[#5a6265] dark:text-[#a09d93]">
-                Supabase Direct Sync
-              </span>
-              <p className="text-[11.5px] text-[#5a6265] dark:text-[#a09d93] mt-1 leading-relaxed">
-                If you upload or delete videos in your Supabase project under <code className="text-[#26D67C] font-mono">public-media/showreel/</code>, the website updates immediately.
-              </p>
-            </div>
+            {/* Video Preview or Reset */}
+            {showreel && (
+              <div className="flex items-center gap-2">
+                <a
+                  href={showreel.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={btnGhost}
+                  title="Open video URL"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Preview</span>
+                </a>
+
+                {showreel.source === 'supabase' && (
+                  <button
+                    type="button"
+                    onClick={handleShowreelDelete}
+                    className="h-9 px-3 rounded-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Delete custom showreel and restore default"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Reset to Default</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 4. CONTROLS BAR: CATEGORIES, SEARCH & VIEW MODE */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 pt-2">
+      {/* ================= SEARCH & FILTER TOOLBAR ================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
         {/* Category Pills */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
           <button
+            type="button"
             onClick={() => setSelectedCategory('all')}
-            className={`h-8 px-3.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
               selectedCategory === 'all'
-                ? 'bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] shadow-xs'
-                : 'bg-black/[0.04] dark:bg-white/[0.04] text-[#5a6265] dark:text-[#a09d93] hover:text-[#12110b] dark:hover:text-[#f4efea]'
+                ? 'bg-[#ff4f31] text-white shadow-sm'
+                : 'bg-black/[0.04] dark:bg-white/[0.05] text-[#5a6265] dark:text-[#a09d93] hover:text-[#ff4f31]'
             }`}
           >
             All Works ({projects.length})
           </button>
-          {PROJECT_CATEGORIES.map((c) => {
-            const count = projects.filter((p) => p.category === c.id).length;
+          {PROJECT_CATEGORIES.map((cat) => {
+            const count = projects.filter((p) => p.category === cat.id).length;
             return (
               <button
-                key={c.id}
-                onClick={() => setSelectedCategory(c.id)}
-                className={`h-8 px-3.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                  selectedCategory === c.id
-                    ? 'bg-[#12110b] dark:bg-[#f4efea] text-white dark:text-[#12110b] shadow-xs'
-                    : 'bg-black/[0.04] dark:bg-white/[0.04] text-[#5a6265] dark:text-[#a09d93] hover:text-[#12110b] dark:hover:text-[#f4efea]'
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  selectedCategory === cat.id
+                    ? 'bg-[#ff4f31] text-white shadow-sm'
+                    : 'bg-black/[0.04] dark:bg-white/[0.05] text-[#5a6265] dark:text-[#a09d93] hover:text-[#ff4f31]'
                 }`}
               >
-                {c.label} ({count})
+                {cat.label} ({count})
               </button>
             );
           })}
         </div>
 
-        {/* Search & View Switcher */}
-        <div className="flex items-center gap-2.5">
+        {/* Search & Layout Toggle */}
+        <div className="flex items-center gap-2">
           <div className="relative flex-1 sm:w-64">
-            <Search className="h-3.5 w-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5a6265]" />
+            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6265]" />
             <input
               type="text"
-              placeholder="Search by title, tag, slug..."
+              placeholder="Search title, slug, software..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-xs text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#26D67C] transition-colors"
+              className="w-full h-9 pl-9 pr-8 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-xs text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#ff4f31]"
             />
             {search && (
               <button
+                type="button"
                 onClick={() => setSearch('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#5a6265] hover:text-[#12110b] dark:hover:text-[#f4efea]"
               >
@@ -702,283 +796,295 @@ export default function AdminProjectsPage(props: {
             )}
           </div>
 
-          {/* Grid vs Table View Buttons */}
-          <div className="flex items-center p-0.5 rounded-[10px] bg-black/[0.04] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 shrink-0">
+          <div className="flex items-center rounded-[10px] bg-black/[0.04] dark:bg-white/[0.05] p-1 border border-black/5 dark:border-white/5">
             <button
+              type="button"
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-[8px] transition-colors ${
+              className={`p-1.5 rounded-[7px] transition-all cursor-pointer ${
                 viewMode === 'grid'
-                  ? 'bg-white dark:bg-[#181712] text-[#12110b] dark:text-[#f4efea] shadow-xs'
-                  : 'text-[#5a6265] dark:text-[#a09d93]'
+                  ? 'bg-white dark:bg-[#181712] text-[#ff4f31] shadow-xs'
+                  : 'text-[#5a6265] hover:text-[#12110b] dark:hover:text-[#f4efea]'
               }`}
               title="Grid View"
             >
-              <LayoutGrid className="h-4 w-4" />
+              <LayoutGrid className="h-3.5 w-3.5" />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-[8px] transition-colors ${
+              className={`p-1.5 rounded-[7px] transition-all cursor-pointer ${
                 viewMode === 'table'
-                  ? 'bg-white dark:bg-[#181712] text-[#12110b] dark:text-[#f4efea] shadow-xs'
-                  : 'text-[#5a6265] dark:text-[#a09d93]'
+                  ? 'bg-white dark:bg-[#181712] text-[#ff4f31] shadow-xs'
+                  : 'text-[#5a6265] hover:text-[#12110b] dark:hover:text-[#f4efea]'
               }`}
               title="Table View"
             >
-              <TableIcon className="h-4 w-4" />
+              <TableIcon className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* 5. PROJECTS PRESENTATION (GRID OR TABLE) */}
+      {/* ================= PROJECTS LIST / GRID ================= */}
       {loading ? (
-        <div className="p-16 text-center text-xs text-[#5a6265] dark:text-[#a09d93]">
-          <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-[#26D67C]" />
-          Connecting to Supabase and loading portfolio works…
+        <div className="py-24 text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto text-[#ff4f31]" />
+          <p className="text-xs text-[#5a6265] dark:text-[#a09d93] mt-3">
+            Loading projects from Supabase...
+          </p>
         </div>
-      ) : filteredProjects.length === 0 ? (
-        <div className="p-16 text-center rounded-[20px] border border-dashed border-black/15 dark:border-white/15 text-xs text-[#5a6265] dark:text-[#a09d93] space-y-3">
-          <Layers className="h-8 w-8 mx-auto text-[#5a6265]/40" />
-          <p className="font-semibold text-sm text-[#12110b] dark:text-[#f4efea]">No projects matched your query</p>
-          <p className="max-w-md mx-auto">Try clearing search filters or create a new experiment.</p>
+      ) : filtered.length === 0 ? (
+        <div className="p-12 rounded-[20px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/10 dark:border-white/10 text-center">
+          <Layers className="h-10 w-10 mx-auto text-[#5a6265] opacity-50" />
+          <h3 className="text-base font-medium text-[#12110b] dark:text-[#f4efea] mt-3">
+            No projects found
+          </h3>
+          <p className="text-xs text-[#5a6265] dark:text-[#a09d93] mt-1 max-w-sm mx-auto">
+            {search
+              ? 'No projects matched your search query.'
+              : 'You have no projects currently published. Click "Create Project" to add your first case study with Supabase storage.'}
+          </p>
           {canEdit && (
-            <button onClick={handleOpenCreate} className={btnVolt}>
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className={`${btnPrimary} mt-4`}
+            >
               <Plus className="h-4 w-4" />
               <span>Create Project</span>
             </button>
           )}
         </div>
       ) : viewMode === 'grid' ? (
-        /* GRID VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredProjects.map((p) => (
-            <div
-              key={p.id}
-              className={`${card} flex flex-col justify-between group relative overflow-hidden transition-all duration-300 hover:shadow-md`}
-            >
-              {/* Media Thumbnail (16:9) */}
-              <div className="relative aspect-video rounded-[14px] overflow-hidden bg-black mb-4 border border-black/10 dark:border-white/10">
-                {p.videoUrl ? (
-                  <video src={p.videoUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                ) : p.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.imageUrl} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-black/80 text-[#26D67C]">
-                    <Sparkles className="h-6 w-6 mb-1 text-[#26D67C]" />
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#a09d93]">
-                      Art: {p.artType}
-                    </span>
-                  </div>
-                )}
-
-                {/* Top Badge: Homepage status */}
-                <div className="absolute top-2.5 left-2.5">
-                  <span
-                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm backdrop-blur-md flex items-center gap-1.5 ${
-                      p.showOnHome
-                        ? 'bg-[#26D67C] text-[#12110b]'
-                        : 'bg-black/60 text-white/70 border border-white/10'
-                    }`}
-                  >
-                    {p.showOnHome ? (
-                      <>
-                        <Check className="h-3 w-3 stroke-[3]" /> Featured on Home
-                      </>
+          {filtered.map((p) => {
+            return (
+              <div
+                key={p.id}
+                className="group p-5 rounded-[20px] bg-white dark:bg-[#181712] border border-black/[0.08] dark:border-white/[0.08] hover:border-[#ff4f31]/40 shadow-xs transition-all flex flex-col justify-between"
+              >
+                <div>
+                  {/* Media Thumbnail Container */}
+                  <div className="relative aspect-video rounded-[14px] bg-black/5 dark:bg-black/40 overflow-hidden border border-black/5 dark:border-white/5 mb-4 group-hover:scale-[1.01] transition-transform">
+                    {p.videoUrl ? (
+                      <video
+                        src={p.videoUrl}
+                        muted
+                        loop
+                        playsInline
+                        onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.pause();
+                          e.currentTarget.currentTime = 0;
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : p.imageUrl ? (
+                      <img
+                        src={p.imageUrl}
+                        alt={p.title}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
-                      'Archive Only'
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#12110b] to-[#1f1e18] text-[#a09d93]">
+                        <Sparkles className="h-6 w-6 text-[#ff4f31] mb-1" />
+                        <span className="text-[10px] font-mono text-[#ff4f31]">
+                          Canvas Art · {p.artType}
+                        </span>
+                      </div>
                     )}
-                  </span>
-                </div>
 
-                {/* Bottom Badges: Category & Media Type */}
-                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-white border border-white/10">
-                    {p.category.toUpperCase()}
-                  </span>
-                  {p.videoUrl && (
-                    <span className="p-1 rounded-md bg-black/70 backdrop-blur-md text-[#26D67C] border border-white/10">
-                      <Video className="h-3 w-3" />
-                    </span>
-                  )}
-                  {p.imageUrl && (
-                    <span className="p-1 rounded-md bg-black/70 backdrop-blur-md text-[#26D67C] border border-white/10">
-                      <ImageIcon className="h-3 w-3" />
-                    </span>
-                  )}
-                </div>
-              </div>
+                    {/* Media Type Badge */}
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-white text-[10px] font-mono font-medium flex items-center gap-1">
+                        {p.mediaType === 'video' ? (
+                          <Video className="h-3 w-3 text-[#ff4f31]" />
+                        ) : p.mediaType === 'image' ? (
+                          <ImageIcon className="h-3 w-3 text-[#ff4f31]" />
+                        ) : (
+                          <Sparkles className="h-3 w-3 text-[#ff4f31]" />
+                        )}
+                        <span>{p.mediaType.toUpperCase()}</span>
+                      </span>
+                    </div>
 
-              {/* Title & Metadata */}
-              <div className="space-y-2 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-bold text-sm text-[#12110b] dark:text-[#f4efea] group-hover:text-[#26D67C] transition-colors line-clamp-1">
-                      {p.title}
-                    </h3>
-                    <p className="font-mono text-[11px] text-[#5a6265] dark:text-[#a09d93]">
-                      /{p.slug}
-                    </p>
+                    {/* Homepage Badge */}
+                    {p.showOnHome && (
+                      <div className="absolute top-2.5 right-2.5">
+                        <span className="px-2 py-0.5 rounded-full bg-[#ff4f31] text-white text-[10px] font-mono font-bold shadow-md">
+                          HOME #{p.homeOrder || 1}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-black/5 dark:bg-white/5 text-[#5a6265] dark:text-[#a09d93] shrink-0">
-                    {p.year}
-                  </span>
+
+                  {/* Meta & Title */}
+                  <div className="flex items-center justify-between text-[11px] text-[#5a6265] dark:text-[#a09d93] mb-1">
+                    <span className="font-mono text-[#ff4f31] uppercase">{p.category}</span>
+                    <span>{p.year}</span>
+                  </div>
+
+                  <h3 className="text-base font-semibold text-[#12110b] dark:text-[#f4efea] group-hover:text-[#ff4f31] transition-colors">
+                    {p.title}
+                  </h3>
+
+                  <p className="text-xs text-[#5a6265] dark:text-[#a09d93] line-clamp-2 mt-1.5">
+                    {p.idea}
+                  </p>
+
+                  <p className="text-[10px] font-mono text-[#5a6265]/80 dark:text-[#a09d93]/80 mt-2 truncate">
+                    {p.software}
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-[#26D67C] bg-[#26D67C]/10 px-2 py-0.5 rounded-md">
-                    {p.type}
-                  </span>
-                </div>
-
-                <p className="text-xs text-[#5a6265] dark:text-[#a09d93] line-clamp-2 leading-relaxed">
-                  {p.idea}
-                </p>
-
-                <div className="pt-2 text-[11px] text-[#5a6265] dark:text-[#a09d93] border-t border-black/[0.04] dark:border-white/[0.04]">
-                  <span className="font-semibold text-[#12110b] dark:text-[#f4efea]">Made with: </span>
-                  <span className="truncate">{p.software}</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-4 mt-3 border-t border-black/[0.06] dark:border-white/[0.07] flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleToggleHome(p)}
-                  disabled={!canEdit}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-[8px] border transition-colors cursor-pointer ${
-                    p.showOnHome
-                      ? 'border-[#26D67C]/40 bg-[#26D67C]/10 text-[#26D67C]'
-                      : 'border-black/10 dark:border-white/10 text-[#5a6265] dark:text-[#a09d93] hover:text-[#12110b] dark:hover:text-[#f4efea]'
-                  }`}
-                  title={p.showOnHome ? 'Click to remove from homepage' : 'Click to feature on homepage (max 6)'}
-                >
-                  {p.showOnHome ? '✓ On Home' : '+ Add to Home'}
-                </button>
-
-                <div className="flex items-center gap-1.5">
-                  <a
-                    href={`/work/${p.slug}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-1.5 rounded-[8px] text-[#5a6265] dark:text-[#a09d93] hover:text-[#12110b] dark:hover:text-[#f4efea] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                    title="View Public Case Study Page"
+                {/* Footer Controls */}
+                <div className="pt-4 mt-4 border-t border-black/5 dark:border-white/5 flex items-center justify-between gap-2">
+                  {/* Home Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleHome(p)}
+                    className={`h-8 px-2.5 rounded-[8px] text-[11px] font-medium inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                      p.showOnHome
+                        ? 'bg-[#ff4f31]/15 text-[#ff4f31] border border-[#ff4f31]/30 hover:bg-[#ff4f31]/25'
+                        : 'bg-black/[0.03] dark:bg-white/[0.04] text-[#5a6265] hover:text-[#ff4f31]'
+                    }`}
+                    title={
+                      p.showOnHome
+                        ? 'Click to remove from homepage'
+                        : 'Click to feature on homepage (max 6)'
+                    }
                   >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                    <Check className={`h-3 w-3 ${p.showOnHome ? 'text-[#ff4f31]' : 'opacity-40'}`} />
+                    <span>{p.showOnHome ? 'On Home' : 'Show on Home'}</span>
+                  </button>
 
-                  {canEdit && (
-                    <>
-                      <button
-                        onClick={() => handleOpenEdit(p)}
-                        className="p-1.5 rounded-[8px] text-[#5a6265] dark:text-[#a09d93] hover:text-[#26D67C] hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                        title="Edit Project"
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </button>
+                  {/* Actions */}
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={`/work/${p.slug}`}
+                      target="_blank"
+                      className="p-2 rounded-[8px] text-[#5a6265] hover:text-[#12110b] dark:hover:text-[#f4efea] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      title="Open live case study"
+                    >
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Link>
 
-                      <button
-                        onClick={() => handleDelete(p)}
-                        className="p-1.5 rounded-[8px] text-[#5a6265] dark:text-[#a09d93] hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Delete Project & Storage Media"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  )}
+                    {canEdit && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(p)}
+                          className="p-2 rounded-[8px] text-[#5a6265] hover:text-[#ff4f31] hover:bg-[#ff4f31]/10 transition-colors cursor-pointer"
+                          title="Edit project"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(p)}
+                          className="p-2 rounded-[8px] text-[#5a6265] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                          title="Delete project"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
-        /* TABLE VIEW */
-        <div className="rounded-[18px] bg-white dark:bg-[#181712] border border-black/[0.06] dark:border-white/[0.07] overflow-hidden shadow-xs">
+        /* Table View */
+        <div className="rounded-[20px] bg-white dark:bg-[#181712] border border-black/[0.08] dark:border-white/[0.08] overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-black/[0.06] dark:border-white/[0.07] bg-black/[0.02] dark:bg-white/[0.02] text-[#5a6265] dark:text-[#a09d93] font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Project</th>
-                  <th className="py-3.5 px-4">Category</th>
-                  <th className="py-3.5 px-4">Tags & Software</th>
-                  <th className="py-3.5 px-4 text-center">Homepage</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-black/[0.02] dark:bg-white/[0.02] border-b border-black/5 dark:border-white/5 text-[11px] font-mono text-[#5a6265] dark:text-[#a09d93] uppercase">
+                <tr>
+                  <th className="py-3 px-4">Project</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Media</th>
+                  <th className="py-3 px-4">Homepage</th>
+                  <th className="py-3 px-4">Software</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
-                {filteredProjects.map((p) => (
-                  <tr key={p.id} className="hover:bg-black/[0.015] dark:hover:bg-white/[0.015] transition-colors">
-                    <td className="py-3 px-4">
+              <tbody className="divide-y divide-black/5 dark:divide-white/5">
+                {filtered.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors"
+                  >
+                    <td className="py-3.5 px-4 font-semibold text-[#12110b] dark:text-[#f4efea]">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-16 rounded-[8px] bg-black overflow-hidden shrink-0 border border-black/10 dark:border-white/10">
+                        <div className="h-10 w-16 rounded-[8px] bg-black/10 dark:bg-black/50 overflow-hidden shrink-0 border border-black/5 dark:border-white/5">
                           {p.videoUrl ? (
-                            <video src={p.videoUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                            <video src={p.videoUrl} className="w-full h-full object-cover" />
                           ) : p.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
                             <img src={p.imageUrl} alt={p.title} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[#26D67C]">
-                              <Sparkles className="h-3.5 w-3.5" />
+                            <div className="w-full h-full flex items-center justify-center text-[9px] font-mono text-[#ff4f31]">
+                              ART
                             </div>
                           )}
                         </div>
                         <div>
-                          <p className="font-bold text-xs text-[#12110b] dark:text-[#f4efea]">{p.title}</p>
-                          <p className="font-mono text-[10px] text-[#5a6265] dark:text-[#a09d93]">/{p.slug}</p>
+                          <p className="font-semibold">{p.title}</p>
+                          <p className="text-[10px] font-mono text-[#5a6265] dark:text-[#a09d93]">
+                            /{p.slug}
+                          </p>
                         </div>
                       </div>
                     </td>
-
-                    <td className="py-3 px-4">
-                      <span className="font-semibold uppercase text-[10px] px-2 py-0.5 rounded bg-black/5 dark:bg-white/5 text-[#12110b] dark:text-[#f4efea]">
+                    <td className="py-3.5 px-4">
+                      <span className="px-2 py-0.5 rounded-full bg-[#ff4f31]/10 text-[#ff4f31] font-mono text-[10px] uppercase">
                         {p.category}
                       </span>
                     </td>
-
-                    <td className="py-3 px-4">
-                      <p className="font-semibold text-[11px] text-[#26D67C]">{p.type}</p>
-                      <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93] truncate max-w-[200px]">{p.software}</p>
+                    <td className="py-3.5 px-4 font-mono text-[11px] text-[#5a6265] dark:text-[#a09d93]">
+                      {p.mediaType}
                     </td>
-
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3.5 px-4">
                       <button
                         type="button"
                         onClick={() => handleToggleHome(p)}
-                        disabled={!canEdit}
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-colors ${
+                        className={`h-7 px-2 rounded-[6px] text-[10px] font-mono font-bold transition-all cursor-pointer ${
                           p.showOnHome
-                            ? 'bg-[#26D67C] text-[#12110b]'
-                            : 'bg-black/5 dark:bg-white/5 text-[#5a6265] dark:text-[#a09d93] hover:text-[#12110b] dark:hover:text-[#f4efea]'
+                            ? 'bg-[#ff4f31] text-white'
+                            : 'bg-black/[0.04] dark:bg-white/[0.05] text-[#5a6265] hover:text-[#ff4f31]'
                         }`}
                       >
-                        {p.showOnHome ? '✓ On Home' : 'Archive'}
+                        {p.showOnHome ? `HOME #${p.homeOrder || 1}` : 'OFF'}
                       </button>
                     </td>
-
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <a
+                    <td className="py-3.5 px-4 text-[#5a6265] dark:text-[#a09d93] text-[11px] truncate max-w-xs">
+                      {p.software}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <Link
                           href={`/work/${p.slug}`}
                           target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 rounded-[8px] text-[#5a6265] hover:text-[#12110b] dark:hover:text-[#f4efea]"
+                          className="p-1.5 rounded-[6px] text-[#5a6265] hover:text-[#12110b] dark:hover:text-[#f4efea]"
                         >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
+                          <ArrowUpRight className="h-4 w-4" />
+                        </Link>
                         {canEdit && (
                           <>
                             <button
+                              type="button"
                               onClick={() => handleOpenEdit(p)}
-                              className="p-1.5 rounded-[8px] text-[#5a6265] hover:text-[#26D67C] cursor-pointer"
+                              className="p-1.5 rounded-[6px] text-[#5a6265] hover:text-[#ff4f31] cursor-pointer"
                             >
-                              <Edit3 className="h-3.5 w-3.5" />
+                              <Edit3 className="h-4 w-4" />
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleDelete(p)}
-                              className="p-1.5 rounded-[8px] text-[#5a6265] hover:text-rose-500 cursor-pointer"
+                              className="p-1.5 rounded-[6px] text-[#5a6265] hover:text-red-500 cursor-pointer"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </>
                         )}
@@ -992,56 +1098,62 @@ export default function AdminProjectsPage(props: {
         </div>
       )}
 
-      {/* 6. LUXURY PROJECT EDITOR MODAL */}
+      {/* ================= MODAL: CREATE / EDIT PROJECT ================= */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#161510] border border-black/10 dark:border-white/10 rounded-[22px] max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-6 my-8 max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] dark:bg-[#161511] w-full sm:max-w-3xl sm:rounded-[24px] rounded-t-[24px] border border-black/10 dark:border-white/10 shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-white/[0.07]">
-              <div>
-                <h2 className="text-lg font-bold text-[#12110b] dark:text-[#f4efea] flex items-center gap-2">
-                  <Layers className="h-5 w-5 text-[#26D67C]" />
-                  {editingId ? 'Edit Portfolio Project' : 'Create New Portfolio Project'}
-                </h2>
-                <p className={`${sub} mt-0.5`}>
-                  Configures public case study, media files, and Supabase database records.
-                </p>
+            <div className="p-5 sm:p-6 border-b border-black/10 dark:border-white/10 flex items-center justify-between shrink-0 bg-white dark:bg-[#161511]">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-semibold text-[#12110b] dark:text-[#f4efea]">
+                    {editingId ? 'Edit Project Case Study' : 'Create New Portfolio Project'}
+                  </h2>
+                  <p className="text-xs text-[#5a6265] dark:text-[#a09d93]">
+                    Stored in Supabase database &amp; media storage
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setModalOpen(false)}
-                className="p-1.5 rounded-full text-[#5a6265] hover:text-[#12110b] dark:hover:text-[#f4efea] hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                className="h-9 w-9 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center text-[#5a6265] hover:text-[#12110b] dark:hover:text-white transition-colors cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Modal Nav Tabs */}
-            <div className="flex items-center gap-2 border-b border-black/[0.06] dark:border-white/[0.07] pb-3">
+            {/* Quick Section Switcher Pills */}
+            <div className="px-5 sm:px-6 py-2.5 bg-black/[0.02] dark:bg-white/[0.02] border-b border-black/5 dark:border-white/5 flex items-center gap-2 overflow-x-auto scrollbar-none shrink-0">
               {[
-                { id: 'details', label: '1. Basic Info' },
-                { id: 'explored', label: '2. Case Study Points' },
-                { id: 'media', label: '3. Media & Storage' },
-                { id: 'placement', label: '4. Placement' },
-              ].map((tab) => (
+                { id: 'info', label: '1. Basic Info' },
+                { id: 'media', label: '2. Media & Upload' },
+                { id: 'case', label: '3. Case Study Details' },
+                { id: 'placement', label: '4. Placement & Home' },
+              ].map((s) => (
                 <button
-                  key={tab.id}
+                  key={s.id}
                   type="button"
-                  onClick={() => setModalTab(tab.id as any)}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    modalTab === tab.id
-                      ? 'bg-[#26D67C]/15 text-[#26D67C] border border-[#26D67C]/30'
-                      : 'text-[#5a6265] dark:text-[#a09d93] hover:text-[#12110b] dark:hover:text-[#f4efea]'
+                  onClick={() => setActiveSection(s.id as any)}
+                  className={`px-3 py-1 rounded-[8px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    activeSection === s.id
+                      ? 'bg-[#ff4f31] text-white shadow-xs'
+                      : 'bg-black/5 dark:bg-white/5 text-[#5a6265] dark:text-[#a09d93] hover:text-[#ff4f31]'
                   }`}
                 >
-                  {tab.label}
+                  {s.label}
                 </button>
               ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* TAB 1: BASIC DETAILS */}
-              {modalTab === 'details' && (
-                <div className="space-y-4">
+            {/* Modal Body Form */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+              {/* SECTION 1: BASIC INFO */}
+              {activeSection === 'info' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={label}>Project Title *</label>
@@ -1060,7 +1172,12 @@ export default function AdminProjectsPage(props: {
                         type="text"
                         required
                         value={form.slug}
-                        onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().trim() })}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                          }))
+                        }
                         placeholder="e.g. grid-runner"
                         className={input}
                       />
@@ -1072,11 +1189,13 @@ export default function AdminProjectsPage(props: {
                       <label className={label}>Category *</label>
                       <select
                         value={form.category}
-                        onChange={(e) => setForm({ ...form, category: e.target.value as ProjectCategory })}
-                        className={input}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, category: e.target.value as ProjectCategory }))
+                        }
+                        className={`${input} cursor-pointer`}
                       >
                         {PROJECT_CATEGORIES.map((c) => (
-                          <option key={c.id} value={c.id}>
+                          <option key={c.id} value={c.id} className="bg-white dark:bg-[#181712]">
                             {c.label}
                           </option>
                         ))}
@@ -1084,23 +1203,24 @@ export default function AdminProjectsPage(props: {
                     </div>
 
                     <div>
-                      <label className={label}>Tags / Type *</label>
+                      <label className={label}>Subtitle Tag *</label>
                       <input
                         type="text"
                         required
                         value={form.type}
-                        onChange={(e) => setForm({ ...form, type: e.target.value })}
+                        onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
                         placeholder="e.g. Motion · Loop"
                         className={input}
                       />
                     </div>
 
                     <div>
-                      <label className={label}>Year</label>
+                      <label className={label}>Year *</label>
                       <input
                         type="text"
+                        required
                         value={form.year}
-                        onChange={(e) => setForm({ ...form, year: e.target.value })}
+                        onChange={(e) => setForm((prev) => ({ ...prev, year: e.target.value }))}
                         placeholder="2026"
                         className={input}
                       />
@@ -1108,95 +1228,41 @@ export default function AdminProjectsPage(props: {
                   </div>
 
                   <div>
-                    <label className={label}>Software / Made With *</label>
+                    <label className={label}>Made With (Software Tools)</label>
                     <input
                       type="text"
-                      required
                       value={form.software}
-                      onChange={(e) => setForm({ ...form, software: e.target.value })}
-                      placeholder="e.g. Houdini · Cinema 4D · Octane · After Effects"
+                      onChange={(e) => setForm((prev) => ({ ...prev, software: e.target.value }))}
+                      placeholder="e.g. Cinema 4D · Octane · After Effects · Houdini"
                       className={input}
                     />
                   </div>
-
-                  <div>
-                    <label className={label}>The Idea (Description Paragraph) *</label>
-                    <textarea
-                      required
-                      rows={3}
-                      value={form.idea}
-                      onChange={(e) => setForm({ ...form, idea: e.target.value })}
-                      placeholder="A seamless run across an endless volt grid. One colour, one horizon and a camera that never stops moving."
-                      className="w-full p-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-[13px] text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#26D67C] resize-none"
-                    />
-                  </div>
                 </div>
               )}
 
-              {/* TAB 2: WHAT WE EXPLORED */}
-              {modalTab === 'explored' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className={label}>Case Study Key Exploration Points</label>
-                    <p className={`${sub} mb-3`}>
-                      These bullet points appear under &quot;What we explored&quot; with the signature bolt icon on the public case study page.
-                    </p>
-
-                    <div className="space-y-2 mb-3 max-h-56 overflow-y-auto">
-                      {form.explored.map((point, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between gap-2 p-2.5 px-3 rounded-[10px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/10 dark:border-white/10 text-xs text-[#12110b] dark:text-[#f4efea]"
-                        >
-                          <span className="flex-1 font-medium">⚡ {point}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePoint(idx)}
-                            className="text-rose-500 hover:text-rose-600 p-1 cursor-pointer"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newPoint}
-                        onChange={(e) => setNewPoint(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddPoint();
-                          }
-                        }}
-                        placeholder="Add a new exploration point..."
-                        className={input}
-                      />
-                      <button type="button" onClick={handleAddPoint} className={btnGhost}>
-                        Add Point
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: MEDIA & SUPABASE STORAGE */}
-              {modalTab === 'media' && (
-                <div className="space-y-4">
+              {/* SECTION 2: MEDIA DRAG & DROP & PREVIEW */}
+              {activeSection === 'media' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between">
-                    <label className={label}>Select Media Mode</label>
-                    <div className="flex gap-1.5 p-1 rounded-lg bg-black/[0.03] dark:bg-white/[0.04]">
+                    <div>
+                      <p className="text-xs font-semibold text-[#12110b] dark:text-[#f4efea]">
+                        Project Media File (Video / Image)
+                      </p>
+                      <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93]">
+                        Upload directly to Supabase Storage with instant visual preview
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 p-1 rounded-[10px] bg-black/[0.04] dark:bg-white/[0.05]">
                       {(['video', 'image', 'art'] as ProjectMediaType[]).map((m) => (
                         <button
                           key={m}
                           type="button"
-                          onClick={() => setForm({ ...form, mediaType: m })}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold capitalize transition-all cursor-pointer ${
+                          onClick={() => setForm((prev) => ({ ...prev, mediaType: m }))}
+                          className={`px-2.5 py-1 rounded-[7px] text-[11px] font-mono uppercase font-semibold transition-all cursor-pointer ${
                             form.mediaType === m
-                              ? 'bg-[#26D67C] text-[#12110b] shadow-xs'
-                              : 'text-[#5a6265] dark:text-[#a09d93]'
+                              ? 'bg-[#ff4f31] text-white'
+                              : 'text-[#5a6265] hover:text-[#ff4f31]'
                           }`}
                         >
                           {m}
@@ -1205,65 +1271,130 @@ export default function AdminProjectsPage(props: {
                     </div>
                   </div>
 
-                  {/* Upload to Supabase Storage */}
-                  <div className="p-4 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.02] border border-dashed border-black/15 dark:border-white/15 text-center space-y-2.5">
+                  {/* DRAG & DROP ZONE */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setMediaDragging(true);
+                    }}
+                    onDragLeave={() => setMediaDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setMediaDragging(false);
+                      handleMediaFiles(e.dataTransfer.files);
+                    }}
+                    onClick={() => projectMediaInputRef.current?.click()}
+                    className={`p-6 sm:p-8 rounded-[18px] border-2 border-dashed transition-all cursor-pointer text-center relative overflow-hidden ${
+                      mediaDragging
+                        ? 'border-[#ff4f31] bg-[#ff4f31]/10 scale-[1.01]'
+                        : 'border-black/15 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.02] hover:border-[#ff4f31]/50'
+                    }`}
+                  >
                     <input
-                      type="file"
                       ref={projectMediaInputRef}
-                      onChange={handleProjectMediaUpload}
-                      accept={form.mediaType === 'video' ? 'video/*' : 'image/*'}
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,image/png,image/jpeg,image/webp,image/gif"
                       className="hidden"
+                      onChange={(e) => handleMediaFiles(e.target.files)}
                     />
-                    <button
-                      type="button"
-                      onClick={() => projectMediaInputRef.current?.click()}
-                      disabled={mediaUploading}
-                      className={btnVolt}
-                    >
-                      {mediaUploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      <span>{mediaUploading ? 'Uploading to Supabase…' : `Upload ${form.mediaType === 'video' ? 'Video' : 'Image'} to Supabase Storage`}</span>
-                    </button>
-                    <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93]">
-                      Target: Supabase bucket <code className="text-[#26D67C]">public-media/projects/</code>
+
+                    <div className="h-12 w-12 rounded-2xl bg-[#ff4f31]/10 text-[#ff4f31] flex items-center justify-center mx-auto mb-3">
+                      {mediaUploading ? (
+                        <RefreshCw className="h-6 w-6 animate-spin" />
+                      ) : (
+                        <Upload className="h-6 w-6" />
+                      )}
+                    </div>
+
+                    <p className="text-sm font-semibold text-[#12110b] dark:text-[#f4efea]">
+                      {mediaUploading ? uploadProgressText : 'Drag & Drop Video or Image Here'}
                     </p>
+                    <p className="text-xs text-[#5a6265] dark:text-[#a09d93] mt-1">
+                      Supports MP4, WebM, MOV (up to 100MB) or PNG, JPG, WebP (up to 20MB)
+                    </p>
+                    <span className="inline-block mt-3 px-3 py-1 rounded-[8px] bg-black/5 dark:bg-white/5 text-[11px] font-mono text-[#ff4f31]">
+                      Target: Supabase bucket public-media/projects/
+                    </span>
                   </div>
 
-                  {form.mediaType === 'video' && (
-                    <div>
-                      <label className={label}>Video URL (or direct uploaded Supabase link)</label>
-                      <input
-                        type="url"
-                        value={form.videoUrl || ''}
-                        onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
-                        placeholder="https://...supabase.co/storage/v1/object/public/.../video.mp4"
-                        className={input}
-                      />
+                  {/* LIVE MEDIA PREVIEW */}
+                  {(localPreviewUrl || form.videoUrl || form.imageUrl) && (
+                    <div className="p-4 rounded-[18px] bg-black/[0.03] dark:bg-black/40 border border-black/10 dark:border-white/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#ff4f31] flex items-center gap-1.5">
+                          {form.mediaType === 'video' ? (
+                            <FileVideo className="h-4 w-4" />
+                          ) : (
+                            <FileImage className="h-4 w-4" />
+                          )}
+                          <span>Live Media Preview</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleClearMedia}
+                          className="text-xs text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+
+                      <div className="rounded-[14px] overflow-hidden aspect-video bg-black flex items-center justify-center">
+                        {form.mediaType === 'video' ? (
+                          <video
+                            src={localPreviewUrl || form.videoUrl || ''}
+                            controls
+                            autoPlay
+                            muted
+                            loop
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={localPreviewUrl || form.imageUrl || ''}
+                            alt="Media Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  {form.mediaType === 'image' && (
-                    <div>
-                      <label className={label}>Image URL (or direct uploaded Supabase link)</label>
-                      <input
-                        type="url"
-                        value={form.imageUrl || ''}
-                        onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                        placeholder="https://...supabase.co/storage/v1/object/public/.../image.webp"
-                        className={input}
-                      />
-                    </div>
-                  )}
+                  {/* Direct URL input fallback */}
+                  <div className="pt-2 border-t border-black/5 dark:border-white/5">
+                    <label className={label}>
+                      {form.mediaType === 'video' ? 'Direct Video URL' : 'Direct Image URL'} (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={form.mediaType === 'video' ? form.videoUrl || '' : form.imageUrl || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (form.mediaType === 'video') {
+                          setForm((p) => ({ ...p, videoUrl: val }));
+                          setLocalPreviewUrl(val);
+                        } else {
+                          setForm((p) => ({ ...p, imageUrl: val }));
+                          setLocalPreviewUrl(val);
+                        }
+                      }}
+                      placeholder="https://...supabase.co/storage/v1/object/public/public-media/..."
+                      className={input}
+                    />
+                  </div>
 
                   {form.mediaType === 'art' && (
                     <div>
-                      <label className={label}>Procedural 3D Art Template</label>
+                      <label className={label}>Canvas Generative Art Type</label>
                       <select
                         value={form.artType}
-                        onChange={(e) => setForm({ ...form, artType: e.target.value as ProjectArtType })}
-                        className={input}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, artType: e.target.value as ProjectArtType }))
+                        }
+                        className={`${input} cursor-pointer`}
                       >
                         {ART_TYPES.map((a) => (
-                          <option key={a.id} value={a.id}>
+                          <option key={a.id} value={a.id} className="bg-white dark:bg-[#181712]">
                             {a.label}
                           </option>
                         ))}
@@ -1273,60 +1404,211 @@ export default function AdminProjectsPage(props: {
                 </div>
               )}
 
-              {/* TAB 4: HOMEPAGE PLACEMENT */}
-              {modalTab === 'placement' && (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/10 dark:border-white/10 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-[#12110b] dark:text-[#f4efea]">
-                        Show on Homepage (0 to {MAX_HOME_PROJECTS} limit)
-                      </p>
-                      <p className={`${sub} mt-0.5`}>
-                        Display this piece in &quot;01 / Work Studio experiments&quot; on the home page.
-                      </p>
-                      <p className="text-[11px] text-[#26D67C] font-semibold mt-1">
-                        Current slots used: {homeCount} of {MAX_HOME_PROJECTS}
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.showOnHome}
-                        onChange={(e) => setForm({ ...form, showOnHome: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-black/20 peer-focus:outline-none rounded-full peer dark:bg-white/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#26D67C]" />
-                    </label>
+              {/* SECTION 3: THE CASE STUDY */}
+              {activeSection === 'case' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div>
+                    <label className={label}>The Idea (Hero Case Study Paragraph) *</label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={form.idea}
+                      onChange={(e) => setForm((prev) => ({ ...prev, idea: e.target.value }))}
+                      placeholder="Describe the creative concept, visual technique, and goal of this project..."
+                      className="w-full p-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-[13px] text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#ff4f31] focus:ring-1 focus:ring-[#ff4f31]/30 transition-all resize-none placeholder:text-[#5a6265]/60"
+                    />
                   </div>
 
                   <div>
-                    <label className={label}>Homepage Display Order</label>
-                    <input
-                      type="number"
-                      value={form.homeOrder}
-                      onChange={(e) => setForm({ ...form, homeOrder: parseInt(e.target.value, 10) || 0 })}
-                      className={input}
-                    />
+                    <label className={label}>What We Explored (Case Study Bullet Points) *</label>
+                    <p className="text-[11px] text-[#5a6265] dark:text-[#a09d93] mb-2">
+                      Key creative takeaways shown on the public project case study page.
+                    </p>
+
+                    <div className="space-y-2 mb-3">
+                      {form.explored.map((point, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-[#ff4f31] w-5 text-right">
+                            {idx + 1}.
+                          </span>
+                          <input
+                            type="text"
+                            value={point}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setForm((prev) => {
+                                const exp = [...prev.explored];
+                                exp[idx] = val;
+                                return { ...prev, explored: exp };
+                              });
+                            }}
+                            className="flex-1 h-10 px-3 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-xs text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#ff4f31]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePoint(idx)}
+                            className="h-10 w-10 rounded-[10px] bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Add new exploration bullet point..."
+                        value={newPoint}
+                        onChange={(e) => setNewPoint(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddPoint();
+                          }
+                        }}
+                        className="flex-1 h-10 px-3 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 text-xs text-[#12110b] dark:text-[#f4efea] outline-none focus:border-[#ff4f31]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddPoint}
+                        className={btnSecondary}
+                      >
+                        <Plus className="h-4 w-4 text-[#ff4f31]" />
+                        <span>Add Point</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Modal Footer Actions */}
-              <div className="flex items-center justify-between pt-4 border-t border-black/[0.06] dark:border-white/[0.07]">
-                <div className="text-[11px] text-[#5a6265] dark:text-[#a09d93]">
-                  All changes sync to Supabase Database
+              {/* SECTION 4: PLACEMENT & HOMEPAGE */}
+              {activeSection === 'placement' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="p-4 rounded-[16px] bg-black/[0.03] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-[#12110b] dark:text-[#f4efea]">
+                        Feature on Homepage
+                      </p>
+                      <p className="text-xs text-[#5a6265] dark:text-[#a09d93]">
+                        Strictly between 0 and {MAX_HOME_PROJECTS} projects allowed on the homepage
+                        (currently {homeCount}/{MAX_HOME_PROJECTS}).
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          showOnHome: !prev.showOnHome,
+                        }))
+                      }
+                      className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                        form.showOnHome ? 'bg-[#ff4f31]' : 'bg-black/20 dark:bg-white/20'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                          form.showOnHome ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {form.showOnHome && (
+                    <div>
+                      <label className={label}>Homepage Display Order (1 to 6)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={MAX_HOME_PROJECTS}
+                        value={form.homeOrder || 1}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, homeOrder: parseInt(e.target.value) || 1 }))
+                        }
+                        className={input}
+                      />
+                    </div>
+                  )}
+
+                  <div className="p-4 rounded-[14px] bg-[#ff4f31]/10 border border-[#ff4f31]/20 flex items-start gap-3">
+                    <Info className="h-4 w-4 text-[#ff4f31] shrink-0 mt-0.5" />
+                    <p className="text-xs text-[#5a6265] dark:text-[#a09d93]">
+                      When published, this case study will be available at{' '}
+                      <code className="text-[#ff4f31] font-mono">/work/{form.slug || 'slug'}</code> and
+                      linked directly in the work archive.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2.5">
+              )}
+
+              {/* Modal Footer Controls */}
+              <div className="pt-4 border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-3 sticky bottom-0 bg-white dark:bg-[#161511]">
+                <div className="flex items-center gap-2">
+                  {activeSection !== 'info' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const order: Array<'info' | 'media' | 'case' | 'placement'> = [
+                          'info',
+                          'media',
+                          'case',
+                          'placement',
+                        ];
+                        const idx = order.indexOf(activeSection);
+                        if (idx > 0) setActiveSection(order[idx - 1]);
+                      }}
+                      className={btnSecondary}
+                    >
+                      Back
+                    </button>
+                  )}
+                  {activeSection !== 'placement' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const order: Array<'info' | 'media' | 'case' | 'placement'> = [
+                          'info',
+                          'media',
+                          'case',
+                          'placement',
+                        ];
+                        const idx = order.indexOf(activeSection);
+                        if (idx < order.length - 1) setActiveSection(order[idx + 1]);
+                      }}
+                      className={btnSecondary}
+                    >
+                      Next Step
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    className={btnGhost}
+                    className={btnSecondary}
                   >
                     Cancel
                   </button>
-                  <button type="submit" disabled={submitting} className={btnVolt}>
-                    {submitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    <span>{submitting ? 'Saving to Supabase…' : editingId ? 'Save Changes' : 'Create Project'}</span>
+
+                  <button
+                    type="submit"
+                    disabled={submitting || mediaUploading}
+                    className={btnPrimary}
+                  >
+                    {submitting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Saving to Supabase...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4" />
+                        <span>{editingId ? 'Update Project' : 'Create Project'}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

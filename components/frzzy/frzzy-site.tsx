@@ -52,25 +52,41 @@ const VIEW_LABELS: Record<string, string> = {
   book: 'Book a call',
 };
 
-export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?: ViewRoute; initialSlug?: string }) {
+export function FrzzySite({
+  initialView = 'home',
+  initialSlug,
+  initialProjects = [],
+}: {
+  initialView?: ViewRoute;
+  initialSlug?: string;
+  initialProjects?: ProjectItem[];
+}) {
   const [currentView, setCurrentView] = useState<ViewRoute>(initialView);
-  const [currentCaseSlug, setCurrentCaseSlug] = useState<string>(initialSlug ?? 'grid-runner');
+  const [currentCaseSlug, setCurrentCaseSlug] = useState<string>(initialSlug ?? '');
   const [workFilter, setWorkFilter] = useState<string>('all');
-  const [projectsList, setProjectsList] = useState<ProjectItem[]>(() => getDefaultProjectsSeed());
+  const [projectsList, setProjectsList] = useState<ProjectItem[]>(initialProjects);
 
-  // Fetch live projects stored in Supabase
+  // Fetch live projects stored in Supabase with zero cache
   useEffect(() => {
     let isMounted = true;
-    fetch('/api/projects')
-      .then((res) => res.json())
-      .then((data) => {
-        if (isMounted && data?.projects?.length > 0) {
-          setProjectsList(data.projects);
-        }
-      })
-      .catch(() => {});
+    const fetchFreshProjects = () => {
+      fetch(`/api/projects?t=${Date.now()}`, { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (isMounted && data?.success && Array.isArray(data.projects)) {
+            setProjectsList(data.projects);
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchFreshProjects();
+
+    const onUpdate = () => fetchFreshProjects();
+    window.addEventListener('frzzy-projects-updated', onUpdate);
     return () => {
       isMounted = false;
+      window.removeEventListener('frzzy-projects-updated', onUpdate);
     };
   }, []);
 
@@ -295,21 +311,23 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
   };
 
   const currentCase =
-    projectsList.find((p) => p.slug === currentCaseSlug) ||
-    CASES[currentCaseSlug] ||
+    (currentCaseSlug ? projectsList.find((p) => p.slug === currentCaseSlug) : null) ||
     projectsList[0] ||
-    CASES['grid-runner'];
+    (currentCaseSlug && CASES[currentCaseSlug] ? (CASES[currentCaseSlug] as any) : null);
 
   const projectOrderSlugs = projectsList.map((p) => p.slug);
   const caseIndex = Math.max(0, projectOrderSlugs.indexOf(currentCaseSlug));
-  const nextCaseSlug = projectOrderSlugs[(caseIndex + 1) % projectOrderSlugs.length] || 'grid-runner';
-  const nextCase = projectsList.find((p) => p.slug === nextCaseSlug) || CASES[nextCaseSlug] || currentCase;
+  const nextCaseSlug =
+    projectOrderSlugs.length > 0
+      ? projectOrderSlugs[(caseIndex + 1) % projectOrderSlugs.length]
+      : '';
+  const nextCase = (nextCaseSlug ? projectsList.find((p) => p.slug === nextCaseSlug) : null) || currentCase;
 
   const homeProjects = useMemo(() => {
-    const featured = projectsList
+    return projectsList
       .filter((p) => p.showOnHome)
-      .sort((a, b) => (a.homeOrder || 0) - (b.homeOrder || 0));
-    return featured.length > 0 ? featured.slice(0, 6) : projectsList.slice(0, 4);
+      .sort((a, b) => (a.homeOrder || 0) - (b.homeOrder || 0))
+      .slice(0, 6);
   }, [projectsList]);
 
   return (
@@ -572,17 +590,23 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
                   </div>
                 </div>
 
-                <div className="work-grid">
-                  {homeProjects.map((item, i) => (
-                    <ProjectCard
-                      key={item.id || item.slug}
-                      item={item}
-                      index={i + 1}
-                      total={homeProjects.length}
-                      onOpen={navigateTo}
-                    />
-                  ))}
-                </div>
+                {homeProjects.length > 0 ? (
+                  <div className="work-grid">
+                    {homeProjects.map((item, i) => (
+                      <ProjectCard
+                        key={item.id || item.slug}
+                        item={item}
+                        index={i + 1}
+                        total={homeProjects.length}
+                        onOpen={navigateTo}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mono muted empty-note" style={{ textAlign: 'center', padding: '36px 0' }}>
+                    No experiments currently featured on the homepage.
+                  </p>
+                )}
               </div>
             </section>
 
@@ -829,7 +853,31 @@ export function FrzzySite({ initialView = 'home', initialSlug }: { initialView?:
         {/* ======================================================== */}
         {/*                      CASE STUDY VIEW                     */}
         {/* ======================================================== */}
-        {currentView === 'case' && (
+        {currentView === 'case' && !currentCase && (
+          <div className="view enter" data-view="case">
+            <section className="page-hero">
+              <LiquidGradient preset="hero" />
+              <div className="wrap text-center py-24">
+                <p className="mono muted">Work / Archive</p>
+                <h1 className="page-title mt-2">
+                  No Project Selected<span className="dot">.</span>
+                </h1>
+                <p className="page-lede mx-auto mt-4 max-w-md">
+                  This experiment is not available or has been removed from the studio vault.
+                </p>
+                <div className="mt-8 flex justify-center gap-4">
+                  <a className="btn btn-volt magnetic" onClick={() => navigateTo('#work')}>
+                    All Works
+                  </a>
+                  <a className="btn btn-line magnetic" onClick={() => navigateTo('#home')}>
+                    Homepage
+                  </a>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+        {currentView === 'case' && currentCase && (
           <div className="view enter" data-view="case">
             <section className="page-hero">
               <LiquidGradient preset="hero" />

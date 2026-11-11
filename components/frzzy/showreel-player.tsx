@@ -17,7 +17,7 @@ export function ShowreelPlayer() {
   // Fetch latest active video from Supabase via /api/showreel
   useEffect(() => {
     let isMounted = true;
-    fetch('/api/showreel')
+    fetch(`/api/showreel?t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (isMounted && data?.showreel?.videoUrl) {

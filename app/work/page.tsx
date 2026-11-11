@@ -1,7 +1,10 @@
 import { FrzzySite } from '@/components/frzzy/frzzy-site';
+import { listAllProjects } from '@/lib/site-projects';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-export default function WorkPage() {
-  return <FrzzySite initialView="work" />;
+export default async function WorkPage() {
+  const projects = await listAllProjects().catch(() => []);
+  return <FrzzySite initialView="work" initialProjects={projects} />;
 }
