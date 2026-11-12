@@ -2163,10 +2163,11 @@ footer.site-foot {
   border: 1px solid var(--line);
   background: var(--charcoal);
   overflow: hidden;
+  transition: height .25s ease;
 }
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .cal-frame {
-    height: 1040px;
+    height: 590px;
   }
 }
 .cal-frame iframe {

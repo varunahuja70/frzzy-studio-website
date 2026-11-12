@@ -71,6 +71,7 @@ export function CalendlyEmbed({ prefillName, prefillEmail, studioEmail }: Calend
   const rawUrl = overrideUrl || process.env.NEXT_PUBLIC_CALENDLY_URL || DEFAULT_CALENDLY_URL;
   const [loaded, setLoaded] = useState(false);
   const [booked, setBooked] = useState(false);
+  const [dynamicHeight, setDynamicHeight] = useState<number | null>(null);
 
   // Prefill is captured once when the page opens; later edits shouldn't reload the scheduler mid-booking.
   const [initialPrefill] = useState({ name: prefillName, email: prefillEmail });
@@ -85,12 +86,20 @@ export function CalendlyEmbed({ prefillName, prefillEmail, studioEmail }: Calend
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== CALENDLY_ORIGIN) return;
-      const data = e.data as { event?: string } | null;
+      const data = e.data as { event?: string; payload?: { height?: string | number } } | null;
       if (!data || typeof data.event !== 'string') return;
-      // Note: Calendly's 'calendly.page_height' reports its inner content height (often <200px),
-      // not a usable frame height, so the frame keeps a fixed CSS height like Calendly's own embed.
       if (data.event === 'calendly.event_scheduled') {
         setBooked(true);
+      }
+      if (data.event === 'calendly.page_height' && data.payload?.height) {
+        const h = parseInt(String(data.payload.height), 10);
+        // Only accept realistic content heights (ignoring initial tiny loading spinner < 500px)
+        if (!isNaN(h) && h >= 500 && h <= 1000) {
+          const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+          // On mobile, cap tightly at 610px to eliminate any excess white padding
+          const targetH = isMobile ? Math.min(h, 600) : h;
+          setDynamicHeight(targetH);
+        }
       }
     };
     window.addEventListener('message', onMessage);
@@ -129,13 +138,18 @@ export function CalendlyEmbed({ prefillName, prefillEmail, studioEmail }: Calend
           </p>
         </div>
       )}
-      <div className="cal-frame">
+      <div
+        className="cal-frame"
+        style={dynamicHeight ? { height: `${dynamicHeight + 32}px` } : undefined}
+      >
         {!loaded && <div className="cal-loading mono muted">Loading available times…</div>}
         <iframe
           src={src}
           title="Book a call with FRZZY Studio"
           onLoad={() => setLoaded(true)}
           loading="lazy"
+          style={{ background: 'transparent' }}
+          allowTransparency
         />
       </div>
       <p className="mono muted cal-alt">
